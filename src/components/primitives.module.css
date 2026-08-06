@@ -1,0 +1,153 @@
+.chevron {
+  color: var(--ink-faint);
+  flex: none;
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.chevron[data-direction='right'] {
+  transform: rotate(-90deg);
+}
+
+/* --- Select ------------------------------------------------------------- */
+
+.select {
+  position: relative;
+  display: inline-flex;
+}
+
+.select[data-block='true'] {
+  display: flex;
+  width: 100%;
+}
+
+.select[data-block='true'] .selectFace {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.select[data-block='true'] .selectValue {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectFace {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.select:hover .selectFace {
+  background: var(--surface-hover);
+}
+
+.selectPrefix {
+  color: var(--ink-muted);
+}
+
+.selectValue {
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+}
+
+.selectHint {
+  color: var(--ink-faint);
+  font-size: var(--text-micro);
+  letter-spacing: 0.02em;
+}
+
+.selectInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  border: 0;
+}
+
+.selectInput:focus-visible + .selectFace,
+.select:focus-within .selectFace {
+  box-shadow: inset 0 0 0 1px var(--hairline-strong), var(--focus-ring);
+}
+
+/* The face is painted first in the DOM, so lift the invisible input above it. */
+.select .selectInput {
+  z-index: 1;
+}
+
+/* --- Overlay ------------------------------------------------------------ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  background: rgba(20, 20, 24, 0.18);
+  backdrop-filter: blur(2px);
+  animation: fade var(--duration-base) var(--ease);
+}
+
+:root[data-theme='dark'] .backdrop {
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.backdrop[data-variant='sheet'] {
+  justify-content: flex-end;
+}
+
+.backdrop[data-variant='palette'] {
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+
+.panel {
+  background: var(--surface);
+  box-shadow: var(--shadow-sheet);
+  animation: rise var(--duration-base) var(--ease);
+}
+
+.panel[data-variant='sheet'] {
+  width: min(480px, 100vw);
+  height: 100%;
+  border-left: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  animation: slide var(--duration-base) var(--ease);
+}
+
+.panel[data-variant='palette'] {
+  width: min(620px, calc(100vw - 32px));
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+}

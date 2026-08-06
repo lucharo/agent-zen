@@ -1,0 +1,101 @@
+/*
+ * A paper-margin surface: warm tint, ruled left edge, no agent chrome. It
+ * should read as handwriting next to the ledger, not as another data panel.
+ */
+.logbook {
+  margin: var(--space-5) 0 0;
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--logbook-tint);
+  border-left: 2px solid var(--logbook-rule);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--text-column);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.byline {
+  font-size: var(--text-micro);
+  color: var(--logbook-ink);
+}
+
+.empty {
+  margin-top: var(--space-3);
+  font-size: var(--text-meta);
+  color: var(--ink-muted);
+}
+
+.notes {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.note + .note {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--logbook-rule);
+}
+
+.noteBody {
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.noteTime {
+  margin-top: 2px;
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.input {
+  width: 100%;
+  resize: vertical;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--logbook-rule);
+  background: var(--surface);
+  font-family: inherit;
+}
+
+.input::placeholder {
+  color: var(--ink-faint);
+}
+
+.add {
+  height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+  box-shadow: inset 0 0 0 1px var(--logbook-rule);
+}
+
+.add:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.add:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+}

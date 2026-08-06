@@ -1,0 +1,121 @@
+/*
+ * Agent Zen design tokens.
+ *
+ * CZ3 Native Ledger shell proportions with CZ1 Quiet Canvas colour temperature.
+ * Every colour is defined in both palettes; nothing is derived at runtime.
+ * Metadata greys are held above 4.5:1 against their own surface.
+ */
+
+:root {
+  /* Type */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue',
+    'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  --text-title: 15px;
+  --text-body: 13.5px;
+  --text-meta: 12.5px;
+  --text-micro: 11.5px;
+  --text-column: 14px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Space — an 8px rhythm with a 4px half step */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --control-height: 32px;
+
+  --duration-fast: 110ms;
+  --duration-base: 180ms;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --canvas: #f2f2f4;
+  --surface: #ffffff;
+  --surface-sunken: #fafafb;
+  --surface-raised: #ffffff;
+  --surface-hover: #f4f4f6;
+  --surface-selected: #e9eaee;
+
+  --column: #f8f8f9;
+  --column-border: rgba(0, 0, 0, 0.055);
+
+  --hairline: rgba(0, 0, 0, 0.075);
+  --hairline-strong: rgba(0, 0, 0, 0.13);
+
+  --ink: #17171a;
+  --ink-secondary: #46474d;
+  --ink-muted: #63646b;
+  --ink-faint: #7c7d85;
+
+  --accent: #3268d6;
+  --accent-hover: #2b5ec6;
+  --accent-soft: #e6edfb;
+  --accent-ink: #ffffff;
+
+  --track: #e3e4e8;
+
+  --logbook-tint: #fbf8f1;
+  --logbook-rule: #e6dcc6;
+  --logbook-ink: #7a6432;
+
+  --shadow-card: 0 1px 1px rgba(0, 0, 0, 0.03);
+  --shadow-popover: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 8px 28px rgba(0, 0, 0, 0.14);
+  --shadow-sheet: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 18px 56px rgba(0, 0, 0, 0.2);
+  --focus-ring: 0 0 0 3px rgba(50, 104, 214, 0.28);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --canvas: #161618;
+  --surface: #232326;
+  --surface-sunken: #1c1c1f;
+  --surface-raised: #2a2a2e;
+  --surface-hover: #2c2c31;
+  --surface-selected: #35353b;
+
+  --column: #1b1b1e;
+  --column-border: rgba(255, 255, 255, 0.06);
+
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.16);
+
+  --ink: #f2f2f4;
+  --ink-secondary: #c3c4ca;
+  --ink-muted: #a1a2aa;
+  --ink-faint: #8b8c94;
+
+  --accent: #6f9bf0;
+  --accent-hover: #85abf5;
+  --accent-soft: #22314f;
+  --accent-ink: #10131a;
+
+  --track: #3a3a40;
+
+  --logbook-tint: #232019;
+  --logbook-rule: #4a412c;
+  --logbook-ink: #d3bd8b;
+
+  --shadow-card: 0 1px 1px rgba(0, 0, 0, 0.28);
+  --shadow-popover: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 10px 32px rgba(0, 0, 0, 0.55);
+  --shadow-sheet: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 20px 60px rgba(0, 0, 0, 0.6);
+  --focus-ring: 0 0 0 3px rgba(111, 155, 240, 0.34);
+}

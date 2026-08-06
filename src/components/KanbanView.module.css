@@ -1,0 +1,179 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: 0 var(--space-5) var(--space-4);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: var(--radius-xl);
+  background: var(--column);
+  border: 1px solid var(--column-border);
+  padding: var(--space-4) var(--space-3) var(--space-5);
+}
+
+.column[data-folded='true'] {
+  background: transparent;
+  border-color: transparent;
+}
+
+.columnHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) var(--space-4);
+  min-height: 26px;
+}
+
+.stageMark {
+  display: inline-flex;
+  color: var(--ink-faint);
+}
+
+.columnTitle {
+  font-size: var(--text-column);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.fold {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-1);
+  margin-left: calc(var(--space-1) * -1);
+}
+
+.hiddenCount {
+  font-size: var(--text-meta);
+  color: var(--ink-muted);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.empty {
+  padding: var(--space-2);
+  font-size: var(--text-meta);
+  color: var(--ink-faint);
+}
+
+/* --- Idea cards inside the board --------------------------------------- */
+
+.ideaCard {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline), var(--shadow-card);
+  text-align: left;
+  transition: box-shadow var(--duration-fast) var(--ease);
+}
+
+.ideaCard:hover {
+  box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.ideaTitle {
+  display: block;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.ideaMeta {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-meta);
+  color: var(--ink-muted);
+}
+
+.more {
+  padding: var(--space-2);
+  font-size: var(--text-meta);
+  color: var(--ink-muted);
+  border-radius: var(--radius-sm);
+}
+
+.more:hover {
+  color: var(--accent);
+}
+
+/* --- Quiet route to history -------------------------------------------- */
+
+.footer {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-5) var(--space-4);
+  flex: none;
+}
+
+.columnAdd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border-radius: var(--radius-sm);
+  color: var(--ink-faint);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
+}
+
+.column:hover .columnAdd,
+.columnAdd:focus-visible {
+  opacity: 1;
+}
+
+.columnAdd:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.archiveLink {
+  font-size: var(--text-meta);
+  color: var(--ink-muted);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) 0;
+}
+
+.archiveLink:hover {
+  color: var(--accent);
+}
+
+/*
+ * Below ~1200px the columns scroll sideways rather than compressing. Five
+ * squeezed columns stop being readable long before they stop fitting.
+ */
+@media (max-width: 1200px) {
+  .board {
+    grid-template-columns: repeat(5, minmax(268px, 1fr));
+    overflow-x: auto;
+    padding-inline: var(--space-4);
+  }
+
+  .footer {
+    padding-inline: var(--space-4);
+  }
+}

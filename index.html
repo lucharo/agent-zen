@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Agent Zen</title>
+    <script>
+      // Apply the persisted theme choice before first paint so a cold reload
+      // never flashes the wrong palette.
+      try {
+        var stored = localStorage.getItem('agent-zen.theme')
+        var choice = stored === 'light' || stored === 'dark' ? stored : 'system'
+        var resolved =
+          choice === 'system'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+            : choice
+        document.documentElement.dataset.theme = resolved
+        document.documentElement.dataset.themeChoice = choice
+      } catch (e) {
+        document.documentElement.dataset.theme = 'light'
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,294 @@
+import { describe, expect, it } from 'vitest'
+import { advancePlan, fixtureSessions } from '@/adapters/fixtureSource'
+import { filterIdeas, groupIdeas } from '@/domain/ideas'
+import {
+  activeSessionCount,
+  currentPlanStep,
+  deriveStage,
+  nativeStage,
+  planProgress,
+} from '@/domain/stage'
+import { dateBucket, formatDuration, formatSessionTiming } from '@/domain/time'
+import type { AgentSession, Idea, SemanticEvent, StageOverride } from '@/domain/types'
+import { SEED_PROJECTS, seedIdeas } from '@/state/seed'
+import { STORAGE_KEY, createInitialState, loadState, saveState } from '@/state/persistence'
+import { reducer } from '@/state/reducer'
+
+const NOW = new Date('2026-08-06T11:00:00Z').getTime()
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+
+const sessions = fixtureSessions(NOW)
+const byId = (id: string): AgentSession => {
+  const found = sessions.find((s) => s.id === id)
+  if (!found) throw new Error(`fixture ${id} is missing`)
+  return found
+}
+
+describe('deriveStage', () => {
+  it('drops an ended session off the board rather than into a Done column', () => {
+    expect(deriveStage(byId('sess-tool-update-docs'))).toBeNull()
+  })
+
+  it('places every live session from agent-reported state alone', () => {
+    // No overrides, no events: this is the zero-local-state case.
+    expect(deriveStage(byId('sess-index-threads'))).toBe('planning')
+    expect(deriveStage(byId('sess-control-plane'))).toBe('running')
+    expect(deriveStage(byId('sess-harbor-canary'))).toBe('reviewing')
+    expect(deriveStage(byId('sess-retire-dask'))).toBe('wrapping-up')
+  })
+
+  it('lets a human override outrank the agent', () => {
+    const override: StageOverride = {
+      sessionId: 'sess-control-plane',
+      stage: 'reviewing',
+      at: new Date(NOW).toISOString(),
+    }
+
+    expect(deriveStage(byId('sess-control-plane'), { override })).toBe('reviewing')
+  })
+
+  it('lets the latest semantic event outrank the agent', () => {
+    const events: SemanticEvent[] = [
+      {
+        id: 'evt-1',
+        sessionId: 'sess-control-plane',
+        kind: 'review-requested',
+        at: new Date(NOW - 2 * MINUTE).toISOString(),
+      },
+      {
+        id: 'evt-2',
+        sessionId: 'sess-control-plane',
+        kind: 'wrapup-invoked',
+        at: new Date(NOW - MINUTE).toISOString(),
+      },
+    ]
+
+    expect(deriveStage(byId('sess-control-plane'), { events })).toBe('wrapping-up')
+  })
+
+  it('discards stale review signals when work is returned to the agent', () => {
+    const reviewing = byId('sess-harbor-canary')
+    const events: SemanticEvent[] = [
+      {
+        id: 'evt-3',
+        sessionId: reviewing.id,
+        kind: 'returned-to-work',
+        at: new Date(NOW).toISOString(),
+      },
+    ]
+
+    expect(nativeStage(reviewing)).toBe('reviewing')
+    expect(deriveStage(reviewing, { events })).toBe('running')
+  })
+
+  it('ignores events belonging to another session', () => {
+    const events: SemanticEvent[] = [
+      {
+        id: 'evt-4',
+        sessionId: 'sess-harbor-canary',
+        kind: 'wrapup-invoked',
+        at: new Date(NOW).toISOString(),
+      },
+    ]
+
+    expect(deriveStage(byId('sess-control-plane'), { events })).toBe('running')
+  })
+})
+
+describe('activeSessionCount', () => {
+  it('counts root planning and running sessions only', () => {
+    // Five session cards are on the board; two consume a slot. The child agent
+    // runs inside its parent's, and reviewing/wrapping up wait on a human.
+    expect(activeSessionCount(sessions, (s) => deriveStage(s))).toBe(2)
+  })
+
+  it('does not count a child agent separately from its parent', () => {
+    const child = byId('sess-fixture-sweep')
+    expect(child.parentSessionId).toBe('sess-control-plane')
+    expect(activeSessionCount([child], (s) => deriveStage(s))).toBe(0)
+  })
+})
+
+describe('plan reading', () => {
+  it('reads a running session as on step N of M', () => {
+    const running = byId('sess-control-plane')
+    expect(currentPlanStep(running)).toBe('Generate three new mockups')
+    expect(planProgress(running)).toEqual({ completed: 3, total: 5 })
+  })
+
+  it('has nothing to show while a plan is still pending', () => {
+    const planning = byId('sess-index-threads')
+    expect(planning.plan).toBeNull()
+    expect(currentPlanStep(planning)).toBeNull()
+    expect(planProgress(planning)).toBeNull()
+  })
+})
+
+describe('advancePlan', () => {
+  it('replaces the current plan and files the old revision in history', () => {
+    const before = byId('sess-control-plane')
+    const at = new Date(NOW + MINUTE).toISOString()
+    const after = advancePlan(before, at)
+
+    expect(after.plan?.revision).toBe((before.plan?.revision ?? 0) + 1)
+    expect(after.planHistory).toHaveLength(before.planHistory.length + 1)
+    expect(after.planHistory.at(-1)?.revision).toBe(before.plan?.revision)
+    expect(currentPlanStep(after)).toBe('Wire the quick capture sheet')
+    expect(after.turnStartedAt).toBe(at)
+  })
+
+  it('wraps to a fresh revision once the last step completes', () => {
+    const start = byId('sess-fixture-sweep')
+    const total = start.plan?.steps.length ?? 0
+    const startIndex = (planProgress(start)?.completed ?? 1) - 1
+
+    let session = start
+    for (let i = 0; i < total - startIndex; i += 1) {
+      session = advancePlan(session, new Date(NOW + i * MINUTE).toISOString())
+    }
+
+    // Back at step one of a higher revision: the plan is replaced wholesale,
+    // never appended to, which is what "current plan" means for Codex.
+    expect(planProgress(session)).toEqual({ completed: 1, total })
+    expect(session.plan?.revision).toBeGreaterThan(start.plan?.revision ?? 0)
+  })
+})
+
+describe('time formatting', () => {
+  it('drops to the coarsest unit that still reads truthfully', () => {
+    expect(formatDuration(48_000)).toBe('48s')
+    expect(formatDuration(42 * MINUTE)).toBe('42m')
+    expect(formatDuration(2 * HOUR + 14 * MINUTE)).toBe('2h 14m')
+    expect(formatDuration(3 * HOUR)).toBe('3h')
+  })
+
+  it('labels both numbers on the session timing line', () => {
+    const created = new Date(NOW - 42 * MINUTE).toISOString()
+    const turn = new Date(NOW - 7 * MINUTE).toISOString()
+    expect(formatSessionTiming(created, turn, NOW)).toBe('42m total · 7m current turn')
+  })
+
+  it('omits the turn when the session is between turns', () => {
+    const created = new Date(NOW - 42 * MINUTE).toISOString()
+    expect(formatSessionTiming(created, null, NOW)).toBe('42m total')
+  })
+
+  it('buckets capture dates by how a person would name them', () => {
+    const at = (ms: number) => new Date(NOW - ms).toISOString()
+    expect(dateBucket(at(HOUR), NOW)).toBe('today')
+    expect(dateBucket(at(DAY), NOW)).toBe('yesterday')
+    expect(dateBucket(at(40 * DAY), NOW)).toBe('older')
+  })
+})
+
+describe('ideas', () => {
+  const ideas = seedIdeas(NOW)
+
+  it('groups by project and drops empty groups', () => {
+    const groups = groupIdeas(ideas, { groupBy: 'project', projects: SEED_PROJECTS, now: NOW })
+    expect(groups.every((group) => group.ideas.length > 0)).toBe(true)
+    expect(groups.map((group) => group.label)).toContain('No project')
+    expect(groups.reduce((n, group) => n + group.ideas.length, 0)).toBe(ideas.length)
+  })
+
+  it('groups by date newest first', () => {
+    const groups = groupIdeas(ideas, { groupBy: 'created', projects: SEED_PROJECTS, now: NOW })
+    expect(groups[0]?.key).toBe('today')
+    expect(groups.every((group) => group.ideas.length > 0)).toBe(true)
+  })
+
+  it('filters by project and by free text across title and notes', () => {
+    const sample: Idea[] = [
+      {
+        id: 'a',
+        title: 'Map the worktree layout',
+        notes: '',
+        projectId: 'proj-agent-zen',
+        repository: null,
+        action: 'keep-idea',
+        createdAt: new Date(NOW).toISOString(),
+      },
+      {
+        id: 'b',
+        title: 'Retire the old runner',
+        notes: 'depends on the worktree map',
+        projectId: 'proj-data-pipeline',
+        repository: null,
+        action: 'keep-idea',
+        createdAt: new Date(NOW).toISOString(),
+      },
+    ]
+
+    expect(filterIdeas(sample, { projectId: 'proj-data-pipeline' }).map((i) => i.id)).toEqual(['b'])
+    expect(filterIdeas(sample, { query: 'worktree' }).map((i) => i.id)).toEqual(['a', 'b'])
+    expect(filterIdeas(sample, { projectId: 'proj-agent-zen', query: 'runner' })).toEqual([])
+  })
+})
+
+describe('persistence', () => {
+  it('survives a save and load round trip', () => {
+    const storage = window.localStorage
+    const initial = createInitialState(NOW)
+    const captured = reducer(initial, {
+      type: 'capture-idea',
+      now: NOW,
+      draft: {
+        title: 'Persist across a cold reload',
+        notes: '',
+        projectId: 'proj-agent-zen',
+        repository: 'lucharo/agent-zen',
+        action: 'keep-idea',
+      },
+    })
+    const withNote = reducer(captured, {
+      type: 'add-logbook-note',
+      subjectId: 'sess-control-plane',
+      body: 'Checked the plan by hand.',
+      now: NOW,
+    })
+
+    saveState(storage, { ...withNote, theme: 'dark', view: 'ideas' })
+    const loaded = loadState(storage, NOW)
+
+    expect(loaded.theme).toBe('dark')
+    expect(loaded.view).toBe('ideas')
+    expect(loaded.ideas[0]?.title).toBe('Persist across a cold reload')
+    expect(loaded.logbook.at(-1)).toMatchObject({
+      subjectId: 'sess-control-plane',
+      body: 'Checked the plan by hand.',
+      author: 'human',
+    })
+  })
+
+  it('falls back to a fresh state when the stored blob is unreadable', () => {
+    window.localStorage.setItem(STORAGE_KEY, '{ not json')
+    expect(loadState(window.localStorage, NOW).projects).toEqual(SEED_PROJECTS)
+  })
+})
+
+describe('logbook ownership', () => {
+  it('stamps every note as human-authored and only ever appends', () => {
+    const at = createInitialState(NOW)
+    const one = reducer(at, {
+      type: 'add-logbook-note',
+      subjectId: 'idea-1',
+      body: 'first',
+      now: NOW,
+    })
+    const two = reducer(one, {
+      type: 'add-logbook-note',
+      subjectId: 'idea-1',
+      body: 'second',
+      now: NOW + MINUTE,
+    })
+
+    expect(two.logbook.map((n) => n.body)).toEqual([
+      ...at.logbook.map((n) => n.body),
+      'first',
+      'second',
+    ])
+    expect(two.logbook.every((n) => n.author === 'human')).toBe(true)
+  })
+})

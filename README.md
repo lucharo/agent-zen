@@ -1,11 +1,15 @@
 # Agent Zen
 
-A quiet local control plane for ideas, focus, and agent sessions, targeting Codex first.
+A calm local board for Codex sessions. Two views — **Kanban** and **Ideas** — over
+five stages: Ideas, Planning, Running, Reviewing, Wrapping up. No Done column;
+finished sessions go to quiet history.
 
-**Status:** Wayfinding; no implementation yet.
+    bun install
+    bun run dev      # http://localhost:5273
+    bun run check    # typecheck + tests + production build
 
-The canonical decision map is [Wayfinder: Define Agent Zen through a working control-plane prototype](https://github.com/lucharo/agent-zen/issues/1).
+Session data is read-only and arrives through the typed `CodexSessionSource`
+(`src/adapters/`), currently fixture-backed. Ideas, projects, stage overrides and
+the human-only Logbook are owned by Agent Zen and persisted to localStorage.
 
-The current frontier is [the three Codex-first visual directions](explorations/2026-08-05-codex-zen-directions/README.md): exactly two primary views, a five-stage session board, native Codex plan state, and project-aware quick capture. They supersede [the five-system review](explorations/2026-08-05-cohesive-design-systems/README.md), which remains as the decision history. These are visual briefs, not working software.
-
-Accepted product and integration decisions are indexed in [docs/adr](docs/adr/README.md).
+The implementation follows [the selected Codex-first visual direction](explorations/2026-08-05-codex-zen-directions/README.md). Accepted product, integration, Logbook, and prototype decisions are indexed in [docs/adr](docs/adr/README.md). Browser evidence lives in `qa/`.

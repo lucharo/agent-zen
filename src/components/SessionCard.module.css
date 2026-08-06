@@ -1,0 +1,183 @@
+.slot {
+  position: relative;
+}
+
+.card {
+  position: relative;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline), var(--shadow-card);
+  transition: box-shadow var(--duration-fast) var(--ease);
+}
+
+.card:hover {
+  box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.hit {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+
+.title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.project {
+  font-size: var(--text-meta);
+  color: var(--ink-muted);
+}
+
+.line {
+  margin-top: var(--space-3);
+  font-size: var(--text-body);
+  color: var(--ink-secondary);
+}
+
+.timing {
+  margin-top: var(--space-1);
+  font-size: var(--text-meta);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.progressCount {
+  font-size: var(--text-meta);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.track {
+  flex: 1 1 auto;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width var(--duration-base) var(--ease);
+}
+
+/* --- Child agent -------------------------------------------------------- */
+
+.children {
+  margin: 0 0 0 var(--space-4);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--hairline-strong);
+}
+
+.child {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}
+
+.child:hover {
+  color: var(--ink);
+}
+
+.childArrow {
+  color: var(--ink-faint);
+  flex: none;
+}
+
+.childTitle {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.childTime {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+/* --- Hover / focus metadata --------------------------------------------- */
+
+.popover {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: var(--space-4);
+  right: var(--space-4);
+  z-index: 20;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-popover);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-3px);
+  transition: opacity var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease), visibility var(--duration-fast);
+  pointer-events: none;
+}
+
+.card:hover .popover,
+.card:focus-within .popover {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+.caret {
+  position: absolute;
+  top: -4px;
+  left: var(--space-5);
+  width: 8px;
+  height: 8px;
+  background: var(--surface-raised);
+  transform: rotate(45deg);
+  border-radius: 1px;
+}
+
+.metaList {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: var(--text-meta);
+}
+
+.metaList dt {
+  color: var(--ink-muted);
+}
+
+.metaList dd {
+  margin: 0;
+  color: var(--ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.path {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+}
