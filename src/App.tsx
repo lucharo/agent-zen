@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { filterIdeas } from '@/domain/ideas'
 import { CAPTURE_SHORTCUT } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
-import { ArchiveSheet } from '@/components/ArchiveSheet'
 import { CaptureSheet } from '@/components/CaptureSheet'
 import { CommandPalette } from '@/components/CommandPalette'
 import { DetailSheet, type DetailTarget } from '@/components/DetailSheet'
@@ -17,23 +16,20 @@ export function App() {
   const { state, dispatch, sourceReady } = useAgentZen()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
-  const [archiveOpen, setArchiveOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [projectOnboardingOpen, setProjectOnboardingOpen] = useState(false)
   const [shortcutHints, setShortcutHints] = useState(false)
   const [detail, setDetail] = useState<DetailTarget>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const modalOpen = paletteOpen || captureOpen || archiveOpen || settingsOpen || projectOnboardingOpen || detail !== null
+  const modalOpen = paletteOpen || captureOpen || settingsOpen || projectOnboardingOpen || detail !== null
 
   const ideas = filterIdeas(state.ideas, { projectId: state.projectFilter })
 
   const openSession = useCallback((id: string) => {
-    setArchiveOpen(false)
     setDetail({ kind: 'session', id })
   }, [])
   const openIdea = useCallback((id: string) => setDetail({ kind: 'idea', id }), [])
   const openCapture = useCallback(() => setCaptureOpen(true), [])
-  const openArchive = useCallback(() => setArchiveOpen(true), [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -66,7 +62,6 @@ export function App() {
       if (event.key === 'Escape') {
         setPaletteOpen(false)
         setCaptureOpen(false)
-        setArchiveOpen(false)
         setSettingsOpen(false)
         setProjectOnboardingOpen(false)
         setDetail(null)
@@ -85,6 +80,21 @@ export function App() {
       window.removeEventListener('blur', onBlur)
     }
   }, [dispatch, modalOpen])
+
+  useEffect(() => {
+    const openNewIdea = () => {
+      if (!modalOpen) setCaptureOpen(true)
+    }
+    const openSettings = () => {
+      if (!modalOpen) setSettingsOpen(true)
+    }
+    window.addEventListener('agent-zen:new-idea', openNewIdea)
+    window.addEventListener('agent-zen:settings', openSettings)
+    return () => {
+      window.removeEventListener('agent-zen:new-idea', openNewIdea)
+      window.removeEventListener('agent-zen:settings', openSettings)
+    }
+  }, [modalOpen])
 
   useEffect(() => {
     if (!notice) return
@@ -122,11 +132,10 @@ export function App() {
             ideas={ideas}
             onOpenSession={openSession}
             onOpenIdea={openIdea}
-            onOpenArchive={openArchive}
             onCapture={openCapture}
           />
         ) : (
-          <IdeasView ideas={ideas} onOpenIdea={openIdea} />
+          <IdeasView ideas={ideas} onOpenIdea={openIdea} onCapture={openCapture} />
         )}
       </main>
 
@@ -141,13 +150,7 @@ export function App() {
         onOpenSession={openSession}
         onOpenIdea={openIdea}
         onOpenCapture={openCapture}
-        onOpenArchive={openArchive}
         onOpenSettings={() => setSettingsOpen(true)}
-      />
-      <ArchiveSheet
-        open={archiveOpen}
-        onClose={() => setArchiveOpen(false)}
-        onOpenSession={openSession}
       />
       <DetailSheet target={detail} onClose={() => setDetail(null)} />
       <SettingsDialog

@@ -34,7 +34,6 @@ export interface AgentZenValue {
   readonly dispatch: (action: Action) => void
   readonly sessions: readonly AgentSession[]
   readonly board: readonly BoardSession[]
-  readonly archived: readonly AgentSession[]
   readonly activeCount: number
   readonly launchAvailability: ReturnType<typeof launchAvailability>
   readonly agent: CodexSessionSource['agent']
@@ -43,6 +42,8 @@ export interface AgentZenValue {
   readonly sourceReady: boolean
   readonly connectionError: string | null
   readonly projectCandidates: readonly ProjectCandidate[]
+  /** Registered projects plus discovered projects that currently own a visible session. */
+  readonly availableProjects: readonly Project[]
   readonly projectSourceMode: ProjectDiscoverySource['mode']
   readonly projectSourceLabel: string
   readonly resolvedTheme: 'light' | 'dark'
@@ -120,6 +121,7 @@ export function AgentZenProvider({
         dispatch({
           type: 'sync-bridge-settings',
           projects: snapshot.projects,
+          knownProjectIds: snapshot.projectCandidates.map((project) => project.id),
           activeLimitEnabled: snapshot.focus.enabled,
           activeLimit: snapshot.focus.limit,
         })
@@ -154,8 +156,13 @@ export function AgentZenProvider({
   }, [resolvedTheme, state.theme])
 
   const value = useMemo<AgentZenValue>(() => {
-    const projectById = (id: string | null) =>
-      id ? (state.projects.find((p) => p.id === id) ?? null) : null
+    const discoveredProjects: Project[] = (bridgeSnapshot?.projectCandidates ?? []).map(
+      ({ id, name, directory, repository }) => ({ id, name, directory, repository }),
+    )
+    const projectCatalog = new Map<string, Project>()
+    for (const project of discoveredProjects) projectCatalog.set(project.id, project)
+    for (const project of state.projects) projectCatalog.set(project.id, project)
+    const projectById = (id: string | null) => (id ? projectCatalog.get(id) ?? null : null)
 
     const stageOf = (session: AgentSession) => deriveStage(session)
 
@@ -170,13 +177,20 @@ export function AgentZenProvider({
       }))
 
     const activeCount = activeSessionCount(live, stageOf)
+    const relevantProjectIds = new Set([
+      ...live.flatMap((session) => (session.projectId ? [session.projectId] : [])),
+      ...state.ideas.flatMap((idea) => (idea.projectId ? [idea.projectId] : [])),
+      ...state.projects.map((project) => project.id),
+    ])
+    const availableProjects = [...projectCatalog.values()]
+      .filter((project) => relevantProjectIds.has(project.id))
+      .sort((left, right) => left.name.localeCompare(right.name))
 
     return {
       state,
       dispatch,
       sessions,
       board,
-      archived: sessions.filter((s) => s.endedAt !== null),
       activeCount,
       launchAvailability: launchAvailability(
         activeCount,
@@ -189,6 +203,7 @@ export function AgentZenProvider({
       sourceReady: bridgeReady,
       connectionError: bridgeSnapshot?.connection.error ?? null,
       projectCandidates: bridgeSnapshot?.projectCandidates ?? discoverySource.snapshot(),
+      availableProjects,
       projectSourceMode: bridge ? 'live' : discoverySource.mode,
       projectSourceLabel: bridge ? 'Local Git discovery' : discoverySource.label,
       resolvedTheme,

@@ -2,12 +2,41 @@ import type {
   Idea,
   IdeaGroupBy,
   IdeaLayout,
+  KanbanCardDetail,
+  KanbanGroupBy,
   LogbookNote,
   Project,
   ThemeChoice,
   View,
 } from '@/domain/types'
-import { SEED_PROJECTS, seedIdeas, seedLogbook } from './seed'
+
+const PROTOTYPE_PROJECT_IDS = new Set(['agent-zen', 'data-pipeline', 'acm'])
+const PROTOTYPE_IDEA_IDS = new Set([
+  'idea-session-dashboard',
+  'idea-native-plan-reader',
+  'idea-worktree-map',
+  'idea-batch-visual-review',
+  'idea-register-personal-repos',
+  'idea-quiet-session-limits',
+  'idea-pr-ready-checklist',
+  'idea-auto-notes-summarizer',
+  'idea-smart-context-picker',
+  'idea-local-model-selector',
+  'idea-review-summary-exporter',
+  'idea-archive-sweep',
+  'idea-worktree-gc',
+  'idea-plan-drift-alerts',
+  'idea-idea-to-issue-batch',
+  'idea-keyboard-only-board',
+  'idea-session-cost-ledger',
+  'idea-repo-registration-import',
+])
+const PROTOTYPE_LOGBOOK_IDS = new Set([
+  'note-control-plane-1',
+  'note-control-plane-2',
+  'note-harbor-canary-1',
+  'note-worktree-map-1',
+])
 
 export const STORAGE_KEY = 'agent-zen.state.v1'
 /** Written separately so `index.html` can read it before React boots. */
@@ -18,7 +47,7 @@ export const THEME_KEY = 'agent-zen.theme'
  * store loses ideas and Logbook notes, never session state.
  */
 export interface PersistedState {
-  readonly version: 1
+  readonly version: 2
   readonly projects: readonly Project[]
   readonly ideas: readonly Idea[]
   readonly logbook: readonly LogbookNote[]
@@ -27,22 +56,26 @@ export interface PersistedState {
   readonly projectFilter: string | null
   readonly ideaGroupBy: IdeaGroupBy
   readonly ideaLayout: IdeaLayout
+  readonly kanbanGroupBy: KanbanGroupBy
+  readonly kanbanCardDetail: KanbanCardDetail
   readonly ideasFolded: boolean
   readonly activeLimitEnabled: boolean
   readonly activeLimit: number
 }
 
-export function createInitialState(now: number): PersistedState {
+export function createInitialState(_now: number): PersistedState {
   return {
-    version: 1,
-    projects: SEED_PROJECTS,
-    ideas: seedIdeas(now),
-    logbook: seedLogbook(now),
+    version: 2,
+    projects: [],
+    ideas: [],
+    logbook: [],
     theme: 'system',
     view: 'kanban',
     projectFilter: null,
     ideaGroupBy: 'created',
     ideaLayout: 'grid',
+    kanbanGroupBy: 'none',
+    kanbanCardDetail: 'details',
     ideasFolded: false,
     activeLimitEnabled: false,
     activeLimit: 3,
@@ -64,9 +97,25 @@ export function loadState(storage: Storage | undefined, now: number): PersistedS
   }
   if (!raw) return fallback
   try {
-    const parsed = JSON.parse(raw) as Partial<PersistedState>
-    if (parsed?.version !== 1) return fallback
-    return { ...fallback, ...parsed, version: 1 }
+    const parsed = JSON.parse(raw) as Omit<Partial<PersistedState>, 'version'> & {
+      version?: number
+    }
+    if (parsed?.version !== 1 && parsed?.version !== 2) return fallback
+    const migratingPrototype = parsed.version === 1
+    return {
+      ...fallback,
+      ...parsed,
+      version: 2,
+      projects: migratingPrototype
+        ? (parsed.projects ?? []).filter((project) => !PROTOTYPE_PROJECT_IDS.has(project.id))
+        : parsed.projects ?? [],
+      ideas: migratingPrototype
+        ? (parsed.ideas ?? []).filter((idea) => !PROTOTYPE_IDEA_IDS.has(idea.id))
+        : parsed.ideas ?? [],
+      logbook: migratingPrototype
+        ? (parsed.logbook ?? []).filter((note) => !PROTOTYPE_LOGBOOK_IDS.has(note.id))
+        : parsed.logbook ?? [],
+    }
   } catch {
     return fallback
   }

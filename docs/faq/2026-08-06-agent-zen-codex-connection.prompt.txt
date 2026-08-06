@@ -1,0 +1,15 @@
+Square 1:1 calm architecture diagram, white/off-white background, graphite lines, one muted blue accent, one soft amber accent only for the Focus gate, sans-serif, macOS-like schematic, generous whitespace. Top thin title strip: “How Agent Zen connects to Codex and enforces focus”.
+
+Body as a fork-and-merge architecture flow with EXACTLY 5 labeled zones, left-to-right then merge:
+1) “Agent Zen UI” zone on left: compact Kanban board plus small centred dialog overlays labeled “Quick capture”, “Session detail”, “Settings”, “Command help”. Label under zone: “Browser UI talks only to local bridge”.
+2) “Local Bun bridge” central gateway zone: box labeled “loopback 127.0.0.1”. On its boundary show “Host + Origin guard” and “registered roots only”. Inside this zone place a small optional diamond gate in soft amber labeled “Focus gate (optional, disabled by default)”. Annotate gate: “checked immediately before new root-session launch from Agent Zen”. Add a side note near gate: “Child agents share parent slot”.
+3) Upper-right branch “Owned Codex path”: one single box labeled “bundled codex app-server process” with small label “control over JSONL stdio”. Arrow from bridge through Focus gate to this box. Short call labels on arrow/box: “initialize / initialized”, “thread start/resume/read/list”, “turn start/steer/interrupt”, “review start”, and notifications back “turn started / plan updated / completed”.
+4) Lower-right branch “External Codex path”: separate box labeled “read-only state_5.sqlite” and beside/below it a small stack labeled “bounded rollout JSONL tails”. Arrow from bridge to these with label “observe only, never writes”. Add tiny source label: “Desktop / CLI / other process”. Note in this zone: “external sessions remain private to their own app-server runtime”.
+5) Bottom-center merge zone “Unified native session snapshot”: both branches merge here, then arrow back to UI/Kanban labeled “Planning / Running / Reviewing / Wrapping up”. Add note: “one snapshot; no second task ledger”.
+
+Critical annotations:
+- Next to Focus gate: “Only NEW Agent Zen root launches pass here”.
+- Next to external path and merge: “External sessions stay visible and count toward capacity”.
+- Tiny footnote in body: “Existing sessions are never killed.”
+
+Bottom caption strip: “Agent Zen controls only its own new root launches; all Codex sessions still appear in one board.”

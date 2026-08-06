@@ -1,6 +1,6 @@
 import { currentPlanStep, planProgress } from '@/domain/stage'
 import { formatDuration, elapsedSince, formatSessionTiming } from '@/domain/time'
-import type { AgentSession } from '@/domain/types'
+import type { AgentSession, KanbanCardDetail } from '@/domain/types'
 import type { BoardSession } from '@/state/store'
 import styles from './SessionCard.module.css'
 
@@ -10,9 +10,19 @@ export interface SessionCardProps {
   onOpen: (sessionId: string) => void
   columnIndex: number
   cardIndex: number
+  detail: KanbanCardDetail
+  showProject: boolean
 }
 
-export function SessionCard({ entry, now, onOpen, columnIndex, cardIndex }: SessionCardProps) {
+export function SessionCard({
+  entry,
+  now,
+  onOpen,
+  columnIndex,
+  cardIndex,
+  detail,
+  showProject,
+}: SessionCardProps) {
   const { session, stage, project, children } = entry
   const progress = planProgress(session)
 
@@ -28,33 +38,35 @@ export function SessionCard({ entry, now, onOpen, columnIndex, cardIndex }: Sess
           onClick={() => onOpen(session.id)}
         >
           <h3 className={styles.title}>{session.title}</h3>
-          <p className={styles.project}>{project?.name ?? 'No project'}</p>
+          {detail === 'details' && showProject ? (
+            <p className={styles.project}>{project?.name ?? 'No project'}</p>
+          ) : null}
 
-          {stage === 'planning' ? (
+          {detail === 'details' && stage === 'planning' ? (
             <p className={styles.line}>Starting · plan pending</p>
           ) : null}
 
-          {stage === 'running' ? (
+          {detail === 'details' && stage === 'running' ? (
             <p className={styles.line}>{currentPlanStep(session) ?? 'Between plan steps'}</p>
           ) : null}
 
-          {stage === 'reviewing' && session.review ? (
+          {detail === 'details' && stage === 'reviewing' && session.review ? (
             <p className={styles.line}>{reviewSummary(session)}</p>
           ) : null}
 
-          {stage === 'wrapping-up' && session.wrapup ? (
+          {detail === 'details' && stage === 'wrapping-up' && session.wrapup ? (
             <p className={styles.line}>
               wrapup · checks {session.wrapup.checksPassed} / {session.wrapup.checksTotal}
             </p>
           ) : null}
 
-          {stage !== 'planning' ? (
+          {detail === 'details' && stage !== 'planning' ? (
             <p className={styles.timing}>
               {formatSessionTiming(session.createdAt, session.turnStartedAt, now)}
             </p>
           ) : null}
 
-          {stage === 'running' && progress ? (
+          {detail === 'details' && stage === 'running' && progress ? (
             <span className={styles.progress}>
               <span className={styles.progressCount}>
                 {progress.completed} / {progress.total}
@@ -112,24 +124,48 @@ function reviewSummary(session: AgentSession): string {
 }
 
 /**
- * Hover and focus reveal only what the card deliberately leaves off: model,
- * repository, branch, worktree. Nothing already visible is repeated here, and
- * the same four rows are in the detail sheet for anyone not using a pointer.
+ * Hover and focus reveal the operational identity the card deliberately leaves
+ * off. The detail sheet carries the same information for non-pointer users.
  */
 function MetaPopover({ session }: { session: AgentSession }) {
+  const worktree = session.worktree ?? session.cwd
+
   return (
     <div className={styles.popover} role="note">
       <span className={styles.caret} aria-hidden="true" />
       <dl className={styles.metaList}>
         <dt>Model</dt>
         <dd>{session.model}</dd>
+        <dt>Effort</dt>
+        <dd>{session.reasoningEffort ?? '—'}</dd>
+        <dt>Codex</dt>
+        <dd>{session.cliVersion ?? '—'}</dd>
         <dt>Repository</dt>
         <dd>{session.repository ?? '—'}</dd>
         <dt>Branch</dt>
         <dd>{session.branch ?? '—'}</dd>
         <dt>Worktree</dt>
-        <dd className={styles.path}>{session.worktree ?? session.cwd}</dd>
+        <dd className={styles.path} aria-label={worktree}>
+          {compactPath(worktree)}
+        </dd>
+        <dt>Thread</dt>
+        <dd className={styles.path} aria-label={session.threadId}>
+          {compactIdentifier(session.threadId)}
+        </dd>
+        <dt>Turn</dt>
+        <dd className={styles.path} aria-label={session.turnId ?? 'No active turn'}>
+          {session.turnId ? compactIdentifier(session.turnId) : '—'}
+        </dd>
       </dl>
     </div>
   )
+}
+
+function compactPath(path: string): string {
+  return path.replace(/^\/(?:Users|home)\/[^/]+\//, '~/')
+}
+
+function compactIdentifier(identifier: string): string {
+  if (identifier.length <= 13) return identifier
+  return `${identifier.slice(0, 8)}…${identifier.slice(-4)}`
 }

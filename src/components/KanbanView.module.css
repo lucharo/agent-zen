@@ -10,9 +10,10 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-3);
   padding: 0 var(--space-5) var(--space-4);
-  align-items: start;
-  flex: 0 1 auto;
-  overflow: auto;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
   transition: grid-template-columns var(--duration-base) var(--ease);
 }
 
@@ -24,28 +25,28 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 420px;
+  max-height: calc(100vh - 84px);
+  overflow: hidden;
+  border: 1px solid var(--column-border);
   border-radius: var(--radius-xl);
   background: var(--column);
-  border: 1px solid var(--column-border);
-  padding: var(--space-4) var(--space-3) var(--space-5);
-  min-height: clamp(420px, 62vh, 620px);
-  max-height: calc(100vh - 116px);
-  overflow-y: auto;
 }
 
 .column[data-folded='true'] {
   align-items: center;
   min-width: 52px;
   padding-inline: var(--space-2);
-  overflow: hidden;
 }
 
 .columnHead {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-2) var(--space-4);
-  min-height: 26px;
+  min-height: 55px;
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  flex: none;
+  border-bottom: 1px solid transparent;
 }
 
 .stageMark {
@@ -53,19 +54,36 @@
 }
 
 .columnTitle {
+  min-width: 0;
   font-size: var(--text-column);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
   color: var(--ink);
 }
 
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--ink-secondary);
+  background: var(--surface-selected);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
 .fold {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  border-radius: var(--radius-sm);
+  min-width: 0;
   padding: 2px var(--space-1);
   margin-left: calc(var(--space-1) * -1);
+  border-radius: var(--radius-sm);
 }
 
 .fold[data-folded='true'] {
@@ -80,16 +98,16 @@
   transform: rotate(180deg);
 }
 
-.hiddenCount {
-  font-size: var(--text-meta);
-  color: var(--ink-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .column[data-folded='true'] .columnHead {
   flex-direction: column;
   gap: var(--space-3);
+  min-height: 0;
   padding-inline: 0;
+  border: 0;
+}
+
+.column[data-folded='true'] .count {
+  margin-left: 0;
 }
 
 .column[data-folded='true'] .columnAdd {
@@ -97,10 +115,70 @@
   opacity: 1;
 }
 
+.scrollFrame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.columnScroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0 var(--space-3) var(--space-5);
+}
+
+.scrollFrame[data-scrollable='true']:not([data-at-end='true'])::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 54px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--column) 80%);
+}
+
+.scrollHint {
+  position: absolute;
+  z-index: 3;
+  right: var(--space-3);
+  bottom: var(--space-2);
+  left: var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--text-micro);
+  text-align: center;
+  pointer-events: none;
+}
+
+.groups,
 .stack {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.projectGroup {
+  min-width: 0;
+}
+
+.projectHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-medium);
+}
+
+.projectHead span:last-child {
+  font-variant-numeric: tabular-nums;
 }
 
 .empty {
@@ -108,8 +186,6 @@
   font-size: var(--text-meta);
   color: var(--ink-faint);
 }
-
-/* --- Idea cards inside the board --------------------------------------- */
 
 .ideaCard {
   display: block;
@@ -152,22 +228,12 @@
   color: var(--accent);
 }
 
-/* --- Quiet route to history -------------------------------------------- */
-
-.footer {
-  display: flex;
-  align-items: center;
-  padding: 0 var(--space-5) var(--space-4);
-  flex: none;
-}
-
 .columnAdd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
-  margin-left: auto;
   border-radius: var(--radius-sm);
   color: var(--ink-faint);
   opacity: 0;
@@ -180,37 +246,17 @@
 }
 
 .columnAdd:hover {
-  background: var(--surface-hover);
   color: var(--ink);
+  background: var(--surface-hover);
 }
 
-.archiveLink {
-  font-size: var(--text-meta);
-  color: var(--ink-muted);
-  border-radius: var(--radius-sm);
-  padding: var(--space-1) 0;
-}
-
-.archiveLink:hover {
-  color: var(--accent);
-}
-
-/*
- * Below ~1200px the columns scroll sideways rather than compressing. Five
- * squeezed columns stop being readable long before they stop fitting.
- */
 @media (max-width: 1200px) {
   .board {
     grid-template-columns: repeat(5, minmax(268px, 1fr));
-    overflow-x: auto;
     padding-inline: var(--space-4);
   }
 
   .board[data-ideas-folded='true'] {
     grid-template-columns: 52px repeat(4, minmax(268px, 1fr));
-  }
-
-  .footer {
-    padding-inline: var(--space-4);
   }
 }

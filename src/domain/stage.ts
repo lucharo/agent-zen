@@ -1,8 +1,7 @@
 import type { AgentSession, Stage } from './types'
 
 /**
- * Where a session sits on the board, or `null` when it belongs in the archive
- * rather than the focus surface.
+ * Where a session sits on the board, or `null` once it has left the focus surface.
  *
  * An ended thread leaves the board entirely. Every other placement is derived
  * from Codex-owned state: wrapup, review, then the native plan. The Kanban is a

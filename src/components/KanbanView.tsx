@@ -1,6 +1,14 @@
-import { useCallback, useRef, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import { SESSION_STAGES, STAGE_LABELS, type Idea, type Stage } from '@/domain/types'
-import { useAgentZen } from '@/state/store'
+import { useAgentZen, type BoardSession } from '@/state/store'
 import { Chevron, StageIcon } from './primitives'
 import { SessionCard } from './SessionCard'
 import styles from './KanbanView.module.css'
@@ -9,30 +17,17 @@ export interface KanbanViewProps {
   ideas: readonly Idea[]
   onOpenSession: (sessionId: string) => void
   onOpenIdea: (ideaId: string) => void
-  onOpenArchive: () => void
   onCapture: () => void
 }
 
-/** Five equal columns. Ideas folds; the other four are agent-backed. */
-export function KanbanView({
-  ideas,
-  onOpenSession,
-  onOpenIdea,
-  onOpenArchive,
-  onCapture,
-}: KanbanViewProps) {
-  const { state, dispatch, board, archived, now } = useAgentZen()
+export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: KanbanViewProps) {
+  const { state, dispatch, board, now, availableProjects } = useAgentZen()
   const boardRef = useRef<HTMLDivElement>(null)
 
   const filtered = state.projectFilter
     ? board.filter((entry) => entry.session.projectId === state.projectFilter)
     : board
 
-  /**
-   * Arrow keys move between cards; the DOM order inside a column already gives
-   * us Tab, so this only has to handle across-column movement and vertical
-   * jumps within one column.
-   */
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
     if (!keys.includes(event.key)) return
@@ -50,7 +45,6 @@ export function KanbanView({
     const column = Number(current.dataset.column ?? 0)
     const columnCards = byColumn.get(column) ?? []
     const row = columnCards.indexOf(current)
-
     let target: HTMLElement | undefined
     if (event.key === 'ArrowDown') target = columnCards[row + 1]
     if (event.key === 'ArrowUp') target = columnCards[row - 1]
@@ -70,8 +64,6 @@ export function KanbanView({
       target.focus()
     }
   }, [])
-
-  const hiddenIdeaCount = ideas.length
 
   return (
     <div className={styles.wrap}>
@@ -98,12 +90,10 @@ export function KanbanView({
               <Chevron direction={state.ideasFolded ? 'right' : 'left'} />
               <h2 className={styles.columnTitle}>{STAGE_LABELS.ideas}</h2>
             </button>
-            {state.ideasFolded ? (
-              <span className={styles.hiddenCount} title={`${hiddenIdeaCount} ideas hidden`}>
-                {hiddenIdeaCount}
-                <span className="visuallyHidden"> ideas hidden</span>
-              </span>
-            ) : null}
+            <span className={styles.count}>
+              <span aria-hidden="true">{ideas.length}</span>
+              <span className="visuallyHidden">{ideas.length} ideas</span>
+            </span>
             <button
               type="button"
               className={styles.columnAdd}
@@ -116,42 +106,45 @@ export function KanbanView({
           </header>
 
           {state.ideasFolded ? null : (
-            <ul className={styles.stack}>
-              {ideas.slice(0, 4).map((idea, index) => (
-                <li key={idea.id}>
-                  <button
-                    type="button"
-                    className={styles.ideaCard}
-                    data-card-id={idea.id}
-                    data-column={0}
-                    data-index={index}
-                    onClick={() => onOpenIdea(idea.id)}
-                  >
-                    <span className={styles.ideaTitle}>{idea.title}</span>
-                    <span className={styles.ideaMeta}>
-                      {projectName(state.projects, idea.projectId)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {ideas.length > 4 ? (
-                <li>
-                  <button
-                    type="button"
-                    className={styles.more}
-                    onClick={() => dispatch({ type: 'set-view', view: 'ideas' })}
-                  >
-                    {ideas.length - 4} more in Ideas
-                  </button>
-                </li>
-              ) : null}
-              {ideas.length === 0 ? <li className={styles.empty}>Nothing captured yet</li> : null}
-            </ul>
+            <ScrollableColumn contentKey={ideas.length === 0 ? 'empty' : 'filled'}>
+              <ul className={styles.stack}>
+                {ideas.slice(0, 4).map((idea, index) => (
+                  <li key={idea.id}>
+                    <button
+                      type="button"
+                      className={styles.ideaCard}
+                      data-card-id={idea.id}
+                      data-column={0}
+                      data-index={index}
+                      onClick={() => onOpenIdea(idea.id)}
+                    >
+                      <span className={styles.ideaTitle}>{idea.title}</span>
+                      <span className={styles.ideaMeta}>
+                        {projectName(availableProjects, idea.projectId)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {ideas.length > 4 ? (
+                  <li>
+                    <button
+                      type="button"
+                      className={styles.more}
+                      onClick={() => dispatch({ type: 'set-view', view: 'ideas' })}
+                    >
+                      {ideas.length - 4} more in Ideas
+                    </button>
+                  </li>
+                ) : null}
+                {ideas.length === 0 ? <li className={styles.empty}>Nothing captured yet</li> : null}
+              </ul>
+            </ScrollableColumn>
           )}
         </section>
 
         {SESSION_STAGES.map((stage, stageIndex) => {
           const entries = filtered.filter((entry) => entry.stage === stage)
+          const groups = groupSessions(entries, state.kanbanGroupBy === 'project')
           return (
             <section
               className={styles.column}
@@ -165,42 +158,107 @@ export function KanbanView({
                   <span className="visuallyHidden">Codex</span>
                 </span>
                 <h2 className={styles.columnTitle}>{STAGE_LABELS[stage]}</h2>
+                <span className={styles.count}>
+                  <span aria-hidden="true">{entries.length}</span>
+                  <span className="visuallyHidden">{entries.length} sessions</span>
+                </span>
               </header>
-              <ul className={styles.stack}>
-                {entries.map((entry, index) => (
-                  <SessionCard
-                    key={entry.session.id}
-                    entry={entry}
-                    now={now}
-                    onOpen={onOpenSession}
-                    columnIndex={stageIndex + 1}
-                    cardIndex={index}
-                  />
-                ))}
+              <ScrollableColumn contentKey={entries.length === 0 ? 'empty' : 'filled'}>
                 {entries.length === 0 ? (
-                  <li className={styles.empty}>{emptyLabel(stage)}</li>
-                ) : null}
-              </ul>
+                  <p className={styles.empty}>{emptyLabel(stage)}</p>
+                ) : (
+                  <div className={styles.groups}>
+                    {groups.map((group) => (
+                      <section className={styles.projectGroup} key={group.key}>
+                        {state.kanbanGroupBy === 'project' ? (
+                          <header className={styles.projectHead}>
+                            <span>{group.label}</span>
+                            <span>{group.entries.length}</span>
+                          </header>
+                        ) : null}
+                        <ul className={styles.stack}>
+                          {group.entries.map((entry, index) => (
+                            <SessionCard
+                              key={entry.session.id}
+                              entry={entry}
+                              now={now}
+                              onOpen={onOpenSession}
+                              columnIndex={stageIndex + 1}
+                              cardIndex={index}
+                              detail={state.kanbanCardDetail}
+                              showProject={state.kanbanGroupBy !== 'project'}
+                            />
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                )}
+              </ScrollableColumn>
             </section>
           )
         })}
       </div>
-
-      <footer className={styles.footer}>
-        <button type="button" className={styles.archiveLink} onClick={onOpenArchive}>
-          {archived.length} finished {archived.length === 1 ? 'session' : 'sessions'} in history
-        </button>
-      </footer>
     </div>
   )
 }
 
-function projectName(
-  projects: ReturnType<typeof useAgentZen>['state']['projects'],
-  projectId: string | null,
-): string {
+function ScrollableColumn({ children, contentKey }: { children: ReactNode; contentKey: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [scrollable, setScrollable] = useState(false)
+  const [atEnd, setAtEnd] = useState(true)
+
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const measure = () => {
+      const canScroll = element.scrollHeight > element.clientHeight + 2
+      setScrollable(canScroll)
+      setAtEnd(!canScroll || element.scrollTop + element.clientHeight >= element.scrollHeight - 2)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    for (const child of Array.from(element.children)) observer.observe(child)
+    return () => observer.disconnect()
+  }, [contentKey])
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const onScroll = () =>
+      setAtEnd(element.scrollTop + element.clientHeight >= element.scrollHeight - 2)
+    element.addEventListener('scroll', onScroll, { passive: true })
+    return () => element.removeEventListener('scroll', onScroll)
+  }, [])
+
+  return (
+    <div className={styles.scrollFrame} data-scrollable={scrollable} data-at-end={atEnd}>
+      <div className={styles.columnScroll} ref={ref} tabIndex={scrollable ? 0 : undefined}>
+        {children}
+      </div>
+      {scrollable && !atEnd ? <span className={styles.scrollHint}>Scroll for more</span> : null}
+    </div>
+  )
+}
+
+function groupSessions(entries: readonly BoardSession[], byProject: boolean) {
+  if (!byProject) return [{ key: 'all', label: '', entries }]
+  const grouped = new Map<string, { label: string; entries: BoardSession[] }>()
+  for (const entry of entries) {
+    const key = entry.project?.id ?? 'no-project'
+    const group = grouped.get(key) ?? { label: entry.project?.name ?? 'No project', entries: [] }
+    group.entries.push(entry)
+    grouped.set(key, group)
+  }
+  return [...grouped.entries()]
+    .map(([key, group]) => ({ key, ...group }))
+    .sort((left, right) => left.label.localeCompare(right.label))
+}
+
+function projectName(projects: readonly { id: string; name: string }[], projectId: string | null) {
   if (!projectId) return 'No project'
-  return projects.find((p) => p.id === projectId)?.name ?? projectId
+  return projects.find((project) => project.id === projectId)?.name ?? 'No project'
 }
 
 function emptyLabel(stage: Stage): string {

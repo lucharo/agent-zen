@@ -28,8 +28,8 @@ Derive the board stage locally:
 - `Ideas`: Agent Zen-owned idea; no session.
 - `Planning`: an active turn exists and no native plan is available.
 - `Running`: an active turn exists and a native plan is available.
-- `Reviewing`: native review mode or an observed review action/skill marker in the Codex rollout.
-- `Wrapping up`: an observed wrap-up skill invocation or wrap-up result in the Codex rollout.
+- `Reviewing`: an explicit review or web-app demo skill marker observed in the current Codex turn.
+- `Wrapping up`: an explicit wrap-up skill marker observed in the current Codex turn.
 
 The Kanban is read-only. Agent Zen does not persist human stage overrides. Supported session control is a separate controller action and the resulting Codex state flows back through the same source.
 
@@ -38,6 +38,14 @@ Do not require the agent to maintain another task ledger. Each native plan updat
 The local HTTP bridge binds only to `127.0.0.1`, validates loopback `Host` and allowed `Origin` values on every route, and never exposes an arbitrary cwd launch. Launch requests must reference a registered project. Existing external sessions remain read-only; steering and interruption require a thread launched by the current Agent Zen app-server connection. Control ownership is process-scoped and is not restored after a bridge restart.
 
 The rollout observer keeps the latest lifecycle and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. It does not infer a second plan or ask the agent to republish one.
+
+The web client requests `/api/snapshot` every two seconds. The observer reuses rollout parses when file size and modification time are unchanged; a separate one-second UI clock updates elapsed-time labels without rescanning Codex.
+
+Generated RoboRev execution threads are excluded before stage classification only when their source is `exec` and their normalized generated title starts `You are a code reviewer. Review the code changes shown below.` Human review sessions remain visible.
+
+Project resolution uses the deepest discovered checkout containing the session cwd, then falls back to normalized GitHub repository identity. This links worktrees outside the main checkout to their project without requiring every worktree to be registered separately.
+
+Ended sessions leave the focus board. Agent Zen does not present the observer's bounded recent-thread window as complete history.
 
 ## Consequences
 

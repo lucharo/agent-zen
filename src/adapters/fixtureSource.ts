@@ -23,7 +23,7 @@ const plan = (
  * Covers every case the board has to render: all five stages, a plan that keeps
  * moving, superseded plan revisions, a child agent spawned by a running
  * session, three distinct projects with worktree and branch metadata, and one
- * ended thread so the archive route has something behind it.
+ * ended thread so the off-board branch remains covered.
  */
 export function fixtureSessions(base: number): AgentSession[] {
   return [

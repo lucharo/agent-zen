@@ -5,7 +5,8 @@ import { App } from '@/App'
 import { createFixtureSessionSource } from '@/adapters/fixtureSource'
 import type { AgentZenBridge } from '@/bridge/httpBridge'
 import type { BridgeSnapshot } from '@/bridge/types'
-import { STORAGE_KEY } from '@/state/persistence'
+import { STORAGE_KEY, createInitialState } from '@/state/persistence'
+import { SEED_PROJECTS, seedIdeas, seedLogbook } from '@/state/seed'
 import { AgentZenProvider } from '@/state/store'
 import { createMemoryStorage } from '@/test/memoryStorage'
 
@@ -13,6 +14,7 @@ const NOW = new Date('2026-08-06T11:00:00Z').getTime()
 
 /** A frozen clock and a non-ticking source, so nothing moves mid-assertion. */
 function mount(storage: Storage = createMemoryStorage()) {
+  seedTestState(storage)
   const view = render(
     <AgentZenProvider
       source={createFixtureSessionSource({ now: NOW, tickMs: 0 })}
@@ -23,6 +25,21 @@ function mount(storage: Storage = createMemoryStorage()) {
     </AgentZenProvider>,
   )
   return { ...view, storage, user: userEvent.setup({ document }) }
+}
+
+function seedTestState(storage: Storage): Storage {
+  if (!storage.getItem(STORAGE_KEY)) {
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...createInitialState(NOW),
+        projects: SEED_PROJECTS,
+        ideas: seedIdeas(NOW),
+        logbook: seedLogbook(NOW),
+      }),
+    )
+  }
+  return storage
 }
 
 const column = (name: string) => screen.getByRole('region', { name })
@@ -74,7 +91,7 @@ describe('the board', () => {
         bridge={pendingBridge()}
         source={createFixtureSessionSource({ now: NOW, tickMs: 0 })}
         now={NOW}
-        storage={createMemoryStorage()}
+        storage={seedTestState(createMemoryStorage())}
       >
         <App />
       </AgentZenProvider>,
@@ -90,7 +107,7 @@ describe('the board', () => {
         bridge={disconnectedBridge()}
         source={createFixtureSessionSource({ now: NOW, tickMs: 0 })}
         now={NOW}
-        storage={createMemoryStorage()}
+        storage={seedTestState(createMemoryStorage())}
       >
         <App />
       </AgentZenProvider>,
@@ -109,7 +126,9 @@ describe('the board', () => {
     }
 
     // The mark lives in the column title, never on a card.
-    expect(within(column('Running')).getByText('Codex')).toBeInTheDocument()
+    const runningHeader = column('Running').querySelector('header')
+    expect(runningHeader).not.toBeNull()
+    expect(within(runningHeader as HTMLElement).getByText('Codex')).toBeInTheDocument()
     expect(within(column('Ideas')).queryByText('Codex')).toBeNull()
   })
 
@@ -138,20 +157,17 @@ describe('the board', () => {
     await user.click(within(ideas).getByRole('button', { expanded: true }))
 
     expect(within(column('Ideas')).queryByText('Session dashboard')).toBeNull()
-    expect(within(column('Ideas')).getByText(/ideas hidden/)).toBeInTheDocument()
+    expect(within(column('Ideas')).getByText(`${seedIdeas(NOW).length} ideas`)).toBeInTheDocument()
     expect(within(column('Ideas')).getByRole('button', { name: 'Ideas', expanded: false })).toHaveAttribute(
       'title',
       'Expand Ideas',
     )
   })
 
-  it('routes to quiet history rather than a Done column', async () => {
-    const { user } = mount()
+  it('does not invent a history count from the observer window', () => {
+    mount()
     expect(screen.queryByRole('region', { name: 'Done' })).toBeNull()
-
-    await user.click(screen.getByRole('button', { name: /finished session/ }))
-
-    expect(screen.getByRole('dialog')).toHaveTextContent('History')
+    expect(screen.queryByText(/finished sessions? in history/)).toBeNull()
   })
 })
 
@@ -197,6 +213,14 @@ describe('navigation', () => {
     expect(screen.getByText('Fixture data')).toBeInTheDocument()
   })
 
+  it('opens capture when the native shell dispatches Command-N', () => {
+    mount()
+
+    fireEvent(window, new Event('agent-zen:new-idea'))
+
+    expect(screen.getByRole('dialog', { name: 'Quick capture' })).toBeInTheDocument()
+  })
+
   it('does not open a second modal from a global shortcut', async () => {
     const { user } = mount()
 
@@ -237,6 +261,17 @@ describe('navigation', () => {
     await user.click(within(layout).getByRole('button', { name: 'List' }))
 
     expect(screen.getAllByRole('list')[0]).toHaveAttribute('data-layout', 'list')
+  })
+
+  it('groups sessions by project and switches cards to title-only', async () => {
+    const { user } = mount()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
+    expect(within(column('Running')).getByText('agent-zen')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Session card detail' }), 'titles')
+    expect(within(column('Running')).queryByText('42m total · 7m current turn')).toBeNull()
+    expect(within(column('Running')).getByText('Revise calm control plane')).toBeInTheDocument()
   })
 })
 

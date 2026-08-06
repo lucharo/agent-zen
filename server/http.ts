@@ -7,11 +7,12 @@ export interface BridgeRequestHandlerOptions {
   readonly service: AgentZenBridgeService
   readonly port: number
   readonly distDirectory: string
+  readonly allowedOrigins?: readonly string[]
 }
 
 export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions) {
   return async (request: Request): Promise<Response> => {
-    const policy = localRequestPolicy(request, options.port)
+    const policy = localRequestPolicy(request, options.port, options.allowedOrigins)
     if (!policy.allowed) return json({ error: policy.reason }, policy.status)
     const headers = policy.corsHeaders
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })

@@ -1,6 +1,6 @@
 # ADR-0004: First working visual prototype
 
-- Status: Accepted
+- Status: Accepted prototype; history footer superseded
 - Date: 2026-08-06
 
 ## Outcome
@@ -12,7 +12,7 @@ Sources: `explorations/2026-08-05-codex-zen-directions/product-contract.md`, `cl
 ## Answered grill
 
 - **Why not a tab bar?** Two views are a switch, not a navigation system. `Cmd+1`, `Cmd+2`, and two visible controls cost less than chrome that invites more destinations.
-- **Why no Done column?** A finished session is history, not current attention. It leaves the board and remains behind one quiet footer action.
+- **Why no Done column?** A finished session is not current attention and leaves the board. The prototype's quiet history footer was later removed because a bounded observer sample is not a trustworthy history total.
 - **Why one Codex mark per session column?** Four column marks establish the family; repeating it on every card becomes badge noise.
 - **What does Active count?** Root sessions in Planning or Running. Child agents share the parent's slot; Reviewing and Wrapping up have released active capacity.
 - **How narrow can the board become?** Below 1200px, columns retain a 268px floor and scroll horizontally rather than compressing their content.

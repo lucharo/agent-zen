@@ -12,6 +12,21 @@ beforeEach(() => {
     configurable: true,
     writable: true,
   })
+  class TestResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  Object.defineProperty(window, 'ResizeObserver', {
+    value: TestResizeObserver,
+    configurable: true,
+    writable: true,
+  })
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    value: TestResizeObserver,
+    configurable: true,
+    writable: true,
+  })
 })
 
 afterEach(() => {

@@ -1,5 +1,12 @@
-import type { IdeaGroupBy, IdeaLayout, ThemeChoice, View } from '@/domain/types'
-import { CAPTURE_SHORTCUT } from '@/keyboard'
+import type {
+  IdeaGroupBy,
+  IdeaLayout,
+  KanbanCardDetail,
+  KanbanGroupBy,
+  ThemeChoice,
+  View,
+} from '@/domain/types'
+import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { GridIcon, ListIcon, SearchIcon, Select } from './primitives'
 import styles from './Toolbar.module.css'
@@ -25,7 +32,7 @@ export function Toolbar({
   onOpenSettings,
   showShortcuts,
 }: ToolbarProps) {
-  const { state, dispatch, activeCount } = useAgentZen()
+  const { state, dispatch, activeCount, availableProjects } = useAgentZen()
   const onIdeas = state.view === 'ideas'
 
   const setView = (view: View) => dispatch({ type: 'set-view', view })
@@ -61,7 +68,7 @@ export function Toolbar({
         }
         options={[
           { value: 'all', label: 'All projects' },
-          ...state.projects.map((p) => ({ value: p.id, label: p.name })),
+          ...availableProjects.map((p) => ({ value: p.id, label: p.name })),
         ]}
       />
 
@@ -95,7 +102,34 @@ export function Toolbar({
             ))}
           </div>
         </>
-      ) : null}
+      ) : (
+        <>
+          <Select
+            label="Group sessions by"
+            prefix="Group by:"
+            value={state.kanbanGroupBy}
+            onChange={(value) =>
+              dispatch({ type: 'set-kanban-group-by', groupBy: value as KanbanGroupBy })
+            }
+            options={[
+              { value: 'none', label: 'None' },
+              { value: 'project', label: 'Project' },
+            ]}
+          />
+          <Select
+            label="Session card detail"
+            prefix="Cards:"
+            value={state.kanbanCardDetail}
+            onChange={(value) =>
+              dispatch({ type: 'set-kanban-card-detail', detail: value as KanbanCardDetail })
+            }
+            options={[
+              { value: 'details', label: 'Details' },
+              { value: 'titles', label: 'Titles' },
+            ]}
+          />
+        </>
+      )}
 
       <button type="button" className={styles.search} onClick={onOpenPalette}>
         <SearchIcon />
@@ -139,8 +173,8 @@ export function Toolbar({
         type="button"
         className={styles.add}
         onClick={onOpenCapture}
-        aria-label={`Quick capture (${CAPTURE_SHORTCUT})`}
-        title={`Quick capture · ${CAPTURE_SHORTCUT}`}
+        aria-label={`Quick capture (${captureShortcutLabel()})`}
+        title={`Quick capture · ${captureShortcutLabel()}`}
       >
         <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
           <path
@@ -150,7 +184,7 @@ export function Toolbar({
             strokeLinecap="round"
           />
         </svg>
-        <kbd className={styles.addShortcut}>{CAPTURE_SHORTCUT}</kbd>
+        <kbd className={styles.addShortcut}>{captureShortcutLabel()}</kbd>
       </button>
     </header>
   )

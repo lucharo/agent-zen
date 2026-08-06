@@ -2,6 +2,8 @@ import type {
   CaptureAction,
   IdeaGroupBy,
   IdeaLayout,
+  KanbanCardDetail,
+  KanbanGroupBy,
   Project,
   ThemeChoice,
   View,
@@ -22,12 +24,15 @@ export type Action =
   | { type: 'set-project-filter'; projectId: string | null }
   | { type: 'set-idea-group-by'; groupBy: IdeaGroupBy }
   | { type: 'set-idea-layout'; layout: IdeaLayout }
+  | { type: 'set-kanban-group-by'; groupBy: KanbanGroupBy }
+  | { type: 'set-kanban-card-detail'; detail: KanbanCardDetail }
   | { type: 'toggle-ideas-fold' }
   | { type: 'set-active-limit-enabled'; enabled: boolean }
   | { type: 'set-active-limit'; limit: number }
   | {
       type: 'sync-bridge-settings'
       projects: readonly Project[]
+      knownProjectIds: readonly string[]
       activeLimitEnabled: boolean
       activeLimit: number
     }
@@ -53,6 +58,12 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
     case 'set-idea-layout':
       return { ...state, ideaLayout: action.layout }
 
+    case 'set-kanban-group-by':
+      return { ...state, kanbanGroupBy: action.groupBy }
+
+    case 'set-kanban-card-detail':
+      return { ...state, kanbanCardDetail: action.detail }
+
     case 'toggle-ideas-fold':
       return { ...state, ideasFolded: !state.ideasFolded }
 
@@ -74,7 +85,7 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
         if (replacement) remap.set(previous.id, replacement.id)
       }
       const projects = [...action.projects]
-      const projectIds = new Set(projects.map((project) => project.id))
+      const projectIds = new Set(action.knownProjectIds)
       const ideas = state.ideas.map((idea) => ({
         ...idea,
         projectId: idea.projectId

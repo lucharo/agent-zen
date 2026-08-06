@@ -25,6 +25,7 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
   let activity: SessionActivity = 'idle'
   let endedAt: string | null = null
   let latestUserMessage: string | null = null
+  let currentStageHint: RolloutSnapshot['stageHint'] = null
   let plan: Plan | null = null
   let planHistory: PlanRevision[] = []
 
@@ -45,12 +46,15 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
       activity = 'working'
       endedAt = null
       latestUserMessage = null
+      currentStageHint = null
       plan = null
       planHistory = []
       continue
     }
     if (record.type === 'event_msg' && payload?.type === 'user_message') {
       latestUserMessage = stringValue(payload.message)
+      const explicit = stageHintFromMessage(latestUserMessage)
+      if (explicit) currentStageHint = explicit
       continue
     }
     if (
@@ -77,7 +81,7 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     latestUserMessage,
     plan,
     planHistory,
-    stageHint: stageHint(latestUserMessage),
+    stageHint: currentStageHint,
   }
 }
 
@@ -160,10 +164,16 @@ function normalisePlanStatus(status: string): PlanStep['status'] | null {
   return null
 }
 
-function stageHint(message: string | null): RolloutSnapshot['stageHint'] {
+export function stageHintFromMessage(message: string | null): RolloutSnapshot['stageHint'] {
   if (!message) return null
-  if (/^\s*(?:\/|\$)?wrapup\b/i.test(message)) return 'wrapping-up'
-  if (/^\s*(?:\/|\$)?(?:visual-review|webapp-agent-demo-review|review)\b/i.test(message)) {
+  if (/(?:^|\s)[\/$]wrapup\b/i.test(message) || /^\s*wrapup\b/i.test(message)) {
+    return 'wrapping-up'
+  }
+  if (
+    /(?:^|\s)[\/$](?:[a-z0-9]+-)*review(?:-[a-z0-9]+)*\b/i.test(message) ||
+    /(?:^|\s)[\/$]webapp-agent-demo\b/i.test(message) ||
+    /^\s*review\b/i.test(message)
+  ) {
     return 'reviewing'
   }
   return null

@@ -196,7 +196,9 @@ export class AgentZenBridgeService {
     for (const transient of this.transientSessions.values()) {
       if (!ids.has(transient.id)) merged.push(this.withRuntimeOwnership(this.mergeOverlay(transient)))
     }
-    return merged.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    return merged
+      .filter((session) => session.endedAt === null)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
   }
 
   private async launchWithCodex(request: LaunchRequest): Promise<LaunchSessionResponse> {

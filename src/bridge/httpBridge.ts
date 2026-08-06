@@ -32,7 +32,11 @@ const EMPTY: BridgeSnapshot = {
 }
 
 export function createHttpBridge(
-  baseUrl = import.meta.env.VITE_AGENT_ZEN_BRIDGE_URL ?? 'http://127.0.0.1:5274',
+  baseUrl = resolveBridgeBaseUrl(
+    import.meta.env.VITE_AGENT_ZEN_BRIDGE_URL,
+    typeof window === 'undefined' ? null : window.location,
+    import.meta.env.MODE === 'development',
+  ),
 ): AgentZenBridge {
   let current = EMPTY
   let timer: ReturnType<typeof setInterval> | null = null
@@ -145,4 +149,14 @@ export function createHttpBridge(
       await refresh()
     },
   }
+}
+
+export function resolveBridgeBaseUrl(
+  configured: string | undefined,
+  location: Pick<Location, 'origin' | 'port'> | null,
+  development: boolean,
+): string {
+  if (configured) return configured
+  if (!development && location) return location.origin
+  return 'http://127.0.0.1:5274'
 }

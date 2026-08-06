@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite'
 import { open, stat } from 'node:fs/promises'
 import type { AgentSession, Project } from '../../src/domain/types'
 import { normaliseGitHubRepository } from '../projects'
-import { parseRolloutLines, type RolloutSnapshot } from './rollout'
+import { parseRolloutLines, stageHintFromMessage, type RolloutSnapshot } from './rollout'
 
 interface ThreadRow {
   readonly id: string
@@ -30,6 +30,7 @@ interface CachedRollout {
   readonly snapshot: RolloutSnapshot
   readonly lifecycleLine: string | null
   readonly planLine: string | null
+  readonly stageLine: string | null
 }
 
 export interface CodexStateObserverOptions {
@@ -65,6 +66,10 @@ export class CodexStateObserver {
         FROM threads t
         LEFT JOIN thread_spawn_edges e ON e.child_thread_id = t.id
         WHERE t.archived = 0
+          AND NOT (
+            t.source = 'exec'
+            AND lower(trim(t.title)) LIKE 'you are a code reviewer. review the code changes shown below.%'
+          )
         ORDER BY COALESCE(t.updated_at_ms, t.updated_at * 1000) DESC
         LIMIT ?
       `)
@@ -133,14 +138,21 @@ export class CodexStateObserver {
     const tailPlan = lastPlanLine(lines)
     const sameTurn = cached?.lifecycleLine === lifecycleLine
     let planLine = tailPlan ?? (sameTurn ? cached?.planLine ?? null : null)
+    const tailStage = lastStageLine(lines)
+    let stageLine = tailStage ?? (sameTurn ? cached?.stageLine ?? null : null)
     if (!planLine && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
       planLine = await findLastPlanLine(rolloutPath, metadata.size)
     }
+    if (!stageLine && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
+      stageLine = await findLastStageLine(rolloutPath, metadata.size)
+    }
     if (planLine && !planBelongsToLifecycle(planLine, lifecycleLine)) planLine = null
+    if (stageLine && !lineBelongsToLifecycle(stageLine, lifecycleLine)) stageLine = null
 
     const anchors = [
       lifecycleLine && lifecycleLine !== tailLifecycle ? lifecycleLine : null,
       planLine && planLine !== tailPlan ? planLine : null,
+      stageLine && stageLine !== tailStage ? stageLine : null,
     ].filter((line): line is string => Boolean(line))
     anchors.sort((left, right) => lineTimestamp(left).localeCompare(lineTimestamp(right)))
     const snapshot = parseRolloutLines([...anchors, ...lines])
@@ -150,6 +162,7 @@ export class CodexStateObserver {
       snapshot,
       lifecycleLine,
       planLine,
+      stageLine,
     })
     return snapshot
   }
@@ -167,6 +180,14 @@ function lastLifecycleLine(lines: readonly string[]): string | null {
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index]
     if (line && lifecycleType(line)) return line
+  }
+  return null
+}
+
+function lastStageLine(lines: readonly string[]): string | null {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]
+    if (line && stageLineType(line)) return line
   }
   return null
 }
@@ -219,6 +240,30 @@ async function findLastPlanLine(filePath: string, size: number): Promise<string 
   }
 }
 
+async function findLastStageLine(filePath: string, size: number): Promise<string | null> {
+  const handle = await open(filePath, 'r')
+  const chunkSize = 512 * 1024
+  let position = size
+  let carry = ''
+  try {
+    while (position > 0) {
+      const start = Math.max(0, position - chunkSize)
+      const length = position - start
+      const bytes = Buffer.alloc(length)
+      await handle.read(bytes, 0, length, start)
+      const combined = bytes.toString('utf8') + carry
+      const lines = combined.split('\n')
+      carry = lines.shift() ?? ''
+      const found = lastStageLine(lines)
+      if (found) return found
+      position = start
+    }
+    return carry && stageLineType(carry) ? carry : null
+  } finally {
+    await handle.close()
+  }
+}
+
 function lifecycleType(line: string): 'task_started' | 'task_complete' | 'turn_aborted' | null {
   if (!line.includes('task_started') && !line.includes('task_complete') && !line.includes('turn_aborted')) {
     return null
@@ -242,9 +287,25 @@ function planLineType(line: string): boolean {
   return parseRolloutLines([line]).plan !== null
 }
 
+function stageLineType(line: string): boolean {
+  if (!line.includes('user_message')) return false
+  try {
+    const record = JSON.parse(line) as { type?: string; payload?: { type?: string; message?: unknown } }
+    return record.type === 'event_msg' &&
+      record.payload?.type === 'user_message' &&
+      stageHintFromMessage(typeof record.payload.message === 'string' ? record.payload.message : null) !== null
+  } catch {
+    return false
+  }
+}
+
 function planBelongsToLifecycle(planLine: string, lifecycleLine: string | null): boolean {
+  return lineBelongsToLifecycle(planLine, lifecycleLine)
+}
+
+function lineBelongsToLifecycle(line: string, lifecycleLine: string | null): boolean {
   if (!lifecycleLine || lifecycleType(lifecycleLine) !== 'task_started') return true
-  return lineTimestamp(planLine) >= lineTimestamp(lifecycleLine)
+  return lineTimestamp(line) >= lineTimestamp(lifecycleLine)
 }
 
 function lineTimestamp(line: string): string {

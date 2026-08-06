@@ -7,7 +7,11 @@ export type RequestPolicyResult =
     }
 
 /** Validate the browser boundary on every route, including read-only routes. */
-export function localRequestPolicy(request: Request, bridgePort: number): RequestPolicyResult {
+export function localRequestPolicy(
+  request: Request,
+  bridgePort: number,
+  additionalOrigins: readonly string[] = [],
+): RequestPolicyResult {
   const url = new URL(request.url)
   const host = request.headers.get('host') ?? url.host
   const trustedHosts = new Set([
@@ -22,8 +26,7 @@ export function localRequestPolicy(request: Request, bridgePort: number): Reques
   const trustedOrigins = new Set([
     `http://127.0.0.1:${bridgePort}`,
     `http://localhost:${bridgePort}`,
-    'http://127.0.0.1:5273',
-    'http://localhost:5273',
+    ...additionalOrigins.filter(isLoopbackOrigin),
   ])
   if (origin && !trustedOrigins.has(origin)) {
     return { allowed: false, status: 403, reason: 'untrusted-origin' }
@@ -38,5 +41,14 @@ export function localRequestPolicy(request: Request, bridgePort: number): Reques
       'Access-Control-Allow-Headers': 'Content-Type',
       Vary: 'Origin',
     },
+  }
+}
+
+function isLoopbackOrigin(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
+  } catch {
+    return false
   }
 }

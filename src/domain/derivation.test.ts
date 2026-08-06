@@ -233,6 +233,41 @@ describe('persistence', () => {
     })
   })
 
+  it('starts with an empty human-owned store', () => {
+    const initial = createInitialState(NOW)
+
+    expect(initial.projects).toEqual([])
+    expect(initial.ideas).toEqual([])
+    expect(initial.logbook).toEqual([])
+  })
+
+  it('removes old prototype ideas while preserving ideas captured by the user', () => {
+    const storage = window.localStorage
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...createInitialState(NOW),
+        version: 1,
+        ideas: [
+          ...seedIdeas(NOW),
+          {
+            id: 'idea-user-owned',
+            title: 'Keep this idea',
+            notes: 'Captured by the user.',
+            projectId: null,
+            repository: null,
+            action: 'keep-idea',
+            createdAt: new Date(NOW).toISOString(),
+          },
+        ],
+      }),
+    )
+
+    const loaded = loadState(storage, NOW)
+
+    expect(loaded.ideas.map((idea) => idea.title)).toEqual(['Keep this idea'])
+  })
+
   it('registers projects once by local or GitHub identity', () => {
     const initial = createInitialState(NOW)
     const project = {
@@ -250,7 +285,7 @@ describe('persistence', () => {
 
   it('falls back to a fresh state when the stored blob is unreadable', () => {
     window.localStorage.setItem(STORAGE_KEY, '{ not json')
-    expect(loadState(window.localStorage, NOW).projects).toEqual(SEED_PROJECTS)
+    expect(loadState(window.localStorage, NOW).projects).toEqual([])
   })
 })
 

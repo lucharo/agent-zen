@@ -21,6 +21,7 @@ test('maps the read-only Codex state database and rollout tail into native sessi
     rolloutPath,
     [
       JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:10.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Please finish with $wrapup.' } }),
       JSON.stringify({ timestamp: '2026-08-06T12:00:30.000Z', type: 'response_item', payload: { type: 'reasoning', text: 'x'.repeat(2_000) } }),
       JSON.stringify({
         timestamp: '2026-08-06T12:01:00.000Z',
@@ -60,6 +61,30 @@ test('maps the read-only Codex state database and rollout tail into native sessi
     '0.146.0', 'Preview', 'Live bridge', 'gpt-5.6-sol', 'xhigh', 1_786_012_800_000,
     1_786_012_860_000,
   )
+  database.query(`
+    INSERT INTO threads (
+      id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+      git_sha, git_branch, git_origin_url, cli_version, preview, name, model,
+      reasoning_effort, created_at_ms, updated_at_ms
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'roborev-1', rolloutPath, 1_786_012_800, 1_786_012_870, 'exec', 'azure',
+    '/repo', 'You are a code reviewer. Review the code changes shown below. Return only the final review.',
+    'abc123', 'feat/live', 'git@github.com:lucharo/repo.git', '0.146.0', '', null,
+    'gpt-5.6-sol', 'xhigh', 1_786_012_800_000, 1_786_012_870_000,
+  )
+  database.query(`
+    INSERT INTO threads (
+      id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+      git_sha, git_branch, git_origin_url, cli_version, preview, name, model,
+      reasoning_effort, created_at_ms, updated_at_ms
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'worktree-1', rolloutPath, 1_786_012_800, 1_786_012_865, 'app', 'azure',
+    '/outside/main-checkout/worktrees/repo', 'External worktree', 'def456', 'feat/worktree',
+    'https://github.com/lucharo/repo.git', '0.146.0', '', null, 'gpt-5.6-sol', 'high',
+    1_786_012_800_000, 1_786_012_865_000,
+  )
   database.close()
 
   const projects: Project[] = [{
@@ -68,8 +93,9 @@ test('maps the read-only Codex state database and rollout tail into native sessi
   const observer = new CodexStateObserver({ dbPath, getProjects: () => projects, maxRolloutBytes: 500 })
   const sessions = await observer.snapshot()
 
-  expect(sessions).toHaveLength(1)
-  expect(sessions[0]).toMatchObject({
+  expect(sessions).toHaveLength(2)
+  const primary = sessions.find((session) => session.id === 'thread-1')
+  expect(primary).toMatchObject({
     id: 'thread-1',
     threadId: 'thread-1',
     turnId: 'turn-1',
@@ -83,12 +109,21 @@ test('maps the read-only Codex state database and rollout tail into native sessi
     projectId: 'repo',
     activity: 'working',
   })
-  expect(sessions[0]?.plan?.steps[1]).toEqual({ step: 'Build', status: 'in_progress' })
+  expect(primary?.plan?.steps[1]).toEqual({ step: 'Build', status: 'in_progress' })
+  expect(primary?.wrapup).toEqual({ checksPassed: 0, checksTotal: 1 })
+  expect(sessions.find((session) => session.id === 'worktree-1')).toMatchObject({
+    projectId: 'repo',
+    repository: 'lucharo/repo',
+    worktree: '/outside/main-checkout/worktrees/repo',
+  })
 
   await appendFile(
     rolloutPath,
     `${JSON.stringify({ timestamp: '2026-08-06T12:02:00.000Z', type: 'response_item', payload: { type: 'reasoning', text: 'y'.repeat(2_000) } })}\n`,
   )
   const afterGrowth = await observer.snapshot()
-  expect(afterGrowth[0]?.plan?.steps[1]).toEqual({ step: 'Build', status: 'in_progress' })
+  expect(afterGrowth.find((session) => session.id === 'thread-1')?.plan?.steps[1])
+    .toEqual({ step: 'Build', status: 'in_progress' })
+  expect(afterGrowth.find((session) => session.id === 'thread-1')?.wrapup)
+    .toEqual({ checksPassed: 0, checksTotal: 1 })
 })

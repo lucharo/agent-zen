@@ -23,7 +23,7 @@ The Kanban remains an agent-authored projection. Human configuration moves into 
 - Collapse Ideas horizontally into a narrow left rail.
 - Give Planning, Running, Reviewing, and Wrapping up distinct stage symbols in their column headings.
 - Keep project discovery behind its own source interface; the live bridge scans configured local roots, reads Git remotes and branches, and registers only explicit selections.
-- Show the current connection mode prominently so fixture data cannot be mistaken for live Codex state.
+- Show the current connection status in Settings, with an explicit error if the live bridge is unavailable.
 
 ## Consequences
 

@@ -2,21 +2,23 @@
 
 A calm local board for Codex sessions. Two views — **Kanban** and **Ideas** — over
 five stages: Ideas, Planning, Running, Reviewing, Wrapping up. No Done column;
-finished sessions go to quiet history.
+finished sessions leave the focus board.
 
     bun install
     bun run bridge   # http://127.0.0.1:5274
     bun run dev      # http://127.0.0.1:5273
+    bun run build:macos  # build/Agent Zen.app
     bun run check    # typecheck + unit/server tests + production build
     bun run test:a11y
 
 The bridge reads Codex's local thread index and rollout files without mutating
-them, and owns one bundled `codex app-server --stdio` child for sessions launched
-from Agent Zen. Existing Codex Desktop sessions are visible but read-only. Ideas
-and the human-only Logbook stay in localStorage; registered projects, owned-thread
-identity, and the optional focus limit live in `~/.agent-zen/settings.json`.
+them, filters generated RoboRev review workers, and owns one bundled
+`codex app-server --stdio` child for sessions launched from Agent Zen. Existing
+Codex Desktop sessions are visible but read-only. Ideas and the human-only
+Logbook stay in localStorage; registered projects, owned-thread identity, and the
+optional focus limit live in `~/.agent-zen/settings.json`.
 
-The implementation follows [the selected Codex-first visual direction](explorations/2026-08-05-codex-zen-directions/README.md). Accepted product, integration, Logbook, and prototype decisions are indexed in [docs/adr](docs/adr/README.md). The [QA index](qa/README.md) records the verified browser evidence.
+The implementation follows [the selected Codex-first visual direction](explorations/2026-08-05-codex-zen-directions/README.md). Accepted product, integration, Logbook, and prototype decisions are indexed in [docs/adr](docs/adr/README.md). The [FAQ](docs/faq/README.md) documents stages, refresh, storage, worktree identity, focus limits, and native distribution. The [QA index](qa/README.md) records the verified browser evidence.
 
 ## Live Codex connection
 
@@ -33,4 +35,7 @@ only for sessions launched by the current Agent Zen bridge process. Restarting
 the bridge returns persisted sessions to read-only. See [ADR-0002](docs/adr/0002-native-codex-connection.md).
 
 In the browser, press `C` for centred quick capture. Browsers reserve `⌘N` for a
-new window; a future native shell may map that same capture command to `⌘N`.
+new window. The AppKit shell maps `⌘N` to New Idea, `⌘,` to Settings, and adds a
+menu-bar companion. 
+ad-hoc-signed bundle; test an Apple-signed build on the personal Mac before
+calling the native runtime verified. See [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).

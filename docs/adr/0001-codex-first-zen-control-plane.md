@@ -19,7 +19,7 @@ Agent Zen presents a quiet local control plane with exactly two primary views: K
 
 - Provide only `Kanban` and `Ideas` as primary views.
 - Use five board stages: `Ideas`, `Planning`, `Running`, `Reviewing`, and `Wrapping up`.
-- Keep completed work in quiet history/archive rather than a Done column.
+- Keep completed work off the active board rather than in a Done column. Any future history surface needs explicit pagination and retention semantics.
 - Put the Codex mark in the column title, never on every card.
 - Show only title, project, native plan step, labelled timing, and exceptional state on cards. Put model, repository, branch, worktree, and session identity in accessible progressive disclosure.
 - Use a Things-style keyboard-first quick capture with no launch by default.
@@ -28,9 +28,9 @@ Agent Zen presents a quiet local control plane with exactly two primary views: K
 
 ## Consequences
 
-- The active board stays cognitively small even when the archive or Ideas backlog grows.
+- The active board stays cognitively small even when durable history or the Ideas backlog grows.
 - WIP limits must be first-class product state, not a decorative counter.
-- Secondary capabilities must fit filters, command actions, detail surfaces, or quiet history rather than becoming new tabs.
+- Secondary capabilities must fit filters, command actions, or detail surfaces rather than becoming new tabs.
 
 ## Rejected alternatives
 
@@ -38,4 +38,3 @@ Agent Zen presents a quiet local control plane with exactly two primary views: K
 - **Generic Kanban:** tracks tickets but cannot read or steer native agent sessions.
 - **Kenn Forge-style workspace dashboard:** useful repository awareness, but too dense for the intended control surface.
 - **Codex and Claude together immediately:** increases integration ambiguity before the Codex contract is proven.
-

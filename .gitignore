@@ -1,5 +1,8 @@
 node_modules/
 dist/
+build/
+.audit/
+.*.bun-build
 .DS_Store
 worktrees/
 plans/

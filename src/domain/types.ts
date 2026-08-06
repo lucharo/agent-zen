@@ -116,7 +116,7 @@ export interface AgentSession {
   readonly planHistory: readonly PlanRevision[]
   readonly review: ReviewSignals | null
   readonly wrapup: WrapupSignals | null
-  /** Set once the thread is finished; archived sessions leave the board. */
+  /** Set once the thread is finished; ended sessions leave the focus board. */
   readonly endedAt: string | null
 }
 
@@ -162,4 +162,6 @@ export interface LogbookNote {
 export type ThemeChoice = 'system' | 'light' | 'dark'
 export type IdeaGroupBy = 'created' | 'project'
 export type IdeaLayout = 'grid' | 'list'
+export type KanbanGroupBy = 'none' | 'project'
+export type KanbanCardDetail = 'titles' | 'details'
 export type View = 'kanban' | 'ideas'

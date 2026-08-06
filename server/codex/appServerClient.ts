@@ -44,8 +44,12 @@ export class CodexAppServerClient {
   connect(): Promise<Record<string, unknown>> {
     if (this.initialized) return Promise.resolve(this.initialized)
     if (this.connectPromise) return this.connectPromise
-    this.connectPromise = this.start()
-    return this.connectPromise
+    const attempt = this.start()
+    this.connectPromise = attempt
+    void attempt.catch(() => {
+      if (this.connectPromise === attempt) this.connectPromise = null
+    })
+    return attempt
   }
 
   subscribe(listener: (notification: AppServerNotification) => void): () => void {
@@ -88,29 +92,55 @@ export class CodexAppServerClient {
 
   private async start(): Promise<Record<string, unknown>> {
     this.generation += 1
-    const process = Bun.spawn([...this.command], {
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    this.process = process
-    void this.readStdout(process.stdout)
-    void this.drainStderr(process.stderr)
-    void process.exited.then((code) => {
-      if (this.process !== process) return
-      this.process = null
-      this.initialized = null
-      this.connectPromise = null
-      this.rejectPending(new Error(`Codex app-server exited with code ${code}.`))
-    })
+    let process: ReturnType<typeof Bun.spawn> | null = null
+    try {
+      const spawned = Bun.spawn([...this.command], {
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      })
+      process = spawned
+      this.process = spawned
+      void this.readStdout(spawned.stdout)
+      void this.drainStderr(spawned.stderr)
+      void spawned.exited.then((code) => {
+        if (this.process !== spawned) return
+        this.process = null
+        this.initialized = null
+        this.connectPromise = null
+        this.rejectPending(new Error(`Codex app-server exited with code ${code}.`))
+      })
 
-    const result = await this.sendRequest<Record<string, unknown>>('initialize', {
-      clientInfo: { name: 'agent-zen', title: 'Agent Zen', version: '0.1.0' },
-      capabilities: { experimentalApi: false, requestAttestation: false },
-    })
-    this.sendNotification('initialized')
-    this.initialized = result
-    return result
+      const result = await this.sendRequest<Record<string, unknown>>('initialize', {
+        clientInfo: { name: 'agent-zen', title: 'Agent Zen', version: '0.1.0' },
+        capabilities: { experimentalApi: false, requestAttestation: false },
+      })
+      this.sendNotification('initialized')
+      this.initialized = result
+      return result
+    } catch (error) {
+      const failure = error instanceof Error ? error : new Error(String(error))
+      if (process && this.process === process) this.abortStartup(process, failure)
+      throw failure
+    }
+  }
+
+  private abortStartup(process: ReturnType<typeof Bun.spawn>, error: Error): void {
+    this.process = null
+    this.initialized = null
+    this.connectPromise = null
+    try {
+      const input = process.stdin
+      if (input && typeof input !== 'number') input.end()
+    } catch {
+      // The failed child may already have closed its input.
+    }
+    try {
+      process.kill()
+    } catch {
+      // A child that exited during initialization needs no further cleanup.
+    }
+    this.rejectPending(error)
   }
 
   private sendRequest<T>(method: string, params: unknown): Promise<T> {

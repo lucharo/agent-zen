@@ -14,6 +14,14 @@ test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Quick capture/ })).toBeVisible()
   await expectAccessible(page, 'Kanban')
 
+  if (process.env.AGENT_ZEN_REQUIRE_LIVE === '1') {
+    await page.keyboard.press('Meta+,')
+    const liveSettings = page.getByRole('dialog', { name: 'Settings' })
+    await expect(liveSettings.getByText(/Live Codex/)).toBeVisible()
+    await expect(liveSettings.getByRole('alert')).toHaveCount(0)
+    await page.keyboard.press('Escape')
+  }
+
   await page.keyboard.press('c')
   const capture = page.getByRole('dialog', { name: 'Quick capture' })
   await expect(capture).toBeVisible()

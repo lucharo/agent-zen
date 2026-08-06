@@ -27,8 +27,10 @@ Agent Zen keeps keyboard capture fast without pretending the browser can overrid
 ## Consequences
 
 - The browser shortcut is truthful rather than imitating a native command it cannot own.
-- A future native macOS shell can map the same capture command to `⌘N` without changing the product command model.
+- The native macOS shell maps the same capture command to `⌘N` and Settings to `⌘,` without changing the product command model.
 - New primitives or visual tokens must pass the same keyboard and automated accessibility checks before use.
+
+See [ADR-0007](0007-native-shell-and-distribution.md).
 
 ## Rejected alternatives
 

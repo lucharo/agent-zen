@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { STAGE_LABELS } from '@/domain/types'
-import { CAPTURE_SHORTCUT } from '@/keyboard'
+import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { Overlay } from './primitives'
 import styles from './CommandPalette.module.css'
@@ -20,7 +20,6 @@ export interface CommandPaletteProps {
   onOpenSession: (sessionId: string) => void
   onOpenIdea: (ideaId: string) => void
   onOpenCapture: () => void
-  onOpenArchive: () => void
   onOpenSettings: () => void
 }
 
@@ -30,10 +29,9 @@ export function CommandPalette({
   onOpenSession,
   onOpenIdea,
   onOpenCapture,
-  onOpenArchive,
   onOpenSettings,
 }: CommandPaletteProps) {
-  const { state, dispatch, board, projectById } = useAgentZen()
+  const { state, dispatch, board, projectById, availableProjects } = useAgentZen()
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   const listRef = useRef<HTMLUListElement>(null)
@@ -61,12 +59,11 @@ export function CommandPalette({
         group: 'Go',
         run: () => dispatch({ type: 'set-view', view: 'ideas' }),
       },
-      { id: 'go-archive', label: 'Open history', group: 'Go', run: onOpenArchive },
       { id: 'go-settings', label: 'Open Settings', shortcut: '⌘,', group: 'Go', run: onOpenSettings },
     ]
 
     const doCommands: Command[] = [
-      { id: 'do-capture', label: 'Capture an idea', shortcut: CAPTURE_SHORTCUT, group: 'Do', run: onOpenCapture },
+      { id: 'do-capture', label: 'Capture an idea', shortcut: captureShortcutLabel(), group: 'Do', run: onOpenCapture },
       {
         id: 'do-fold',
         label: state.ideasFolded ? 'Unfold the Ideas column' : 'Fold the Ideas column',
@@ -93,13 +90,33 @@ export function CommandPalette({
             groupBy: state.ideaGroupBy === 'created' ? 'project' : 'created',
           }),
       },
+      {
+        id: 'do-kanban-group',
+        label: state.kanbanGroupBy === 'project' ? 'Stop grouping sessions by project' : 'Group sessions by project',
+        group: 'Do',
+        run: () =>
+          dispatch({
+            type: 'set-kanban-group-by',
+            groupBy: state.kanbanGroupBy === 'project' ? 'none' : 'project',
+          }),
+      },
+      {
+        id: 'do-card-detail',
+        label: state.kanbanCardDetail === 'details' ? 'Show session titles only' : 'Show session details',
+        group: 'Do',
+        run: () =>
+          dispatch({
+            type: 'set-kanban-card-detail',
+            detail: state.kanbanCardDetail === 'details' ? 'titles' : 'details',
+          }),
+      },
       ...(['system', 'light', 'dark'] as const).map((theme) => ({
         id: `do-theme-${theme}`,
         label: `Theme: ${theme[0]!.toUpperCase()}${theme.slice(1)}`,
         group: 'Do' as const,
         run: () => dispatch({ type: 'set-theme', theme }),
       })),
-      ...state.projects.map((project) => ({
+      ...availableProjects.map((project) => ({
         id: `do-filter-${project.id}`,
         label: `Filter to ${project.name}`,
         detail: project.repository ?? project.directory,
@@ -140,7 +157,7 @@ export function CommandPalette({
     }))
 
     return [...go, ...doCommands, ...sessions, ...ideas]
-  }, [state, dispatch, board, projectById, onOpenSession, onOpenIdea, onOpenCapture, onOpenArchive, onOpenSettings])
+  }, [state, dispatch, board, projectById, availableProjects, onOpenSession, onOpenIdea, onOpenCapture, onOpenSettings])
 
   const needle = query.trim().toLowerCase()
   const results = needle

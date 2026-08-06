@@ -4,3 +4,10 @@
  * Command-N without changing the command model.
  */
 export const CAPTURE_SHORTCUT = 'C'
+
+export function captureShortcutLabel(): string {
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('AgentZenNative')) {
+    return '⌘N'
+  }
+  return CAPTURE_SHORTCUT
+}

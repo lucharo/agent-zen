@@ -18,4 +18,19 @@ describe('CodexAppServerClient', () => {
 
     await client.close()
   })
+
+  test('retries with a fresh child after initialization times out', async () => {
+    const fixture = fileURLToPath(new URL('./test-fixtures/silent-app-server.ts', import.meta.url))
+    const client = new CodexAppServerClient({
+      command: [process.execPath, fixture],
+      requestTimeoutMs: 20,
+    })
+
+    await expect(client.connect()).rejects.toThrow('request timed out: initialize')
+    expect(client.connectionGeneration).toBe(1)
+    await expect(client.connect()).rejects.toThrow('request timed out: initialize')
+    expect(client.connectionGeneration).toBe(2)
+
+    await client.close()
+  })
 })

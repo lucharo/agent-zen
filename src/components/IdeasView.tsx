@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { groupIdeas } from '@/domain/ideas'
 import { formatCaptureTime } from '@/domain/time'
 import type { Idea } from '@/domain/types'
-import { CAPTURE_SHORTCUT } from '@/keyboard'
+import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { Chevron } from './primitives'
 import styles from './IdeasView.module.css'
@@ -10,9 +10,10 @@ import styles from './IdeasView.module.css'
 export interface IdeasViewProps {
   ideas: readonly Idea[]
   onOpenIdea: (ideaId: string) => void
+  onCapture: () => void
 }
 
-export function IdeasView({ ideas, onOpenIdea }: IdeasViewProps) {
+export function IdeasView({ ideas, onOpenIdea, onCapture }: IdeasViewProps) {
   const { state, now, projectById, logbookFor } = useAgentZen()
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
 
@@ -33,9 +34,18 @@ export function IdeasView({ ideas, onOpenIdea }: IdeasViewProps) {
   if (groups.length === 0) {
     return (
       <div className={styles.wrap}>
-        <p className={styles.emptyAll}>
-          No ideas match this filter. Press <kbd>{CAPTURE_SHORTCUT}</kbd> to capture one.
-        </p>
+        <div className={styles.emptyState}>
+          <section className={styles.emptyCard} aria-labelledby="empty-ideas-title">
+            <span className={styles.emptyIcon} aria-hidden="true">+</span>
+            <h2 className={styles.emptyTitle} id="empty-ideas-title">A quiet place for later</h2>
+            <p className={styles.emptyText}>
+              Capture the thought, then return to the session in front of you.
+            </p>
+            <button type="button" className={styles.emptyAction} onClick={onCapture}>
+              Capture an idea <kbd>{captureShortcutLabel()}</kbd>
+            </button>
+          </section>
+        </div>
       </div>
     )
   }
