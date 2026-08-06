@@ -1,0 +1,15 @@
+diff --git a/dist/actions.js b/dist/actions.js
+index c02371f381f02c6481aff98385fadec6afd9ff6a..17ac43decbf80cc21a7992f77bc30d094311790f 100644
+--- a/dist/actions.js
++++ b/dist/actions.js
+@@ -559,9 +559,7 @@ export async function typeText(ctx, client, text, delayMs = 120) {
+             code,
+             windowsVirtualKeyCode: keyCode,
+         });
+-        await client.Input.dispatchKeyEvent({
+-            type: "char",
+-            key: char,
++        await client.Input.insertText({
+             text: char,
+         });
+         await client.Input.dispatchKeyEvent({

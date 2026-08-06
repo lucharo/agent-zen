@@ -1,21 +1,6 @@
 .sheet {
-  position: fixed;
-  right: var(--space-5);
-  bottom: var(--space-5);
-  z-index: 30;
-  width: min(520px, calc(100vw - 32px));
-  border-radius: var(--radius-xl);
+  width: 100%;
   background: var(--surface);
-  box-shadow: var(--shadow-sheet);
-  overflow: hidden;
-  animation: lift var(--duration-base) var(--ease);
-}
-
-@keyframes lift {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
 }
 
 .title,
@@ -43,6 +28,7 @@
   border-top: 1px solid var(--hairline);
   padding-block: var(--space-3);
   color: var(--ink-secondary);
+  min-height: 52px;
 }
 
 .notes::placeholder {
@@ -123,14 +109,16 @@
   cursor: default;
 }
 
-@media (max-width: 720px) {
-  .sheet {
-    right: var(--space-3);
-    left: var(--space-3);
-    bottom: var(--space-3);
-    width: auto;
-  }
+.error {
+  margin: 0 var(--space-5) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--text-meta);
+}
 
+@media (max-width: 720px) {
   .fields {
     grid-template-columns: 1fr;
     gap: var(--space-3);

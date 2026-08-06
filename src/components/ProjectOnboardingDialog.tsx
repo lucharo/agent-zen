@@ -9,14 +9,18 @@ export interface ProjectOnboardingDialogProps {
 }
 
 export function ProjectOnboardingDialog({ open, onClose }: ProjectOnboardingDialogProps) {
-  const { state, dispatch, projectCandidates, projectSourceLabel, projectSourceMode } = useAgentZen()
+  const { state, projectCandidates, projectSourceLabel, projectSourceMode, registerProjects } = useAgentZen()
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setQuery('')
     setSelected(new Set())
+    setSaving(false)
+    setError(null)
   }, [open])
 
   const registered = useMemo(
@@ -44,12 +48,16 @@ export function ProjectOnboardingDialog({ open, onClose }: ProjectOnboardingDial
     })
   }
 
-  const register = () => {
-    dispatch({
-      type: 'add-projects',
-      projects: available.filter((project) => selected.has(project.id)),
-    })
-    onClose()
+  const register = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      await registerProjects([...selected])
+      onClose()
+    } catch (registerError) {
+      setSaving(false)
+      setError(registerError instanceof Error ? registerError.message : String(registerError))
+    }
   }
 
   return (
@@ -115,11 +123,11 @@ export function ProjectOnboardingDialog({ open, onClose }: ProjectOnboardingDial
       </div>
 
       <footer className={styles.footer}>
-        <span>{selected.size} selected</span>
+        <span>{error ?? `${selected.size} selected`}</span>
         <div>
           <button type="button" className={styles.cancel} onClick={onClose}>Cancel</button>
-          <button type="button" className={styles.register} disabled={selected.size === 0} onClick={register}>
-            Register {selected.size || ''} {selected.size === 1 ? 'project' : 'projects'}
+          <button type="button" className={styles.register} disabled={selected.size === 0 || saving} onClick={() => void register()}>
+            {saving ? 'Registering…' : `Register ${selected.size || ''} ${selected.size === 1 ? 'project' : 'projects'}`}
           </button>
         </div>
       </footer>

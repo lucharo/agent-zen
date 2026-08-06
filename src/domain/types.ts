@@ -92,11 +92,16 @@ export interface AgentSession {
   readonly threadId: string
   readonly title: string
   readonly agent: 'codex'
+  /** Whether Agent Zen owns the controlling app-server connection for this thread. */
+  readonly source: 'owned' | 'external'
   readonly model: string
+  readonly reasoningEffort: string | null
+  readonly cliVersion: string | null
   /** ISO timestamp of `session_meta`. Drives "time since session creation". */
   readonly createdAt: string
   /** ISO timestamp of the current turn's `task_started`. */
   readonly turnStartedAt: string | null
+  readonly turnId: string | null
   readonly activity: SessionActivity
   /** Set when this session was spawned by another session. */
   readonly parentSessionId: string | null

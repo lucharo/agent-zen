@@ -1,0 +1,148 @@
+import type { BridgeSnapshot, LaunchSessionPayload, LaunchSessionResponse } from './types'
+
+export interface AgentZenBridge {
+  readonly mode: 'live'
+  snapshot(): BridgeSnapshot
+  subscribe(listener: (snapshot: BridgeSnapshot) => void): () => void
+  refresh(): Promise<BridgeSnapshot>
+  setFocus(enabled: boolean, limit: number): Promise<BridgeSnapshot>
+  registerProjects(candidateIds: readonly string[]): Promise<BridgeSnapshot>
+  launch(payload: LaunchSessionPayload): Promise<LaunchSessionResponse>
+  interrupt(threadId: string): Promise<void>
+  steer(threadId: string, prompt: string): Promise<void>
+}
+
+const EMPTY: BridgeSnapshot = {
+  generatedAt: new Date(0).toISOString(),
+  connection: {
+    connected: false,
+    label: 'Connecting to Codex…',
+    userAgent: null,
+    error: null,
+  },
+  sessions: [],
+  focus: {
+    enabled: false,
+    limit: 3,
+    activeCount: 0,
+    availability: { allowed: true, reason: 'limit-disabled' },
+  },
+  projects: [],
+  projectCandidates: [],
+}
+
+export function createHttpBridge(
+  baseUrl = import.meta.env.VITE_AGENT_ZEN_BRIDGE_URL ?? 'http://127.0.0.1:5274',
+): AgentZenBridge {
+  let current = EMPTY
+  let timer: ReturnType<typeof setInterval> | null = null
+  let polling = false
+  const listeners = new Set<(snapshot: BridgeSnapshot) => void>()
+
+  const emit = (snapshot: BridgeSnapshot) => {
+    current = snapshot
+    for (const listener of listeners) listener(snapshot)
+  }
+
+  const request = async <T>(pathname: string, init?: RequestInit): Promise<T> => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 12_000)
+    try {
+      const response = await fetch(`${baseUrl}${pathname}`, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+          ...init?.headers,
+        },
+      })
+      const body = (await response.json().catch(() => null)) as T | { error?: string; message?: string } | null
+      if (!response.ok) {
+        const detail = body && typeof body === 'object' && 'message' in body
+          ? body.message
+          : body && typeof body === 'object' && 'error' in body
+            ? body.error
+            : null
+        throw new Error(typeof detail === 'string' ? detail : `Bridge request failed (${response.status}).`)
+      }
+      return body as T
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  const refresh = async () => {
+    if (polling) return current
+    polling = true
+    try {
+      const snapshot = await request<BridgeSnapshot>('/api/snapshot')
+      emit(snapshot)
+      return snapshot
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const snapshot: BridgeSnapshot = {
+        ...current,
+        generatedAt: new Date().toISOString(),
+        connection: {
+          ...current.connection,
+          connected: false,
+          label: 'Agent Zen bridge unavailable',
+          error: message,
+        },
+      }
+      emit(snapshot)
+      return snapshot
+    } finally {
+      polling = false
+    }
+  }
+
+  const updateSnapshot = async (pathname: string, body: unknown) => {
+    const snapshot = await request<BridgeSnapshot>(pathname, {
+      method: pathname.includes('/focus') ? 'PUT' : 'POST',
+      body: JSON.stringify(body),
+    })
+    emit(snapshot)
+    return snapshot
+  }
+
+  return {
+    mode: 'live',
+    snapshot: () => current,
+    subscribe(listener) {
+      listeners.add(listener)
+      if (current.generatedAt !== EMPTY.generatedAt) listener(current)
+      if (!timer) {
+        void refresh()
+        timer = setInterval(() => void refresh(), 2_000)
+      }
+      return () => {
+        listeners.delete(listener)
+        if (listeners.size === 0 && timer) {
+          clearInterval(timer)
+          timer = null
+        }
+      }
+    },
+    refresh,
+    setFocus: (enabled, limit) => updateSnapshot('/api/settings/focus', { enabled, limit }),
+    registerProjects: (candidateIds) =>
+      updateSnapshot('/api/projects/register', { candidateIds }),
+    launch: (payload) =>
+      request<LaunchSessionResponse>('/api/sessions/launch', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    interrupt: async (threadId) => {
+      await request(`/api/sessions/${encodeURIComponent(threadId)}/interrupt`, { method: 'POST' })
+      await refresh()
+    },
+    steer: async (threadId, prompt) => {
+      await request(`/api/sessions/${encodeURIComponent(threadId)}/steer`, {
+        method: 'POST',
+        body: JSON.stringify({ prompt }),
+      })
+      await refresh()
+    },
+  }
+}

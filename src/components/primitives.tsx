@@ -202,8 +202,10 @@ export function Overlay({ open, onClose, labelledBy, children, variant, testId }
   useEffect(() => {
     if (!open) return
     returnTo.current = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     const focusable = panelRef.current?.querySelector<HTMLElement>(
-      'input, textarea, [data-autofocus], button, [tabindex]:not([tabindex="-1"])',
+      '[data-autofocus], input, textarea, select, button, a[href], [tabindex]:not([tabindex="-1"])',
     )
     focusable?.focus()
 
@@ -211,11 +213,32 @@ export function Overlay({ open, onClose, labelledBy, children, variant, testId }
       if (event.key === 'Escape') {
         event.stopPropagation()
         onClose()
+        return
+      }
+      if (event.key === 'Tab' && panelRef.current) {
+        const focusableElements = [...panelRef.current.querySelectorAll<HTMLElement>(
+          'input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
+        )].filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true')
+        if (focusableElements.length === 0) {
+          event.preventDefault()
+          panelRef.current.focus()
+          return
+        }
+        const first = focusableElements[0]
+        const last = focusableElements.at(-1)
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last?.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first?.focus()
+        }
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
       returnTo.current?.focus?.()
     }
   }, [open, onClose])
@@ -230,6 +253,7 @@ export function Overlay({ open, onClose, labelledBy, children, variant, testId }
         data-variant={variant}
         data-testid={testId}
         role="dialog"
+        tabIndex={-1}
         aria-modal="true"
         aria-labelledby={labelledBy}
         onMouseDown={(event) => event.stopPropagation()}

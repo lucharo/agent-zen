@@ -14,7 +14,7 @@
 }
 
 .input::placeholder {
-  color: var(--ink-faint);
+  color: var(--ink-muted);
 }
 
 .input:focus-visible {
@@ -44,6 +44,7 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   text-align: left;
+  cursor: pointer;
 }
 
 .result[data-active='true'] {
@@ -60,7 +61,24 @@
 .resultDetail {
   flex: none;
   font-size: var(--text-meta);
+  color: var(--ink-secondary);
+}
+
+.shortcut {
+  flex: none;
+  min-width: 34px;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-selected);
   color: var(--ink-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-micro);
+  text-align: center;
+}
+
+.result[data-active='true'] .shortcut {
+  background: var(--accent-chip);
+  color: var(--accent-ink);
 }
 
 .result[data-active='true'] .resultDetail {

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { STAGE_LABELS } from '@/domain/types'
+import { CAPTURE_SHORTCUT } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { Overlay } from './primitives'
 import styles from './CommandPalette.module.css'
@@ -9,6 +10,7 @@ interface Command {
   readonly label: string
   readonly group: 'Go' | 'Do' | 'Sessions' | 'Ideas'
   readonly detail?: string
+  readonly shortcut?: string
   readonly run: () => void
 }
 
@@ -48,21 +50,23 @@ export function CommandPalette({
       {
         id: 'go-kanban',
         label: 'Go to Kanban',
+        shortcut: '⌘1',
         group: 'Go',
         run: () => dispatch({ type: 'set-view', view: 'kanban' }),
       },
       {
         id: 'go-ideas',
         label: 'Go to Ideas',
+        shortcut: '⌘2',
         group: 'Go',
         run: () => dispatch({ type: 'set-view', view: 'ideas' }),
       },
       { id: 'go-archive', label: 'Open history', group: 'Go', run: onOpenArchive },
-      { id: 'go-settings', label: 'Open Settings', detail: '⌘,', group: 'Go', run: onOpenSettings },
+      { id: 'go-settings', label: 'Open Settings', shortcut: '⌘,', group: 'Go', run: onOpenSettings },
     ]
 
     const doCommands: Command[] = [
-      { id: 'do-capture', label: 'Capture an idea', detail: '⌘N', group: 'Do', run: onOpenCapture },
+      { id: 'do-capture', label: 'Capture an idea', shortcut: CAPTURE_SHORTCUT, group: 'Do', run: onOpenCapture },
       {
         id: 'do-fold',
         label: state.ideasFolded ? 'Unfold the Ideas column' : 'Fold the Ideas column',
@@ -184,6 +188,11 @@ export function CommandPalette({
           className={styles.input}
           placeholder="Search or jump…"
           aria-label="Search or jump to"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded="true"
+          aria-controls="command-palette-results"
+          aria-activedescendant={visible[active] ? `command-${visible[active].id}` : undefined}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value)
@@ -193,27 +202,41 @@ export function CommandPalette({
         {visible.length === 0 ? (
           <p className={styles.noResults}>No matches</p>
         ) : (
-          <ul className={styles.results} ref={listRef} role="listbox" aria-label="Results">
+          <ul
+            id="command-palette-results"
+            className={styles.results}
+            ref={listRef}
+            role="listbox"
+            aria-label="Results"
+          >
             {visible.map((command, index) => {
               const isNewGroup = index === 0 || visible[index - 1]?.group !== command.group
               return (
-                <li key={command.id}>
-                  {isNewGroup ? <p className={styles.groupLabel}>{command.group}</p> : null}
-                  <button
-                    type="button"
+                <Fragment key={command.id}>
+                  {isNewGroup ? (
+                    <li className={styles.groupLabel} role="presentation" aria-hidden="true">
+                      {command.group}
+                    </li>
+                  ) : null}
+                  <li
+                    id={`command-${command.id}`}
                     role="option"
                     aria-selected={index === active}
                     className={styles.result}
                     data-active={index === active}
                     onMouseEnter={() => setCursor(index)}
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => runAt(index)}
                   >
                     <span className={styles.resultLabel}>{command.label}</span>
                     {command.detail ? (
                       <span className={styles.resultDetail}>{command.detail}</span>
                     ) : null}
-                  </button>
-                </li>
+                    {command.shortcut ? (
+                      <kbd className={styles.shortcut}>{command.shortcut}</kbd>
+                    ) : null}
+                  </li>
+                </Fragment>
               )
             })}
           </ul>

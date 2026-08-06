@@ -22,11 +22,11 @@ The Kanban remains an agent-authored projection. Human configuration moves into 
 - Replace three theme targets with one `System → Light → Dark` cycling control.
 - Collapse Ideas horizontally into a narrow left rail.
 - Give Planning, Running, Reviewing, and Wrapping up distinct stage symbols in their column headings.
-- Keep project discovery behind its own source interface; the prototype uses truthful sample candidates.
+- Keep project discovery behind its own source interface; the live bridge scans configured local roots, reads Git remotes and branches, and registers only explicit selections.
 - Show the current connection mode prominently so fixture data cannot be mistaken for live Codex state.
 
 ## Consequences
 
-- A live launch controller must consult the same focus-limit function used by the UI before calling `turn/start`.
-- Project discovery will move from fixtures to a local bridge that scans configured roots and reads git remotes, with optional `gh` enrichment.
+- The launch controller consults the same focus-limit function used by the UI before calling `thread/start` or `turn/start`, and serializes competing launch requests so two callers cannot claim the final slot.
+- Project discovery remains local and Git-based. GitHub enrichment is optional future work rather than a prerequisite for registration.
 - Stage correction happens by correcting the Codex adapter’s observations, not by dragging a card.

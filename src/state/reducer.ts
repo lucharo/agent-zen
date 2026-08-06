@@ -25,6 +25,12 @@ export type Action =
   | { type: 'toggle-ideas-fold' }
   | { type: 'set-active-limit-enabled'; enabled: boolean }
   | { type: 'set-active-limit'; limit: number }
+  | {
+      type: 'sync-bridge-settings'
+      projects: readonly Project[]
+      activeLimitEnabled: boolean
+      activeLimit: number
+    }
   | { type: 'add-projects'; projects: readonly Project[] }
   | { type: 'capture-idea'; draft: CaptureDraft; now: number }
   | { type: 'delete-idea'; ideaId: string }
@@ -55,6 +61,42 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
 
     case 'set-active-limit':
       return { ...state, activeLimit: Math.min(9, Math.max(1, action.limit)) }
+
+    case 'sync-bridge-settings': {
+      const remap = new Map<string, string>()
+      for (const previous of state.projects) {
+        const replacement = action.projects.find(
+          (project) =>
+            (previous.repository && project.repository === previous.repository) ||
+            project.directory === previous.directory ||
+            project.name === previous.name,
+        )
+        if (replacement) remap.set(previous.id, replacement.id)
+      }
+      const projects = [...action.projects]
+      const projectIds = new Set(projects.map((project) => project.id))
+      const ideas = state.ideas.map((idea) => ({
+        ...idea,
+        projectId: idea.projectId
+          ? projectIds.has(idea.projectId)
+            ? idea.projectId
+            : remap.get(idea.projectId) ?? null
+          : null,
+      }))
+      const projectFilter = state.projectFilter
+        ? projectIds.has(state.projectFilter)
+          ? state.projectFilter
+          : remap.get(state.projectFilter) ?? null
+        : null
+      return {
+        ...state,
+        projects,
+        ideas,
+        projectFilter,
+        activeLimitEnabled: action.activeLimitEnabled,
+        activeLimit: Math.min(9, Math.max(1, action.activeLimit)),
+      }
+    }
 
     case 'add-projects': {
       const known = new Set(

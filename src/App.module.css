@@ -11,3 +11,51 @@
   flex: 1 1 auto;
   min-height: 0;
 }
+
+.connecting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: auto;
+  padding: 14px 16px;
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.connecting :global(.codexMark) {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.connecting strong {
+  display: block;
+  color: var(--ink);
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+
+.connecting p {
+  margin-top: 2px;
+  font-size: var(--text-small);
+}
+
+.toast {
+  position: fixed;
+  z-index: 80;
+  left: 50%;
+  bottom: 24px;
+  translate: -50% 0;
+  padding: 9px 13px;
+  color: var(--toast-ink);
+  font-size: var(--text-small);
+  font-weight: 650;
+  border: 1px solid color-mix(in srgb, var(--toast-ink) 18%, transparent);
+  border-radius: 999px;
+  background: var(--toast-bg);
+  box-shadow: var(--shadow-popover);
+}

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '@/App'
 import { createFixtureSessionSource } from '@/adapters/fixtureSource'
+import type { AgentZenBridge } from '@/bridge/httpBridge'
+import type { BridgeSnapshot } from '@/bridge/types'
 import { STORAGE_KEY } from '@/state/persistence'
 import { AgentZenProvider } from '@/state/store'
 import { createMemoryStorage } from '@/test/memoryStorage'
@@ -25,7 +27,80 @@ function mount(storage: Storage = createMemoryStorage()) {
 
 const column = (name: string) => screen.getByRole('region', { name })
 
+const disconnectedSnapshot: BridgeSnapshot = {
+  generatedAt: new Date().toISOString(),
+  connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
+  sessions: [],
+  focus: {
+    enabled: false,
+    limit: 3,
+    activeCount: 0,
+    availability: { allowed: true, reason: 'limit-disabled' },
+  },
+  projects: [],
+  projectCandidates: [],
+}
+
+function disconnectedBridge(): AgentZenBridge {
+  return {
+    mode: 'live',
+    snapshot: () => disconnectedSnapshot,
+    subscribe: (listener) => {
+      listener(disconnectedSnapshot)
+      return () => undefined
+    },
+    refresh: async () => disconnectedSnapshot,
+    setFocus: async () => disconnectedSnapshot,
+    registerProjects: async () => disconnectedSnapshot,
+    launch: async () => {
+      throw new Error('offline')
+    },
+    interrupt: async () => undefined,
+    steer: async () => undefined,
+  }
+}
+
+function pendingBridge(): AgentZenBridge {
+  return {
+    ...disconnectedBridge(),
+    subscribe: () => () => undefined,
+  }
+}
+
 describe('the board', () => {
+  it('shows a quiet connection state instead of flashing fixture sessions', () => {
+    render(
+      <AgentZenProvider
+        bridge={pendingBridge()}
+        source={createFixtureSessionSource({ now: NOW, tickMs: 0 })}
+        now={NOW}
+        storage={createMemoryStorage()}
+      >
+        <App />
+      </AgentZenProvider>,
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('Connecting to Codex')
+    expect(screen.queryByText('Revise calm control plane')).toBeNull()
+  })
+
+  it('keeps local ideas and project links while the live bridge is still unavailable', () => {
+    render(
+      <AgentZenProvider
+        bridge={disconnectedBridge()}
+        source={createFixtureSessionSource({ now: NOW, tickMs: 0 })}
+        now={NOW}
+        storage={createMemoryStorage()}
+      >
+        <App />
+      </AgentZenProvider>,
+    )
+
+    expect(
+      within(column('Ideas')).getByRole('button', { name: /Session dashboard agent-zen/ }),
+    ).toBeInTheDocument()
+  })
+
   it('shows five columns and marks only the agent-backed ones as Codex', () => {
     mount()
 
@@ -81,6 +156,15 @@ describe('the board', () => {
 })
 
 describe('navigation', () => {
+  it('reveals contextual shortcut hints while Command is held', () => {
+    mount()
+
+    fireEvent.keyDown(window, { key: 'Meta', metaKey: true })
+    expect(screen.getByRole('banner', { name: 'Agent Zen toolbar' })).toHaveAttribute('data-shortcuts', 'true')
+    fireEvent.keyUp(window, { key: 'Meta' })
+    expect(screen.getByRole('banner', { name: 'Agent Zen toolbar' })).toHaveAttribute('data-shortcuts', 'false')
+  })
+
   it('switches between the two primary views', async () => {
     const { user } = mount()
     const tabs = screen.getByRole('tablist', { name: 'View' })
@@ -96,6 +180,8 @@ describe('navigation', () => {
 
     await user.keyboard('{Meta>}k{/Meta}')
     const palette = screen.getByRole('dialog', { name: 'Command palette' })
+    expect(within(palette).getByText('C')).toBeInTheDocument()
+    expect(within(palette).getByText('⌘,')).toBeInTheDocument()
     await user.type(within(palette).getByLabelText('Search or jump to'), 'ideas')
     await user.keyboard('{Enter}')
 
@@ -109,6 +195,18 @@ describe('navigation', () => {
 
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
     expect(screen.getByText('Fixture data')).toBeInTheDocument()
+  })
+
+  it('does not open a second modal from a global shortcut', async () => {
+    const { user } = mount()
+
+    await user.keyboard('{Meta>},{/Meta}')
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+
+    await user.keyboard('c')
+
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.queryByRole('dialog', { name: 'Quick capture' })).toBeNull()
   })
 
   it('cycles theme from one toolbar control', async () => {
@@ -146,13 +244,14 @@ describe('capture', () => {
   it('captures an idea title-first and puts it at the top of the backlog', async () => {
     const { user, storage } = mount()
 
-    await user.keyboard('{Meta>}n{/Meta}')
+    await user.keyboard('c')
     const sheet = screen.getByRole('dialog', { name: 'Quick capture' })
     expect(within(sheet).getByLabelText('Title')).toHaveFocus()
 
     await user.type(within(sheet).getByLabelText('Title'), 'Try the app-server transport')
     await user.click(within(sheet).getByRole('button', { name: 'Save' }))
 
+    expect(screen.getByRole('status')).toHaveTextContent('Saved to Ideas')
     expect(within(column('Ideas')).getByText('Try the app-server transport')).toBeInTheDocument()
     expect(storage.getItem(STORAGE_KEY)).toContain('Try the app-server transport')
   })
@@ -233,7 +332,7 @@ describe('cold reload', () => {
     const storage = createMemoryStorage()
     const first = mount(storage)
 
-    await first.user.keyboard('{Meta>}n{/Meta}')
+    await first.user.keyboard('c')
     const sheet = screen.getByRole('dialog', { name: 'Quick capture' })
     await first.user.type(within(sheet).getByLabelText('Title'), 'Survive the reload')
     await first.user.click(within(sheet).getByRole('button', { name: 'Save' }))

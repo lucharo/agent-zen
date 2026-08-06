@@ -38,8 +38,11 @@ export function DetailSheet({ target, onClose }: DetailSheetProps) {
 }
 
 function SessionDetail({ session, onClose }: { session: AgentSession; onClose: () => void }) {
-  const { now, projectById } = useAgentZen()
+  const { now, projectById, interruptSession, steerSession } = useAgentZen()
   const [showHistory, setShowHistory] = useState(false)
+  const [steer, setSteer] = useState('')
+  const [controlStatus, setControlStatus] = useState<string | null>(null)
+  const [controlling, setControlling] = useState(false)
   const stage = deriveStage(session)
   const project = projectById(session.projectId)
   const age = elapsedSince(session.createdAt, now)
@@ -62,7 +65,9 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
             <h3 className={styles.sectionTitle} id="native-heading">
               From Codex
             </h3>
-            <span className={styles.readonly}>read-only</span>
+            <span className={styles.readonly}>
+              {session.source === 'owned' ? 'Agent Zen-owned' : 'read-only'}
+            </span>
           </header>
 
           {session.plan ? (
@@ -129,7 +134,9 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
 
           <dl className={styles.meta}>
             <dt>Model</dt>
-            <dd>{session.model}</dd>
+            <dd>{session.model}{session.reasoningEffort ? ` · ${session.reasoningEffort}` : ''}</dd>
+            <dt>Control</dt>
+            <dd>{session.source === 'owned' ? 'Agent Zen' : 'Another Codex process · read-only'}</dd>
             <dt>Repository</dt>
             <dd>{session.repository ?? '—'}</dd>
             <dt>Branch</dt>
@@ -138,6 +145,8 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
             <dd className={styles.mono}>{session.worktree ?? session.cwd}</dd>
             <dt>Thread</dt>
             <dd className={styles.mono}>{session.threadId}</dd>
+            <dt>Codex</dt>
+            <dd>{session.cliVersion ?? '—'}</dd>
             <dt>Session age</dt>
             <dd>{age === null ? '—' : formatDuration(age)}</dd>
             <dt>Current turn</dt>
@@ -151,6 +160,66 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
           </dl>
         </section>
 
+        {session.source === 'owned' && session.activity === 'working' ? (
+          <section className={styles.controls} aria-labelledby="session-controls-title">
+            <div>
+              <h3 id="session-controls-title">Current turn</h3>
+              <p>Send one instruction or interrupt this Agent Zen-owned turn.</p>
+            </div>
+            <textarea
+              aria-label="Instruction for the current turn"
+              placeholder="Add context or redirect the current turn…"
+              value={steer}
+              onChange={(event) => setSteer(event.target.value)}
+            />
+            <div className={styles.controlActions}>
+              <button
+                type="button"
+                disabled={!steer.trim() || controlling}
+                onClick={() => {
+                  setControlling(true)
+                  setControlStatus(null)
+                  void steerSession(session.threadId, steer).then(
+                    () => {
+                      setSteer('')
+                      setControlling(false)
+                      setControlStatus('Instruction sent.')
+                    },
+                    (error: unknown) => {
+                      setControlling(false)
+                      setControlStatus(error instanceof Error ? error.message : String(error))
+                    },
+                  )
+                }}
+              >
+                Send to turn
+              </button>
+              <button
+                type="button"
+                data-destructive="true"
+                disabled={controlling}
+                onClick={() => {
+                  setControlling(true)
+                  setControlStatus(null)
+                  void interruptSession(session.threadId).then(
+                    () => {
+                      setControlling(false)
+                      setControlStatus('Interrupt requested.')
+                    },
+                    (error: unknown) => {
+                      setControlling(false)
+                      setControlStatus(error instanceof Error ? error.message : String(error))
+                    },
+                  )
+                }}
+              >
+                Interrupt
+              </button>
+            </div>
+            {controlStatus ? <p className={styles.controlStatus} role="status">{controlStatus}</p> : null}
+          </section>
+        ) : null}
+
         <Logbook subjectId={session.id} />
       </div>
     </>
@@ -158,8 +227,9 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
 }
 
 function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }) {
-  const { state, dispatch, now, projectById, launchAvailability, activeCount } = useAgentZen()
+  const { state, dispatch, now, projectById, launchAvailability, activeCount, launchSession } = useAgentZen()
   const [deferred, setDeferred] = useState<string | null>(null)
+  const [launching, setLaunching] = useState(false)
   const idea = state.ideas.find((i) => i.id === ideaId)
   if (!idea) return null
   const project = projectById(idea.projectId)
@@ -191,12 +261,27 @@ function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }
             <button
               type="button"
               className={styles.action}
-              disabled={!launchAvailability.allowed}
-              onClick={() =>
-                setDeferred('Launching needs the Codex app-server. Fixture source is read-only.')
-              }
+              disabled={!launchAvailability.allowed || !project || launching}
+              onClick={() => {
+                if (!project) return
+                setLaunching(true)
+                setDeferred(null)
+                void launchSession(
+                  project.id,
+                  idea.notes ? `${idea.title}\n\n${idea.notes}` : idea.title,
+                ).then(
+                  () => {
+                    dispatch({ type: 'delete-idea', ideaId: idea.id })
+                    onClose()
+                  },
+                  (error: unknown) => {
+                    setLaunching(false)
+                    setDeferred(error instanceof Error ? error.message : String(error))
+                  },
+                )
+              }}
             >
-              Launch session
+              {launching ? 'Launching…' : 'Launch session'}
             </button>
             <button
               type="button"
@@ -219,7 +304,9 @@ function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }
               Delete
             </button>
           </div>
-          {!launchAvailability.allowed ? (
+          {!project ? (
+            <p className={styles.deferred}>Link this idea to a registered project before launching.</p>
+          ) : !launchAvailability.allowed ? (
             <p className={styles.deferred}>
               Focus limit reached: {activeCount} of {state.activeLimit} slots are occupied. Capturing ideas still works.
             </p>

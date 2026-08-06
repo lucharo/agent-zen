@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { groupIdeas } from '@/domain/ideas'
 import { formatCaptureTime } from '@/domain/time'
 import type { Idea } from '@/domain/types'
+import { CAPTURE_SHORTCUT } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { Chevron } from './primitives'
 import styles from './IdeasView.module.css'
@@ -33,7 +34,7 @@ export function IdeasView({ ideas, onOpenIdea }: IdeasViewProps) {
     return (
       <div className={styles.wrap}>
         <p className={styles.emptyAll}>
-          No ideas match this filter. Press <kbd>⌘N</kbd> to capture one.
+          No ideas match this filter. Press <kbd>{CAPTURE_SHORTCUT}</kbd> to capture one.
         </p>
       </div>
     )

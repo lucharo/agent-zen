@@ -5,3 +5,4 @@
 - [ADR-0003: Human Logbook separate from agent state](0003-human-logbook.md)
 - [ADR-0004: First working visual prototype](0004-first-working-visual-prototype.md)
 - [ADR-0005: Read-only board and quiet settings](0005-read-only-board-and-quiet-settings.md)
+- [ADR-0006: Browser keyboard and accessibility contract](0006-browser-keyboard-and-accessibility.md)

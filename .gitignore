@@ -5,3 +5,6 @@ worktrees/
 plans/
 specs/
 *.local
+playwright-report/
+test-results/
+qa/**/demo/.webreel/

@@ -1,4 +1,5 @@
 import type { IdeaGroupBy, IdeaLayout, ThemeChoice, View } from '@/domain/types'
+import { CAPTURE_SHORTCUT } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { GridIcon, ListIcon, SearchIcon, Select } from './primitives'
 import styles from './Toolbar.module.css'
@@ -10,6 +11,7 @@ export interface ToolbarProps {
   onOpenPalette: () => void
   onOpenCapture: () => void
   onOpenSettings: () => void
+  showShortcuts: boolean
 }
 
 /**
@@ -21,6 +23,7 @@ export function Toolbar({
   onOpenPalette,
   onOpenCapture,
   onOpenSettings,
+  showShortcuts,
 }: ToolbarProps) {
   const { state, dispatch, activeCount } = useAgentZen()
   const onIdeas = state.view === 'ideas'
@@ -28,7 +31,11 @@ export function Toolbar({
   const setView = (view: View) => dispatch({ type: 'set-view', view })
 
   return (
-    <header className={styles.toolbar}>
+    <header
+      className={styles.toolbar}
+      data-shortcuts={showShortcuts}
+      aria-label="Agent Zen toolbar"
+    >
       <div className={styles.viewSwitch} role="tablist" aria-label="View">
         {(['kanban', 'ideas'] as const).map((view) => (
           <button
@@ -41,6 +48,7 @@ export function Toolbar({
             onClick={() => setView(view)}
           >
             {view === 'kanban' ? 'Kanban' : 'Ideas'}
+            <kbd className={styles.contextShortcut}>{view === 'kanban' ? '⌘1' : '⌘2'}</kbd>
           </button>
         ))}
       </div>
@@ -112,6 +120,7 @@ export function Toolbar({
           <strong>
             {state.activeLimitEnabled ? `${activeCount} / ${state.activeLimit}` : 'off'}
           </strong>
+          <kbd className={styles.contextShortcut}>⌘,</kbd>
         </button>
       )}
 
@@ -126,7 +135,13 @@ export function Toolbar({
         <span>{themeLabel(state.theme)}</span>
       </button>
 
-      <button type="button" className={styles.add} onClick={onOpenCapture} aria-label="Quick capture">
+      <button
+        type="button"
+        className={styles.add}
+        onClick={onOpenCapture}
+        aria-label={`Quick capture (${CAPTURE_SHORTCUT})`}
+        title={`Quick capture · ${CAPTURE_SHORTCUT}`}
+      >
         <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
           <path
             d="M8 3.2v9.6M3.2 8h9.6"
@@ -135,6 +150,7 @@ export function Toolbar({
             strokeLinecap="round"
           />
         </svg>
+        <kbd className={styles.addShortcut}>{CAPTURE_SHORTCUT}</kbd>
       </button>
     </header>
   )

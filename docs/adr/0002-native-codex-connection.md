@@ -21,7 +21,7 @@ Implement one typed Codex adapter with three internal responsibilities:
 
 1. **Catalog reader:** use `thread/list`, `thread/read(includeTurns=true)`, and parent/ancestor filters for persisted session inventory and history.
 2. **Rollout observer:** read the state database and tail only the indexed rollout files to detect turns running in other Codex processes, current plan updates, model/effort, and parent-child edges. Treat these stores as read-only and version-sensitive.
-3. **Controller:** run one Agent Zen-owned app-server process or daemon for sessions launched or resumed through Agent Zen. Use `turn/start`, `turn/steer`, `turn/interrupt`, `review/start`, and streamed events for control.
+3. **Controller:** run one Agent Zen-owned bundled `codex app-server --stdio` child for sessions launched through Agent Zen. Use `turn/start`, `turn/steer`, `turn/interrupt`, and streamed events for control. Keep the transport boundary replaceable by the managed daemon when Codex is installed through the standalone channel that provides it.
 
 Derive the board stage locally:
 
@@ -35,6 +35,10 @@ The Kanban is read-only. Agent Zen does not persist human stage overrides. Suppo
 
 Do not require the agent to maintain another task ledger. Each native plan update replaces the current plan projection while rollout history preserves prior updates.
 
+The local HTTP bridge binds only to `127.0.0.1`, validates loopback `Host` and allowed `Origin` values on every route, and never exposes an arbitrary cwd launch. Launch requests must reference a registered project. Existing external sessions remain read-only; steering and interruption require a thread launched by the current Agent Zen app-server connection. Control ownership is process-scoped and is not restored after a bridge restart.
+
+The rollout observer keeps the latest lifecycle and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. It does not infer a second plan or ask the agent to republish one.
+
 ## Consequences
 
 - Sessions launched by Agent Zen have the richest live control and event stream.
@@ -42,6 +46,7 @@ Do not require the agent to maintain another task ledger. Each native plan updat
 - The adapter must isolate internal SQLite/JSONL parsing so a Codex schema change has one repair point.
 - The implementation should generate or vendor types from the installed Codex version during development rather than hand-maintain the protocol.
 - The browser UI needs a small local bridge or daemon because it cannot launch `codex app-server` or read `~/.codex` directly.
+- A cold observer start may scan backwards through one long active rollout to recover its latest lifecycle and plan anchors; subsequent polling uses a bounded cache.
 
 ## Rejected alternatives
 

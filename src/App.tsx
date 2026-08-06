@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { filterIdeas } from '@/domain/ideas'
+import { CAPTURE_SHORTCUT } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { ArchiveSheet } from '@/components/ArchiveSheet'
 import { CaptureSheet } from '@/components/CaptureSheet'
@@ -13,13 +14,16 @@ import { Toolbar } from '@/components/Toolbar'
 import styles from './App.module.css'
 
 export function App() {
-  const { state, dispatch } = useAgentZen()
+  const { state, dispatch, sourceReady } = useAgentZen()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [projectOnboardingOpen, setProjectOnboardingOpen] = useState(false)
+  const [shortcutHints, setShortcutHints] = useState(false)
   const [detail, setDetail] = useState<DetailTarget>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const modalOpen = paletteOpen || captureOpen || archiveOpen || settingsOpen || projectOnboardingOpen || detail !== null
 
   const ideas = filterIdeas(state.ideas, { projectId: state.projectFilter })
 
@@ -36,12 +40,15 @@ export function App() {
       const meta = event.metaKey || event.ctrlKey
       const key = event.key.toLowerCase()
 
+      if (event.key === 'Meta' || event.key === 'Control') setShortcutHints(true)
+      if (modalOpen && event.key !== 'Escape') return
+
       if (meta && key === 'k') {
         event.preventDefault()
         setPaletteOpen(true)
         return
       }
-      if (meta && key === 'n') {
+      if (!meta && !event.altKey && key === CAPTURE_SHORTCUT.toLowerCase() && !isEditable(event.target)) {
         event.preventDefault()
         setCaptureOpen(true)
         return
@@ -65,9 +72,39 @@ export function App() {
         setDetail(null)
       }
     }
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Meta' || event.key === 'Control') setShortcutHints(false)
+    }
+    const onBlur = () => setShortcutHints(false)
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [dispatch])
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [dispatch, modalOpen])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 2600)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
+  if (!sourceReady) {
+    return (
+      <div className={styles.app}>
+        <div className={styles.connecting} role="status" aria-live="polite">
+          <span className="codexMark" aria-hidden="true" />
+          <div>
+            <strong>Connecting to Codex</strong>
+            <p>Reading local sessions and plans…</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.app}>
@@ -76,6 +113,7 @@ export function App() {
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenCapture={openCapture}
         onOpenSettings={() => setSettingsOpen(true)}
+        showShortcuts={shortcutHints}
       />
 
       <main className={styles.main}>
@@ -92,7 +130,11 @@ export function App() {
         )}
       </main>
 
-      <CaptureSheet open={captureOpen} onClose={() => setCaptureOpen(false)} />
+      <CaptureSheet
+        open={captureOpen}
+        onClose={() => setCaptureOpen(false)}
+        onSaved={setNotice}
+      />
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -123,6 +165,12 @@ export function App() {
           setSettingsOpen(true)
         }}
       />
+      {notice ? <div className={styles.toast} role="status">{notice}</div> : null}
     </div>
   )
+}
+
+function isEditable(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement &&
+    (target.isContentEditable || target.matches('input, textarea, select, [role="textbox"]'))
 }
