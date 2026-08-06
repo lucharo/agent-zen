@@ -32,7 +32,7 @@ export function fixtureSessions(base: number): AgentSession[] {
       threadId: '019e21c4-7a11-74b2-9c05-4a1f9e21ab30',
       title: 'Index local Codex threads',
       agent: 'codex',
-      model: 'gpt-5.6-codex',
+      model: 'gpt-5.6-sol',
       createdAt: iso(base, 4),
       turnStartedAt: iso(base, 4),
       activity: 'working',
@@ -53,7 +53,7 @@ export function fixtureSessions(base: number): AgentSession[] {
       threadId: '019e21b0-3d54-7f18-8a77-1c0be4d2f905',
       title: 'Revise calm control plane',
       agent: 'codex',
-      model: 'gpt-5.6-codex',
+      model: 'gpt-5.6-sol',
       createdAt: iso(base, 42),
       turnStartedAt: iso(base, 7),
       activity: 'working',
@@ -103,7 +103,7 @@ export function fixtureSessions(base: number): AgentSession[] {
       threadId: '019e21bd-0c92-7440-b1e2-73a5c0e8d411',
       title: 'Sweep board fixtures into tests',
       agent: 'codex',
-      model: 'gpt-5.6-codex-mini',
+      model: 'gpt-5.6-sol',
       createdAt: iso(base, 11),
       turnStartedAt: iso(base, 2),
       activity: 'working',
@@ -128,7 +128,7 @@ export function fixtureSessions(base: number): AgentSession[] {
       threadId: '019e2103-8b6d-7e21-93af-55d0c1aa7712',
       title: 'Harbor canary review',
       agent: 'codex',
-      model: 'gpt-5.6-codex',
+      model: 'gpt-5.6-sol',
       createdAt: iso(base, 128),
       turnStartedAt: iso(base, 19),
       activity: 'awaiting-input',
@@ -154,7 +154,7 @@ export function fixtureSessions(base: number): AgentSession[] {
       threadId: '019e20a7-1f38-7c05-88bb-2e93f5417c60',
       title: 'Retire dask join helpers',
       agent: 'codex',
-      model: 'gpt-5.6-codex',
+      model: 'gpt-5.6-sol',
       createdAt: iso(base, 214),
       turnStartedAt: iso(base, 3),
       activity: 'working',
@@ -180,7 +180,7 @@ export function fixtureSessions(base: number): AgentSession[] {
       threadId: '019e1f52-6ac4-7bd9-a740-98c11e05b3d2',
       title: 'Tool update docs',
       agent: 'codex',
-      model: 'gpt-5.6-codex',
+      model: 'gpt-5.6-sol',
       createdAt: iso(base, 1_460),
       turnStartedAt: null,
       activity: 'ended',
@@ -241,7 +241,9 @@ export function advancePlan(session: AgentSession, at: string): AgentSession {
       }
     : { ...current, revision: current.revision + 1, updatedAt: at, steps }
 
-  return { ...session, plan: next, planHistory: history, turnStartedAt: at }
+  // A plan revision is not a new turn. Keep the native turn start so the
+  // "current turn" clock continues while Codex replaces its plan.
+  return { ...session, plan: next, planHistory: history }
 }
 
 export interface FixtureSourceOptions {

@@ -92,7 +92,7 @@ describe('navigation', () => {
     const { user } = mount()
 
     await user.keyboard('{Meta>}k{/Meta}')
-    const palette = screen.getByRole('dialog')
+    const palette = screen.getByRole('dialog', { name: 'Command palette' })
     await user.type(within(palette).getByLabelText('Search or jump to'), 'ideas')
     await user.keyboard('{Enter}')
 

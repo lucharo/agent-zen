@@ -136,7 +136,7 @@ describe('advancePlan', () => {
     expect(after.planHistory).toHaveLength(before.planHistory.length + 1)
     expect(after.planHistory.at(-1)?.revision).toBe(before.plan?.revision)
     expect(currentPlanStep(after)).toBe('Wire the quick capture sheet')
-    expect(after.turnStartedAt).toBe(at)
+    expect(after.turnStartedAt).toBe(before.turnStartedAt)
   })
 
   it('wraps to a fresh revision once the last step completes', () => {

@@ -8,7 +8,8 @@ import type { AgentSession } from '@/domain/types'
  *
  *  1. It is **read-only**. There is no write method, because agent state is not
  *     ours to write. Ideas, stage overrides and Logbook notes live in Agent
- *     Zen's own store, never here.
+ *     Zen's own store, never here. Supported steering and turn control belong
+ *     in a separate controller boundary when the live transport is added.
  *  2. It is **snapshot + subscribe**, not hooks. Hooks are at best an
  *     additional nudge to re-read; the transport is a poll or a stream over
  *     Codex's own persisted thread state.
@@ -33,32 +34,43 @@ export interface CodexSessionSource {
 }
 
 /**
- * Shapes a real app-server adapter has to map from. These mirror the records
- * Codex already writes to `~/.codex/sessions/**.jsonl` and
- * `~/.codex/session_index.jsonl`, so an implementer knows exactly what feeds
- * each `AgentSession` field.
+ * Minimal wire shapes a real adapter has to map from. The app-server remains
+ * the supported catalog/control surface; read-only `state_5.sqlite` and the
+ * indexed rollout JSONL files fill the cross-process liveness and model fields
+ * that another app-server process cannot report as loaded.
  */
-export interface CodexSessionMetaRecord {
+export interface CodexThreadRecord {
   readonly id: string
-  readonly timestamp: string
+  readonly sessionId: string
   readonly cwd: string
-  readonly originator: string
-  readonly cli_version: string
-  readonly model_provider: string
-}
-
-export interface CodexTurnContextRecord {
-  readonly model: string
-  readonly cwd: string
+  readonly modelProvider: string
+  readonly createdAt: number
+  readonly updatedAt: number
+  readonly parentThreadId: string | null
+  readonly status:
+    | { readonly type: 'notLoaded' | 'idle' | 'systemError' }
+    | { readonly type: 'active'; readonly activeFlags: readonly string[] }
+  readonly gitInfo: {
+    readonly sha: string | null
+    readonly branch: string | null
+    readonly originUrl: string | null
+  } | null
 }
 
 export interface CodexPlanUpdateRecord {
+  readonly threadId: string
+  readonly turnId: string
   readonly explanation: string | null
-  readonly plan: ReadonlyArray<{ step: string; status: 'pending' | 'in_progress' | 'completed' }>
+  readonly plan: ReadonlyArray<{
+    readonly step: string
+    readonly status: 'pending' | 'inProgress' | 'completed'
+  }>
 }
 
-export interface CodexSessionIndexRecord {
+export interface CodexStateThreadRecord {
   readonly id: string
-  readonly thread_name: string
-  readonly updated_at: string
+  readonly rollout_path: string
+  readonly model: string | null
+  readonly reasoning_effort: string | null
+  readonly git_branch: string | null
 }

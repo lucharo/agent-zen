@@ -169,13 +169,15 @@ export function CommandPalette({
     <Overlay
       open={open}
       onClose={onClose}
-      labelledBy="palette-input"
+      labelledBy="palette-title"
       variant="palette"
       testId="command-palette"
     >
       <div className={styles.palette} onKeyDown={onKeyDown}>
+        <h2 id="palette-title" className="visuallyHidden">
+          Command palette
+        </h2>
         <input
-          id="palette-input"
           className={styles.input}
           placeholder="Search or jump…"
           aria-label="Search or jump to"
