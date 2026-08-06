@@ -7,8 +7,8 @@ import type { AgentSession } from '@/domain/types'
  * about Codex. Two rules keep the seam honest:
  *
  *  1. It is **read-only**. There is no write method, because agent state is not
- *     ours to write. Ideas, stage overrides and Logbook notes live in Agent
- *     Zen's own store, never here. Supported steering and turn control belong
+ *     ours to write. Ideas, projects and Logbook notes live in Agent Zen's own
+ *     store, never here. Supported steering and turn control belong
  *     in a separate controller boundary when the live transport is added.
  *  2. It is **snapshot + subscribe**, not hooks. Hooks are at best an
  *     additional nudge to re-read; the transport is a poll or a stream over
@@ -22,6 +22,8 @@ import type { AgentSession } from '@/domain/types'
 export interface CodexSessionSource {
   /** Stable identifier for the backing agent, surfaced in the UI. */
   readonly agent: 'codex'
+  readonly mode: 'fixture' | 'live'
+  readonly label: string
 
   /** Current state of every known thread, including ended ones. */
   snapshot(): readonly AgentSession[]

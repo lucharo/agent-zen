@@ -8,6 +8,19 @@
   transform: rotate(-90deg);
 }
 
+.chevron[data-direction='left'] {
+  transform: rotate(90deg);
+}
+
+.stageIcon {
+  display: block;
+  color: var(--ink-faint);
+}
+
+.stageIcon[data-stage='running'] {
+  color: var(--accent);
+}
+
 /* --- Select ------------------------------------------------------------- */
 
 .select {
@@ -111,6 +124,12 @@
   padding-top: 12vh;
 }
 
+.backdrop[data-variant='dialog'] {
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+}
+
 .panel {
   background: var(--surface);
   box-shadow: var(--shadow-sheet);
@@ -129,6 +148,15 @@
 .panel[data-variant='palette'] {
   width: min(620px, calc(100vw - 32px));
   border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.panel[data-variant='dialog'] {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - 32px));
+  max-height: min(820px, calc(100vh - 48px));
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import type { Stage } from '@/domain/types'
 import styles from './primitives.module.css'
 
 export function CodexMark({ title = 'Codex' }: { title?: string }) {
@@ -10,7 +11,7 @@ export function CodexMark({ title = 'Codex' }: { title?: string }) {
   )
 }
 
-export function Chevron({ direction = 'down' }: { direction?: 'down' | 'right' }) {
+export function Chevron({ direction = 'down' }: { direction?: 'down' | 'left' | 'right' }) {
   return (
     <svg
       className={styles.chevron}
@@ -28,6 +29,53 @@ export function Chevron({ direction = 'down' }: { direction?: 'down' | 'right' }
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  )
+}
+
+export function StageIcon({ stage }: { stage: Exclude<Stage, 'ideas'> }) {
+  const common = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.35,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  }
+  return (
+    <svg
+      className={styles.stageIcon}
+      data-stage={stage}
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      aria-hidden="true"
+    >
+      {stage === 'planning' ? (
+        <>
+          <circle cx="8" cy="8" r="5.3" {...common} />
+          <circle cx="5.4" cy="8" r="0.7" fill="currentColor" />
+          <circle cx="8" cy="8" r="0.7" fill="currentColor" />
+          <circle cx="10.6" cy="8" r="0.7" fill="currentColor" />
+        </>
+      ) : null}
+      {stage === 'running' ? (
+        <>
+          <circle cx="8" cy="8" r="5.3" {...common} />
+          <path d="m7 5.7 3.4 2.3L7 10.3Z" fill="currentColor" stroke="none" />
+        </>
+      ) : null}
+      {stage === 'reviewing' ? (
+        <>
+          <path d="M2.2 8s2.1-3.3 5.8-3.3S13.8 8 13.8 8 11.7 11.3 8 11.3 2.2 8 2.2 8Z" {...common} />
+          <circle cx="8" cy="8" r="1.45" {...common} />
+        </>
+      ) : null}
+      {stage === 'wrapping-up' ? (
+        <>
+          <path d="m3.1 5.4 4.9-2.5 4.9 2.5v5.2L8 13.1l-4.9-2.5Z" {...common} />
+          <path d="m3.3 5.5 4.7 2.4 4.7-2.4M8 8v5" {...common} />
+        </>
+      ) : null}
     </svg>
   )
 }
@@ -138,7 +186,7 @@ export interface OverlayProps {
   onClose: () => void
   labelledBy: string
   children: ReactNode
-  variant: 'sheet' | 'palette'
+  variant: 'sheet' | 'palette' | 'dialog'
   testId?: string
 }
 

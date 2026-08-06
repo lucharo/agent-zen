@@ -4,3 +4,4 @@
 - [ADR-0002: Native Codex connection with cross-process observation](0002-native-codex-connection.md)
 - [ADR-0003: Human Logbook separate from agent state](0003-human-logbook.md)
 - [ADR-0004: First working visual prototype](0004-first-working-visual-prototype.md)
+- [ADR-0005: Read-only board and quiet settings](0005-read-only-board-and-quiet-settings.md)

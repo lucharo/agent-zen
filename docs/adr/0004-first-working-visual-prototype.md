@@ -25,7 +25,7 @@ Sources: `explorations/2026-08-05-codex-zen-directions/product-contract.md`, `cl
 - Keep quick capture title-first with one compact Tab-ordered field row and `Keep as idea` as the default.
 - Treat sheets as secondary surfaces: quick capture, command palette, detail, and history. They do not become primary views.
 - Keep agent-derived session state read-only behind `CodexSessionSource`.
-- Persist ideas, projects, stage semantics, theme, filters, and human-only Logbook notes locally.
+- Persist ideas, projects, focus-limit settings, theme, filters, and human-only Logbook notes locally. Session placement remains agent-derived.
 - Support System, Light, and Dark with a pre-paint theme script so cold reload does not flash the wrong palette.
 
 ## Consequences

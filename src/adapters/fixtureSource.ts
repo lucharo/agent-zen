@@ -61,7 +61,7 @@ export function fixtureSessions(base: number): AgentSession[] {
       cwd: '/Users/demo/Projects/github.com/lucharo/agent-zen',
       repository: 'lucharo/agent-zen',
       branch: 'feat/codex-first-prototype',
-      worktree: '~/.cache/openresearch/worktrees/local/agent-zen-codex-prototype',
+      worktree: '~/Projects/github.com/lucharo/agent-zen',
       projectId: 'agent-zen',
       plan: plan(3, iso(base, 7), 'Board shell is in place; moving on to the card language.', [
         ['Read the CZ1 and CZ3 direction evidence', 'completed'],
@@ -111,7 +111,7 @@ export function fixtureSessions(base: number): AgentSession[] {
       cwd: '/Users/demo/Projects/github.com/lucharo/agent-zen',
       repository: 'lucharo/agent-zen',
       branch: 'feat/codex-first-prototype',
-      worktree: '~/.cache/openresearch/worktrees/local/agent-zen-codex-prototype',
+      worktree: '~/Projects/github.com/lucharo/agent-zen',
       projectId: 'agent-zen',
       plan: plan(1, iso(base, 9), null, [
         ['Collect the fixture shapes', 'completed'],
@@ -299,6 +299,8 @@ export function createFixtureSessionSource(options: FixtureSourceOptions = {}): 
 
   return {
     agent: 'codex',
+    mode: 'fixture',
+    label: 'Fixture data',
     snapshot: () => sessions,
     subscribe(listener) {
       listeners.add(listener)

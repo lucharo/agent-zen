@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { deriveStage } from '@/domain/stage'
 import { elapsedSince, formatCaptureTime, formatDuration } from '@/domain/time'
-import { STAGE_LABELS, type AgentSession, type SemanticEventKind } from '@/domain/types'
+import { STAGE_LABELS, type AgentSession } from '@/domain/types'
 import { useAgentZen } from '@/state/store'
 import { Chevron, CodexMark, Overlay } from './primitives'
 import { Logbook } from './Logbook'
@@ -28,7 +28,7 @@ export function DetailSheet({ target, onClose }: DetailSheetProps) {
       open={Boolean(session || idea)}
       onClose={onClose}
       labelledBy="detail-title"
-      variant="sheet"
+      variant="dialog"
       testId="detail-sheet"
     >
       {session ? <SessionDetail session={session} onClose={onClose} /> : null}
@@ -37,19 +37,10 @@ export function DetailSheet({ target, onClose }: DetailSheetProps) {
   )
 }
 
-const EVENTS: ReadonlyArray<{ kind: SemanticEventKind; label: string }> = [
-  { kind: 'review-requested', label: 'Request review' },
-  { kind: 'wrapup-invoked', label: 'Mark wrapping up' },
-  { kind: 'returned-to-work', label: 'Return to work' },
-]
-
 function SessionDetail({ session, onClose }: { session: AgentSession; onClose: () => void }) {
-  const { state, dispatch, now, projectById } = useAgentZen()
+  const { now, projectById } = useAgentZen()
   const [showHistory, setShowHistory] = useState(false)
-  const stage = deriveStage(session, {
-    override: state.overrides.find((o) => o.sessionId === session.id),
-    events: state.events,
-  })
+  const stage = deriveStage(session)
   const project = projectById(session.projectId)
   const age = elapsedSince(session.createdAt, now)
   const turn = elapsedSince(session.turnStartedAt, now)
@@ -160,31 +151,6 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
           </dl>
         </section>
 
-        {session.endedAt ? null : (
-          <section className={styles.actions} aria-label="Stage">
-            <p className={styles.actionsLabel}>Agent Zen stage</p>
-            <div className={styles.actionRow}>
-              {EVENTS.map((event) => (
-                <button
-                  key={event.kind}
-                  type="button"
-                  className={styles.action}
-                  onClick={() =>
-                    dispatch({
-                      type: 'record-event',
-                      sessionId: session.id,
-                      kind: event.kind,
-                      now: Date.now(),
-                    })
-                  }
-                >
-                  {event.label}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
         <Logbook subjectId={session.id} />
       </div>
     </>
@@ -192,7 +158,7 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
 }
 
 function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }) {
-  const { state, dispatch, now, projectById } = useAgentZen()
+  const { state, dispatch, now, projectById, launchAvailability, activeCount } = useAgentZen()
   const [deferred, setDeferred] = useState<string | null>(null)
   const idea = state.ideas.find((i) => i.id === ideaId)
   if (!idea) return null
@@ -225,6 +191,7 @@ function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }
             <button
               type="button"
               className={styles.action}
+              disabled={!launchAvailability.allowed}
               onClick={() =>
                 setDeferred('Launching needs the Codex app-server. Fixture source is read-only.')
               }
@@ -252,7 +219,13 @@ function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }
               Delete
             </button>
           </div>
-          {deferred ? <p className={styles.deferred}>{deferred}</p> : null}
+          {!launchAvailability.allowed ? (
+            <p className={styles.deferred}>
+              Focus limit reached: {activeCount} of {state.activeLimit} slots are occupied. Capturing ideas still works.
+            </p>
+          ) : deferred ? (
+            <p className={styles.deferred}>{deferred}</p>
+          ) : null}
         </section>
 
         <Logbook subjectId={idea.id} />

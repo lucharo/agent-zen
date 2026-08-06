@@ -105,50 +105,42 @@
   flex: none;
 }
 
-.stepper {
+.limitButton,
+.themeButton {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   height: var(--control-height);
-  padding: 0 var(--space-1) 0 var(--space-3);
+  padding: 0 var(--space-3);
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--hairline-strong);
   flex: none;
 }
 
-.stepperLabel {
+.limitButton span,
+.themeButton {
   color: var(--ink-muted);
 }
 
-.stepperValue {
+.limitButton strong {
   font-variant-numeric: tabular-nums;
   font-weight: var(--weight-medium);
+  color: var(--ink);
 }
 
-.stepperValue[data-at-limit='true'] {
+.limitButton[data-at-limit='true'] strong {
   color: var(--accent);
 }
 
-.stepperButtons {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.stepperButtons button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 12px;
-  border-radius: 4px;
-  color: var(--ink-faint);
-}
-
-.stepperButtons button:hover {
+.limitButton:hover,
+.themeButton:hover {
   background: var(--surface-hover);
   color: var(--ink);
+}
+
+.themeButton span {
+  font-size: var(--text-meta);
 }
 
 /* --- Capture ------------------------------------------------------------ */

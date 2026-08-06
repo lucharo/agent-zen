@@ -4,8 +4,6 @@ import type {
   IdeaLayout,
   LogbookNote,
   Project,
-  SemanticEvent,
-  StageOverride,
   ThemeChoice,
   View,
 } from '@/domain/types'
@@ -23,8 +21,6 @@ export interface PersistedState {
   readonly version: 1
   readonly projects: readonly Project[]
   readonly ideas: readonly Idea[]
-  readonly overrides: readonly StageOverride[]
-  readonly events: readonly SemanticEvent[]
   readonly logbook: readonly LogbookNote[]
   readonly theme: ThemeChoice
   readonly view: View
@@ -32,6 +28,7 @@ export interface PersistedState {
   readonly ideaGroupBy: IdeaGroupBy
   readonly ideaLayout: IdeaLayout
   readonly ideasFolded: boolean
+  readonly activeLimitEnabled: boolean
   readonly activeLimit: number
 }
 
@@ -40,8 +37,6 @@ export function createInitialState(now: number): PersistedState {
     version: 1,
     projects: SEED_PROJECTS,
     ideas: seedIdeas(now),
-    overrides: [],
-    events: [],
     logbook: seedLogbook(now),
     theme: 'system',
     view: 'kanban',
@@ -49,6 +44,7 @@ export function createInitialState(now: number): PersistedState {
     ideaGroupBy: 'created',
     ideaLayout: 'grid',
     ideasFolded: false,
+    activeLimitEnabled: false,
     activeLimit: 3,
   }
 }

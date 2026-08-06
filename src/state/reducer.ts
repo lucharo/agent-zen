@@ -2,8 +2,7 @@ import type {
   CaptureAction,
   IdeaGroupBy,
   IdeaLayout,
-  SemanticEventKind,
-  Stage,
+  Project,
   ThemeChoice,
   View,
 } from '@/domain/types'
@@ -24,12 +23,11 @@ export type Action =
   | { type: 'set-idea-group-by'; groupBy: IdeaGroupBy }
   | { type: 'set-idea-layout'; layout: IdeaLayout }
   | { type: 'toggle-ideas-fold' }
+  | { type: 'set-active-limit-enabled'; enabled: boolean }
   | { type: 'set-active-limit'; limit: number }
+  | { type: 'add-projects'; projects: readonly Project[] }
   | { type: 'capture-idea'; draft: CaptureDraft; now: number }
   | { type: 'delete-idea'; ideaId: string }
-  | { type: 'record-event'; sessionId: string; kind: SemanticEventKind; now: number }
-  | { type: 'set-stage-override'; sessionId: string; stage: Stage; now: number }
-  | { type: 'clear-stage-override'; sessionId: string }
   | { type: 'add-logbook-note'; subjectId: string; body: string; now: number }
 
 export function reducer(state: PersistedState, action: Action): PersistedState {
@@ -52,8 +50,27 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
     case 'toggle-ideas-fold':
       return { ...state, ideasFolded: !state.ideasFolded }
 
+    case 'set-active-limit-enabled':
+      return { ...state, activeLimitEnabled: action.enabled }
+
     case 'set-active-limit':
       return { ...state, activeLimit: Math.min(9, Math.max(1, action.limit)) }
+
+    case 'add-projects': {
+      const known = new Set(
+        state.projects.flatMap((project) => [project.directory, project.repository].filter(Boolean)),
+      )
+      const additions: Project[] = []
+      for (const project of action.projects) {
+        if (known.has(project.directory) || (project.repository && known.has(project.repository))) {
+          continue
+        }
+        additions.push(project)
+        known.add(project.directory)
+        if (project.repository) known.add(project.repository)
+      }
+      return additions.length ? { ...state, projects: [...state.projects, ...additions] } : state
+    }
 
     case 'capture-idea': {
       const title = action.draft.title.trim()
@@ -77,39 +94,6 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
 
     case 'delete-idea':
       return { ...state, ideas: state.ideas.filter((i) => i.id !== action.ideaId) }
-
-    case 'record-event':
-      return {
-        ...state,
-        events: [
-          ...state.events,
-          {
-            id: newId('event'),
-            sessionId: action.sessionId,
-            kind: action.kind,
-            at: new Date(action.now).toISOString(),
-          },
-        ],
-      }
-
-    case 'set-stage-override':
-      return {
-        ...state,
-        overrides: [
-          ...state.overrides.filter((o) => o.sessionId !== action.sessionId),
-          {
-            sessionId: action.sessionId,
-            stage: action.stage,
-            at: new Date(action.now).toISOString(),
-          },
-        ],
-      }
-
-    case 'clear-stage-override':
-      return {
-        ...state,
-        overrides: state.overrides.filter((o) => o.sessionId !== action.sessionId),
-      }
 
     case 'add-logbook-note': {
       const body = action.body.trim()

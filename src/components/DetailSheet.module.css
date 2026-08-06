@@ -241,6 +241,11 @@
   background: var(--surface-hover);
 }
 
+.action:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
 .action[data-destructive='true'] {
   color: var(--ink-muted);
 }

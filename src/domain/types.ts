@@ -7,8 +7,8 @@
  *    read-only**. It mirrors what Codex already persists (thread, turn, plan,
  *    parent/child, cwd, worktree, branch, model). Agent Zen never writes here
  *    and never asks an agent to maintain a second ledger.
- *  - `Idea`, `Project`, `StageOverride`, `SemanticEvent` and `LogbookNote` are
- *    **Agent Zen-owned and locally persisted**. They are ours to mutate.
+ *  - `Idea`, `Project` and `LogbookNote` are **Agent Zen-owned and locally
+ *    persisted**. They are ours to mutate.
  */
 
 /** The five board stages. There is deliberately no `done`. */
@@ -31,7 +31,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
 }
 
 /** Stages backed by a live agent session. `ideas` is ours, so it carries no mark. */
-export const SESSION_STAGES: readonly Stage[] = [
+export const SESSION_STAGES: readonly Exclude<Stage, 'ideas'>[] = [
   'planning',
   'running',
   'reviewing',
@@ -139,27 +139,6 @@ export interface Idea {
   readonly repository: string | null
   readonly action: CaptureAction
   readonly createdAt: string
-}
-
-/**
- * A semantic event Agent Zen observes or the human records. These move a
- * session between stages that the native plan alone cannot express — a review
- * being requested, or the wrapup skill being invoked.
- */
-export type SemanticEventKind = 'review-requested' | 'wrapup-invoked' | 'returned-to-work'
-
-export interface SemanticEvent {
-  readonly id: string
-  readonly sessionId: string
-  readonly kind: SemanticEventKind
-  readonly at: string
-}
-
-/** A human dragging a card. Outranks everything, including the native plan. */
-export interface StageOverride {
-  readonly sessionId: string
-  readonly stage: Stage
-  readonly at: string
 }
 
 /**

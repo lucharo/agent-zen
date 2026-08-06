@@ -28,8 +28,10 @@ Derive the board stage locally:
 - `Ideas`: Agent Zen-owned idea; no session.
 - `Planning`: an active turn exists and no native plan is available.
 - `Running`: an active turn exists and a native plan is available.
-- `Reviewing`: native review mode, an explicit review action/skill marker, or a human stage override.
-- `Wrapping up`: an explicit wrap-up action/skill marker or a human stage override.
+- `Reviewing`: native review mode or an observed review action/skill marker in the Codex rollout.
+- `Wrapping up`: an observed wrap-up skill invocation or wrap-up result in the Codex rollout.
+
+The Kanban is read-only. Agent Zen does not persist human stage overrides. Supported session control is a separate controller action and the resulting Codex state flows back through the same source.
 
 Do not require the agent to maintain another task ledger. Each native plan update replaces the current plan projection while rollout history preserves prior updates.
 
@@ -39,6 +41,7 @@ Do not require the agent to maintain another task ledger. Each native plan updat
 - Sessions launched in Codex Desktop remain visible through persisted native state; control may require resuming them through Agent Zen after their external turn is idle.
 - The adapter must isolate internal SQLite/JSONL parsing so a Codex schema change has one repair point.
 - The implementation should generate or vendor types from the installed Codex version during development rather than hand-maintain the protocol.
+- The browser UI needs a small local bridge or daemon because it cannot launch `codex app-server` or read `~/.codex` directly.
 
 ## Rejected alternatives
 
@@ -46,4 +49,3 @@ Do not require the agent to maintain another task ledger. Each native plan updat
 - **Hooks as the event bus:** invasive, trust-gated, and unnecessary for ordinary turn/plan lifecycle.
 - **SQLite/JSONL only:** sufficient for observation, but loses supported control, approvals, steering, and streamed protocol semantics.
 - **App-server only with a new process:** supported and clean, but cannot report cross-process runtime status for Codex Desktop sessions by itself.
-

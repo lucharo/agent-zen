@@ -19,6 +19,7 @@ export interface CommandPaletteProps {
   onOpenIdea: (ideaId: string) => void
   onOpenCapture: () => void
   onOpenArchive: () => void
+  onOpenSettings: () => void
 }
 
 export function CommandPalette({
@@ -28,6 +29,7 @@ export function CommandPalette({
   onOpenIdea,
   onOpenCapture,
   onOpenArchive,
+  onOpenSettings,
 }: CommandPaletteProps) {
   const { state, dispatch, board, projectById } = useAgentZen()
   const [query, setQuery] = useState('')
@@ -56,6 +58,7 @@ export function CommandPalette({
         run: () => dispatch({ type: 'set-view', view: 'ideas' }),
       },
       { id: 'go-archive', label: 'Open history', group: 'Go', run: onOpenArchive },
+      { id: 'go-settings', label: 'Open Settings', detail: '⌘,', group: 'Go', run: onOpenSettings },
     ]
 
     const doCommands: Command[] = [
@@ -133,7 +136,7 @@ export function CommandPalette({
     }))
 
     return [...go, ...doCommands, ...sessions, ...ideas]
-  }, [state, dispatch, board, projectById, onOpenSession, onOpenIdea, onOpenCapture, onOpenArchive])
+  }, [state, dispatch, board, projectById, onOpenSession, onOpenIdea, onOpenCapture, onOpenArchive, onOpenSettings])
 
   const needle = query.trim().toLowerCase()
   const results = needle

@@ -1,0 +1,225 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.header h2 {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.header p,
+.sectionHead p,
+.footnote {
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}
+
+.header p {
+  margin-top: var(--space-1);
+}
+
+.close {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.close:hover,
+.addProjects:hover,
+.limitStepper button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.body {
+  overflow: auto;
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+.section {
+  padding: var(--space-5) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.section:last-child {
+  border-bottom: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.sectionHead h3 {
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+}
+
+.sectionHead p {
+  margin-top: 2px;
+  max-width: 450px;
+}
+
+.status {
+  padding: 3px var(--space-2);
+  border-radius: 999px;
+  background: var(--surface-selected);
+  color: var(--ink-secondary);
+  font-size: var(--text-micro);
+  white-space: nowrap;
+}
+
+.status[data-mode='live'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.notice {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-secondary);
+  font-size: var(--text-meta);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.toggle {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--track);
+  transition: background var(--duration-fast) var(--ease);
+  flex: none;
+}
+
+.toggle[aria-checked='true'] {
+  background: var(--accent);
+}
+
+.toggleThumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.toggle[aria-checked='true'] .toggleThumb {
+  transform: translateX(16px);
+}
+
+.limitRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  color: var(--ink-secondary);
+}
+
+.limitRow[data-disabled='true'] {
+  color: var(--ink-muted);
+}
+
+.limitStepper {
+  display: inline-grid;
+  grid-template-columns: 30px 34px 30px;
+  align-items: center;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  overflow: hidden;
+}
+
+.limitStepper button,
+.limitStepper output {
+  display: grid;
+  place-items: center;
+  height: 28px;
+}
+
+.limitStepper button:disabled {
+  cursor: default;
+  color: var(--ink-faint);
+  opacity: 0.45;
+}
+
+.limitStepper output {
+  border-inline: 1px solid var(--hairline);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-medium);
+}
+
+.footnote {
+  margin-top: var(--space-3);
+}
+
+.addProjects {
+  height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  white-space: nowrap;
+}
+
+.projects {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-4);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  overflow: hidden;
+}
+
+.projects li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.projects li:last-child {
+  border-bottom: 0;
+}
+
+.projects div {
+  min-width: 0;
+}
+
+.projects strong,
+.projects div span {
+  display: block;
+}
+
+.projects div span,
+.projects > li > span {
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}
+
+.projects div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects > li > span {
+  white-space: nowrap;
+}

@@ -51,9 +51,8 @@ describe('the board', () => {
 
   it('counts only the sessions that hold a slot', () => {
     mount()
-    // Five session cards are visible; the child agent and the two waiting on a
-    // human do not consume a slot.
-    expect(screen.getByTitle(/Root sessions in Planning or Running/)).toHaveTextContent('2 / 3')
+    // The focus limit starts disabled even though two root sessions are active.
+    expect(screen.getByRole('button', { name: /Limit off/ })).toBeInTheDocument()
   })
 
   it('folds the Ideas column down to a count', async () => {
@@ -64,7 +63,11 @@ describe('the board', () => {
     await user.click(within(ideas).getByRole('button', { expanded: true }))
 
     expect(within(column('Ideas')).queryByText('Session dashboard')).toBeNull()
-    expect(within(column('Ideas')).getByText(/hidden$/)).toBeInTheDocument()
+    expect(within(column('Ideas')).getByText(/ideas hidden/)).toBeInTheDocument()
+    expect(within(column('Ideas')).getByRole('button', { name: 'Ideas', expanded: false })).toHaveAttribute(
+      'title',
+      'Expand Ideas',
+    )
   })
 
   it('routes to quiet history rather than a Done column', async () => {
@@ -97,6 +100,24 @@ describe('navigation', () => {
     await user.keyboard('{Enter}')
 
     expect(screen.queryByRole('region', { name: 'Running' })).toBeNull()
+  })
+
+  it('opens Settings on cmd+comma', async () => {
+    const { user } = mount()
+
+    await user.keyboard('{Meta>},{/Meta}')
+
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    expect(screen.getByText('Fixture data')).toBeInTheDocument()
+  })
+
+  it('cycles theme from one toolbar control', async () => {
+    const { user } = mount()
+    const theme = screen.getByRole('button', { name: /Theme: System/ })
+
+    await user.click(theme)
+
+    expect(screen.getByRole('button', { name: /Theme: Light/ })).toBeInTheDocument()
   })
 
   it('filters the board and the backlog by project', async () => {
@@ -144,10 +165,13 @@ describe('session detail', () => {
     await user.click(within(column('Running')).getByText('Revise calm control plane'))
     const sheet = screen.getByRole('dialog')
 
+    expect(sheet).toHaveAttribute('data-variant', 'dialog')
+
     expect(within(sheet).getByText('From Codex')).toBeInTheDocument()
     expect(within(sheet).getByText('read-only')).toBeInTheDocument()
     expect(within(sheet).getByText(/Plan revision 3/)).toBeInTheDocument()
     expect(within(sheet).getByText('Generate three new mockups')).toBeInTheDocument()
+    expect(within(sheet).queryByText('Agent Zen stage')).toBeNull()
 
     const logbook = within(sheet).getByRole('region', { name: 'Logbook' })
     expect(within(logbook).getByText('Yours. Agents never write here.')).toBeInTheDocument()
@@ -166,6 +190,41 @@ describe('session detail', () => {
     expect(within(logbook).getAllByRole('listitem')).toHaveLength(before + 1)
     expect(within(logbook).getByText('Column widths feel right.')).toBeInTheDocument()
     expect(storage.getItem(STORAGE_KEY)).toContain('"author":"human"')
+  })
+})
+
+describe('settings and limits', () => {
+  it('enables the focus limit and uses it to refuse a new root launch', async () => {
+    const { user } = mount()
+
+    await user.keyboard('{Meta>},{/Meta}')
+    const settings = screen.getByRole('dialog', { name: 'Settings' })
+    await user.click(within(settings).getByRole('switch'))
+    await user.click(within(settings).getByRole('button', { name: 'Lower active session limit' }))
+    await user.click(within(settings).getByRole('button', { name: 'Close settings' }))
+
+    expect(screen.getByRole('button', { name: /Active 2 \/ 2/ })).toBeInTheDocument()
+    await user.click(within(column('Ideas')).getByText('Session dashboard'))
+
+    const detail = screen.getByRole('dialog')
+    expect(within(detail).getByRole('button', { name: 'Launch session' })).toBeDisabled()
+    expect(within(detail).getByText(/Focus limit reached: 2 of 2/)).toBeInTheDocument()
+  })
+
+  it('registers a discovered local project through the quiet onboarding flow', async () => {
+    const { user, storage } = mount()
+
+    await user.keyboard('{Meta>},{/Meta}')
+    await user.click(screen.getByRole('button', { name: 'Add projects…' }))
+    const onboarding = screen.getByRole('dialog', {
+      name: 'Choose the repositories you work in',
+    })
+    await user.click(within(onboarding).getByText('lucharo/taskflow'))
+    await user.click(within(onboarding).getByRole('button', { name: 'Register 1 project' }))
+
+    const settings = screen.getByRole('dialog', { name: 'Settings' })
+    expect(within(settings).getByText('taskflow')).toBeInTheDocument()
+    expect(storage.getItem(STORAGE_KEY)).toContain('lucharo/taskflow')
   })
 })
 

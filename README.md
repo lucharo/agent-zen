@@ -9,7 +9,11 @@ finished sessions go to quiet history.
     bun run check    # typecheck + tests + production build
 
 Session data is read-only and arrives through the typed `CodexSessionSource`
-(`src/adapters/`), currently fixture-backed. Ideas, projects, stage overrides and
-the human-only Logbook are owned by Agent Zen and persisted to localStorage.
+(`src/adapters/`), currently fixture-backed. Ideas, projects, focus-limit settings
+and the human-only Logbook are owned by Agent Zen and persisted to localStorage.
 
 The implementation follows [the selected Codex-first visual direction](explorations/2026-08-05-codex-zen-directions/README.md). Accepted product, integration, Logbook, and prototype decisions are indexed in [docs/adr](docs/adr/README.md). The [QA index](qa/README.md) records the verified browser evidence.
+
+## Live Codex connection
+
+The rendered app is still fixture-backed. The accepted live path is a small local bridge that owns one bundled `codex app-server` process for sessions launched through Agent Zen, and observes `~/.codex/state_5.sqlite` plus indexed rollout JSONL files read-only for sessions running in Codex Desktop or another process. ACP and hooks are not required. See [ADR-0002](docs/adr/0002-native-codex-connection.md).

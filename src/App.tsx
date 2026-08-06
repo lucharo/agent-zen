@@ -7,6 +7,8 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { DetailSheet, type DetailTarget } from '@/components/DetailSheet'
 import { IdeasView } from '@/components/IdeasView'
 import { KanbanView } from '@/components/KanbanView'
+import { ProjectOnboardingDialog } from '@/components/ProjectOnboardingDialog'
+import { SettingsDialog } from '@/components/SettingsDialog'
 import { Toolbar } from '@/components/Toolbar'
 import styles from './App.module.css'
 
@@ -15,6 +17,8 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [projectOnboardingOpen, setProjectOnboardingOpen] = useState(false)
   const [detail, setDetail] = useState<DetailTarget>(null)
 
   const ideas = filterIdeas(state.ideas, { projectId: state.projectFilter })
@@ -42,6 +46,11 @@ export function App() {
         setCaptureOpen(true)
         return
       }
+      if (meta && event.key === ',') {
+        event.preventDefault()
+        setSettingsOpen(true)
+        return
+      }
       if (meta && (key === '1' || key === '2')) {
         event.preventDefault()
         dispatch({ type: 'set-view', view: key === '1' ? 'kanban' : 'ideas' })
@@ -51,6 +60,8 @@ export function App() {
         setPaletteOpen(false)
         setCaptureOpen(false)
         setArchiveOpen(false)
+        setSettingsOpen(false)
+        setProjectOnboardingOpen(false)
         setDetail(null)
       }
     }
@@ -64,6 +75,7 @@ export function App() {
         ideaCount={ideas.length}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenCapture={openCapture}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <main className={styles.main}>
@@ -88,6 +100,7 @@ export function App() {
         onOpenIdea={openIdea}
         onOpenCapture={openCapture}
         onOpenArchive={openArchive}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
       <ArchiveSheet
         open={archiveOpen}
@@ -95,6 +108,21 @@ export function App() {
         onOpenSession={openSession}
       />
       <DetailSheet target={detail} onClose={() => setDetail(null)} />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onAddProjects={() => {
+          setSettingsOpen(false)
+          setProjectOnboardingOpen(true)
+        }}
+      />
+      <ProjectOnboardingDialog
+        open={projectOnboardingOpen}
+        onClose={() => {
+          setProjectOnboardingOpen(false)
+          setSettingsOpen(true)
+        }}
+      />
     </div>
   )
 }

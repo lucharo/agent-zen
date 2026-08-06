@@ -1,37 +1,16 @@
-import type { AgentSession, SemanticEvent, Stage, StageOverride } from './types'
-
-export interface StageInputs {
-  /** A human placement. Outranks the agent's own state. */
-  readonly override?: StageOverride | undefined
-  /** All semantic events for this session, in any order. */
-  readonly events?: readonly SemanticEvent[] | undefined
-}
+import type { AgentSession, Stage } from './types'
 
 /**
  * Where a session sits on the board, or `null` when it belongs in the archive
  * rather than the focus surface.
  *
- * The ladder, highest precedence first:
- *
- *  1. An ended thread leaves the board entirely. There is no Done column.
- *  2. A human stage override.
- *  3. The latest semantic event Agent Zen recorded.
- *  4. The agent's own reported state: wrapup, then review, then the native plan.
- *
- * Step 4 is what keeps this honest — with no local state at all, a session
- * still lands in the right column purely from what Codex already persists.
+ * An ended thread leaves the board entirely. Every other placement is derived
+ * from Codex-owned state: wrapup, review, then the native plan. The Kanban is a
+ * projection, not an editor, so no local override can silently contradict the
+ * session that produced it.
  */
-export function deriveStage(session: AgentSession, inputs: StageInputs = {}): Stage | null {
+export function deriveStage(session: AgentSession): Stage | null {
   if (session.endedAt) return null
-  if (inputs.override) return inputs.override.stage
-
-  const latest = latestEvent(inputs.events, session.id)
-  if (latest?.kind === 'wrapup-invoked') return 'wrapping-up'
-  if (latest?.kind === 'review-requested') return 'reviewing'
-  // `returned-to-work` deliberately discards the agent's stale review and
-  // wrapup signals, which is the whole point of recording it.
-  if (latest?.kind === 'returned-to-work') return planStage(session)
-
   return nativeStage(session)
 }
 
@@ -44,19 +23,6 @@ export function nativeStage(session: AgentSession): Stage {
 
 function planStage(session: AgentSession): Stage {
   return session.plan && session.plan.steps.length > 0 ? 'running' : 'planning'
-}
-
-function latestEvent(
-  events: readonly SemanticEvent[] | undefined,
-  sessionId: string,
-): SemanticEvent | undefined {
-  if (!events?.length) return undefined
-  return events
-    .filter((e) => e.sessionId === sessionId)
-    .reduce<SemanticEvent | undefined>(
-      (best, e) => (!best || e.at > best.at ? e : best),
-      undefined,
-    )
 }
 
 /** The plan step the agent is on right now, or `null` while planning. */
@@ -96,4 +62,23 @@ export function activeSessionCount(
     const stage = stageOf(s)
     return stage === 'planning' || stage === 'running'
   }).length
+}
+
+export interface LaunchAvailability {
+  readonly allowed: boolean
+  readonly reason: 'limit-disabled' | 'slot-available' | 'limit-reached'
+}
+
+/**
+ * The focus limit is a launch guard, never a process killer. Existing work is
+ * left alone; only a new root session is refused once every slot is occupied.
+ */
+export function launchAvailability(
+  active: number,
+  enabled: boolean,
+  limit: number,
+): LaunchAvailability {
+  if (!enabled) return { allowed: true, reason: 'limit-disabled' }
+  if (active < limit) return { allowed: true, reason: 'slot-available' }
+  return { allowed: false, reason: 'limit-reached' }
 }

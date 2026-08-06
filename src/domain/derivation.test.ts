@@ -5,11 +5,11 @@ import {
   activeSessionCount,
   currentPlanStep,
   deriveStage,
-  nativeStage,
+  launchAvailability,
   planProgress,
 } from '@/domain/stage'
 import { dateBucket, formatDuration, formatSessionTiming } from '@/domain/time'
-import type { AgentSession, Idea, SemanticEvent, StageOverride } from '@/domain/types'
+import type { AgentSession, Idea } from '@/domain/types'
 import { SEED_PROJECTS, seedIdeas } from '@/state/seed'
 import { STORAGE_KEY, createInitialState, loadState, saveState } from '@/state/persistence'
 import { reducer } from '@/state/reducer'
@@ -32,68 +32,15 @@ describe('deriveStage', () => {
   })
 
   it('places every live session from agent-reported state alone', () => {
-    // No overrides, no events: this is the zero-local-state case.
+    // No local placement exists: the board follows agent-reported state alone.
     expect(deriveStage(byId('sess-index-threads'))).toBe('planning')
     expect(deriveStage(byId('sess-control-plane'))).toBe('running')
     expect(deriveStage(byId('sess-harbor-canary'))).toBe('reviewing')
     expect(deriveStage(byId('sess-retire-dask'))).toBe('wrapping-up')
   })
 
-  it('lets a human override outrank the agent', () => {
-    const override: StageOverride = {
-      sessionId: 'sess-control-plane',
-      stage: 'reviewing',
-      at: new Date(NOW).toISOString(),
-    }
-
-    expect(deriveStage(byId('sess-control-plane'), { override })).toBe('reviewing')
-  })
-
-  it('lets the latest semantic event outrank the agent', () => {
-    const events: SemanticEvent[] = [
-      {
-        id: 'evt-1',
-        sessionId: 'sess-control-plane',
-        kind: 'review-requested',
-        at: new Date(NOW - 2 * MINUTE).toISOString(),
-      },
-      {
-        id: 'evt-2',
-        sessionId: 'sess-control-plane',
-        kind: 'wrapup-invoked',
-        at: new Date(NOW - MINUTE).toISOString(),
-      },
-    ]
-
-    expect(deriveStage(byId('sess-control-plane'), { events })).toBe('wrapping-up')
-  })
-
-  it('discards stale review signals when work is returned to the agent', () => {
-    const reviewing = byId('sess-harbor-canary')
-    const events: SemanticEvent[] = [
-      {
-        id: 'evt-3',
-        sessionId: reviewing.id,
-        kind: 'returned-to-work',
-        at: new Date(NOW).toISOString(),
-      },
-    ]
-
-    expect(nativeStage(reviewing)).toBe('reviewing')
-    expect(deriveStage(reviewing, { events })).toBe('running')
-  })
-
-  it('ignores events belonging to another session', () => {
-    const events: SemanticEvent[] = [
-      {
-        id: 'evt-4',
-        sessionId: 'sess-harbor-canary',
-        kind: 'wrapup-invoked',
-        at: new Date(NOW).toISOString(),
-      },
-    ]
-
-    expect(deriveStage(byId('sess-control-plane'), { events })).toBe('running')
+  it('does not expose a local override path for agent-authored placement', () => {
+    expect(deriveStage(byId('sess-control-plane'))).toBe('running')
   })
 })
 
@@ -108,6 +55,29 @@ describe('activeSessionCount', () => {
     const child = byId('sess-fixture-sweep')
     expect(child.parentSessionId).toBe('sess-control-plane')
     expect(activeSessionCount([child], (s) => deriveStage(s))).toBe(0)
+  })
+})
+
+describe('launchAvailability', () => {
+  it('allows launches while the focus limit is disabled', () => {
+    expect(launchAvailability(9, false, 1)).toEqual({
+      allowed: true,
+      reason: 'limit-disabled',
+    })
+  })
+
+  it('allows one more root session below the enabled limit', () => {
+    expect(launchAvailability(2, true, 3)).toEqual({
+      allowed: true,
+      reason: 'slot-available',
+    })
+  })
+
+  it('refuses only a new launch once the enabled limit is full', () => {
+    expect(launchAvailability(3, true, 3)).toEqual({
+      allowed: false,
+      reason: 'limit-reached',
+    })
   })
 })
 
@@ -254,12 +224,28 @@ describe('persistence', () => {
 
     expect(loaded.theme).toBe('dark')
     expect(loaded.view).toBe('ideas')
+    expect(loaded.activeLimitEnabled).toBe(false)
     expect(loaded.ideas[0]?.title).toBe('Persist across a cold reload')
     expect(loaded.logbook.at(-1)).toMatchObject({
       subjectId: 'sess-control-plane',
       body: 'Checked the plan by hand.',
       author: 'human',
     })
+  })
+
+  it('registers projects once by local or GitHub identity', () => {
+    const initial = createInitialState(NOW)
+    const project = {
+      id: 'proj-taskflow',
+      name: 'taskflow',
+      directory: '~/Projects/github.com/lucharo/taskflow',
+      repository: 'lucharo/taskflow',
+    }
+    const once = reducer(initial, { type: 'add-projects', projects: [project] })
+    const twice = reducer(once, { type: 'add-projects', projects: [project] })
+
+    expect(once.projects).toHaveLength(initial.projects.length + 1)
+    expect(twice.projects).toEqual(once.projects)
   })
 
   it('falls back to a fresh state when the stored blob is unreadable', () => {

@@ -1,7 +1,7 @@
 import { useCallback, useRef, type KeyboardEvent } from 'react'
 import { SESSION_STAGES, STAGE_LABELS, type Idea, type Stage } from '@/domain/types'
 import { useAgentZen } from '@/state/store'
-import { Chevron, CodexMark } from './primitives'
+import { Chevron, StageIcon } from './primitives'
 import { SessionCard } from './SessionCard'
 import styles from './KanbanView.module.css'
 
@@ -75,7 +75,12 @@ export function KanbanView({
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.board} ref={boardRef} onKeyDown={onKeyDown}>
+      <div
+        className={styles.board}
+        data-ideas-folded={state.ideasFolded}
+        ref={boardRef}
+        onKeyDown={onKeyDown}
+      >
         <section
           className={styles.column}
           data-folded={state.ideasFolded}
@@ -85,14 +90,19 @@ export function KanbanView({
             <button
               type="button"
               className={styles.fold}
+              data-folded={state.ideasFolded}
               aria-expanded={!state.ideasFolded}
               onClick={() => dispatch({ type: 'toggle-ideas-fold' })}
+              title={state.ideasFolded ? 'Expand Ideas' : 'Collapse Ideas to the left'}
             >
+              <Chevron direction={state.ideasFolded ? 'right' : 'left'} />
               <h2 className={styles.columnTitle}>{STAGE_LABELS.ideas}</h2>
-              <Chevron direction={state.ideasFolded ? 'right' : 'down'} />
             </button>
             {state.ideasFolded ? (
-              <span className={styles.hiddenCount}>{hiddenIdeaCount} hidden</span>
+              <span className={styles.hiddenCount} title={`${hiddenIdeaCount} ideas hidden`}>
+                {hiddenIdeaCount}
+                <span className="visuallyHidden"> ideas hidden</span>
+              </span>
             ) : null}
             <button
               type="button"
@@ -143,10 +153,16 @@ export function KanbanView({
         {SESSION_STAGES.map((stage, stageIndex) => {
           const entries = filtered.filter((entry) => entry.stage === stage)
           return (
-            <section className={styles.column} key={stage} aria-label={STAGE_LABELS[stage]}>
+            <section
+              className={styles.column}
+              data-stage={stage}
+              key={stage}
+              aria-label={STAGE_LABELS[stage]}
+            >
               <header className={styles.columnHead}>
                 <span className={styles.stageMark}>
-                  <CodexMark />
+                  <StageIcon stage={stage} />
+                  <span className="visuallyHidden">Codex</span>
                 </span>
                 <h2 className={styles.columnTitle}>{STAGE_LABELS[stage]}</h2>
               </header>
