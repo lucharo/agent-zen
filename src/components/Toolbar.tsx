@@ -3,12 +3,21 @@ import type {
   IdeaLayout,
   KanbanCardDetail,
   KanbanGroupBy,
+  SessionLayout,
   ThemeChoice,
   View,
 } from '@/domain/types'
 import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
-import { GridIcon, ListIcon, SearchIcon, Select } from './primitives'
+import {
+  BoardIcon,
+  DetailsIcon,
+  GridIcon,
+  ListIcon,
+  SearchIcon,
+  Select,
+  TitleIcon,
+} from './primitives'
 import styles from './Toolbar.module.css'
 
 const THEME_ORDER: readonly ThemeChoice[] = ['system', 'light', 'dark']
@@ -22,7 +31,7 @@ export interface ToolbarProps {
 }
 
 /**
- * One row, always. Everything that is not Kanban or Ideas is a filter or a
+ * One row, always. Everything that is not Sessions or Ideas is a filter or a
  * quick field here — never a third destination.
  */
 export function Toolbar({
@@ -54,7 +63,7 @@ export function Toolbar({
             data-selected={state.view === view}
             onClick={() => setView(view)}
           >
-            {view === 'kanban' ? 'Kanban' : 'Ideas'}
+            {view === 'kanban' ? 'Sessions' : 'Ideas'}
             <kbd className={styles.contextShortcut}>{view === 'kanban' ? '⌘1' : '⌘2'}</kbd>
           </button>
         ))}
@@ -104,6 +113,24 @@ export function Toolbar({
         </>
       ) : (
         <>
+          <div className={styles.segmented} role="group" aria-label="Session layout">
+            {(['kanban', 'grid'] as const).map((layout) => (
+              <button
+                key={layout}
+                type="button"
+                className={styles.segment}
+                data-selected={state.sessionLayout === layout}
+                aria-pressed={state.sessionLayout === layout}
+                aria-label={layout === 'kanban' ? 'Kanban' : 'Grid'}
+                title={layout === 'kanban' ? 'Kanban layout' : 'Grid layout'}
+                onClick={() =>
+                  dispatch({ type: 'set-session-layout', layout: layout as SessionLayout })
+                }
+              >
+                {layout === 'kanban' ? <BoardIcon /> : <GridIcon />}
+              </button>
+            ))}
+          </div>
           <Select
             label="Group sessions by"
             prefix="Group by:"
@@ -116,18 +143,24 @@ export function Toolbar({
               { value: 'project', label: 'Project' },
             ]}
           />
-          <Select
-            label="Session card detail"
-            prefix="Cards:"
-            value={state.kanbanCardDetail}
-            onChange={(value) =>
-              dispatch({ type: 'set-kanban-card-detail', detail: value as KanbanCardDetail })
-            }
-            options={[
-              { value: 'details', label: 'Details' },
-              { value: 'titles', label: 'Titles' },
-            ]}
-          />
+          <div className={styles.segmented} role="group" aria-label="Card detail">
+            {(['titles', 'details'] as const).map((detail) => (
+              <button
+                key={detail}
+                type="button"
+                className={styles.segment}
+                data-selected={state.kanbanCardDetail === detail}
+                aria-pressed={state.kanbanCardDetail === detail}
+                aria-label={detail === 'titles' ? 'Titles only' : 'Details'}
+                title={detail === 'titles' ? 'Show titles only' : 'Show session details'}
+                onClick={() =>
+                  dispatch({ type: 'set-kanban-card-detail', detail: detail as KanbanCardDetail })
+                }
+              >
+                {detail === 'titles' ? <TitleIcon /> : <DetailsIcon />}
+              </button>
+            ))}
+          </div>
         </>
       )}
 

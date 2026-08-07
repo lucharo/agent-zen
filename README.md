@@ -1,8 +1,9 @@
 # Agent Zen
 
-A calm local board for Codex sessions. Two views — **Kanban** and **Ideas** — over
-five stages: Ideas, Planning, Running, Reviewing, Wrapping up. No Done column;
-finished sessions leave the focus board.
+A calm local board for Codex sessions. Two primary views — **Sessions** and
+**Ideas**. Sessions can be projected as a stage Kanban or a compact grid over
+Planning, Running, Reviewing, and Wrapping up. No Done column; finished sessions
+leave the focus board.
 
     bun install
     bun run bridge   # http://127.0.0.1:5274
@@ -26,7 +27,7 @@ The rendered app is live. A loopback-only Bun bridge combines:
 
 - read-only observation of `~/.codex/state_5.sqlite` and indexed rollout JSONL files;
 - supported App Server control for sessions launched by Agent Zen;
-- local Git discovery for project registration;
+- local Git discovery with automatic registration of active repositories;
 - a serialized launch gate for the optional focus limit.
 
 ACP and hooks are not required. The board itself stays read-only: stage changes

@@ -52,7 +52,7 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
     <>
       <SheetHeader
         title={session.title}
-        subtitle={`${stage ? STAGE_LABELS[stage] : 'History'} · ${project?.name ?? 'No project'}`}
+        subtitle={`${stage ? STAGE_LABELS[stage] : 'History'} · ${project?.name ?? 'Outside a Git project'}`}
         onClose={onClose}
       />
 

@@ -1,4 +1,9 @@
-import type { BridgeSnapshot, LaunchSessionPayload, LaunchSessionResponse } from './types'
+import {
+  BRIDGE_PROTOCOL_VERSION,
+  type BridgeSnapshot,
+  type LaunchSessionPayload,
+  type LaunchSessionResponse,
+} from './types'
 
 export interface AgentZenBridge {
   readonly mode: 'live'
@@ -13,6 +18,7 @@ export interface AgentZenBridge {
 }
 
 const EMPTY: BridgeSnapshot = {
+  protocolVersion: BRIDGE_PROTOCOL_VERSION,
   generatedAt: new Date(0).toISOString(),
   connection: {
     connected: false,
@@ -80,6 +86,9 @@ export function createHttpBridge(
     polling = true
     try {
       const snapshot = await request<BridgeSnapshot>('/api/snapshot')
+      if (snapshot.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+        throw new Error('Restart Agent Zen: the dashboard and local bridge are from different builds.')
+      }
       emit(snapshot)
       return snapshot
     } catch (error) {

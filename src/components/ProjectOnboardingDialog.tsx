@@ -71,8 +71,8 @@ export function ProjectOnboardingDialog({ open, onClose }: ProjectOnboardingDial
       <header className={styles.header}>
         <div>
           <p className={styles.eyebrow}>PROJECTS</p>
-          <h2 id="project-onboarding-title">Choose the repositories you work in</h2>
-          <p>Start small. Agent Zen uses the local checkout to match Codex sessions and keeps the GitHub link beside it.</p>
+          <h2 id="project-onboarding-title">Add another repository</h2>
+          <p>Active Git repositories appear automatically. Add an inactive checkout when you want to launch work there.</p>
         </div>
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close project setup">
           ×

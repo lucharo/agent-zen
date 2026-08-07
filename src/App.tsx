@@ -7,6 +7,7 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { DetailSheet, type DetailTarget } from '@/components/DetailSheet'
 import { IdeasView } from '@/components/IdeasView'
 import { KanbanView } from '@/components/KanbanView'
+import { SessionGridView } from '@/components/SessionGridView'
 import { ProjectOnboardingDialog } from '@/components/ProjectOnboardingDialog'
 import { SettingsDialog } from '@/components/SettingsDialog'
 import { Toolbar } from '@/components/Toolbar'
@@ -128,12 +129,16 @@ export function App() {
 
       <main className={styles.main}>
         {state.view === 'kanban' ? (
-          <KanbanView
-            ideas={ideas}
-            onOpenSession={openSession}
-            onOpenIdea={openIdea}
-            onCapture={openCapture}
-          />
+          state.sessionLayout === 'kanban' ? (
+            <KanbanView
+              ideas={ideas}
+              onOpenSession={openSession}
+              onOpenIdea={openIdea}
+              onCapture={openCapture}
+            />
+          ) : (
+            <SessionGridView onOpenSession={openSession} />
+          )
         ) : (
           <IdeasView ideas={ideas} onOpenIdea={openIdea} onCapture={openCapture} />
         )}

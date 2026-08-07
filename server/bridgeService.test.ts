@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ProjectCandidate } from '../src/adapters/ProjectDiscoverySource'
-import type { Project } from '../src/domain/types'
+import type { AgentSession, Project } from '../src/domain/types'
 import { AgentZenBridgeService, type BridgeServiceDependencies } from './bridgeService'
 import type { AppServerNotification } from './codex/appServerClient'
 
@@ -112,5 +112,65 @@ describe('AgentZenBridgeService ownership', () => {
     await expect(service.interrupt('thread-owned')).rejects.toThrow(
       'controlled by another Codex process',
     )
+  })
+
+  test('registers the Git project of an active observed session', async () => {
+    const client = new FakeClient()
+    const candidate: ProjectCandidate = {
+      id: 'project-live',
+      name: 'live-repo',
+      directory: '/repos/live-repo',
+      repository: 'lucharo/live-repo',
+      defaultBranch: 'main',
+    }
+    const liveProject: Project = candidate
+    let registered: Project[] = []
+    const registeredCalls: string[][] = []
+    const activeSession: AgentSession = {
+      id: 'thread-live',
+      threadId: 'thread-live',
+      turnId: 'turn-live',
+      title: 'Live work',
+      agent: 'codex',
+      source: 'external',
+      model: 'gpt-test',
+      reasoningEffort: 'high',
+      cliVersion: '0.146.0',
+      createdAt: '2026-08-07T08:00:00.000Z',
+      turnStartedAt: '2026-08-07T09:00:00.000Z',
+      activity: 'working',
+      parentSessionId: null,
+      cwd: candidate.directory,
+      repository: candidate.repository,
+      branch: 'main',
+      worktree: candidate.directory,
+      projectId: candidate.id,
+      plan: null,
+      planHistory: [],
+      review: null,
+      wrapup: null,
+      endedAt: null,
+    }
+    const base = dependencies(client)
+    const service = new AgentZenBridgeService({
+      ...base,
+      observer: { snapshot: async () => [activeSession] },
+      settings: {
+        ...base.settings,
+        registeredProjects: async () => registered,
+        discoverProjects: async () => [candidate],
+        registerProjects: async (ids) => {
+          registeredCalls.push([...ids])
+          registered = ids.includes(candidate.id) ? [liveProject] : registered
+          return registered
+        },
+      },
+    })
+
+    const snapshot = await service.snapshot()
+
+    expect(registeredCalls).toEqual([[candidate.id]])
+    expect(snapshot.projects).toEqual([liveProject])
+    expect(snapshot.sessions[0]?.projectId).toBe(candidate.id)
   })
 })

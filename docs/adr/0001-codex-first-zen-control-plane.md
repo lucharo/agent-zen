@@ -5,7 +5,7 @@
 
 ## Outcome
 
-Agent Zen presents a quiet local control plane with exactly two primary views: Kanban and Ideas. The first implementation targets Codex only and uses the **CZ3 Native Ledger shell with CZ1 Quiet Canvas card and capture language**.
+Agent Zen presents a quiet local control plane with exactly two primary views: Sessions and Ideas. Sessions has two projections, a stage Kanban and a compact grid. The first implementation targets Codex only and uses the **CZ3 Native Ledger shell with CZ1 Quiet Canvas card and capture language**.
 
 ## Answered grill
 
@@ -17,7 +17,8 @@ Agent Zen presents a quiet local control plane with exactly two primary views: K
 
 ## Decision
 
-- Provide only `Kanban` and `Ideas` as primary views.
+- Provide only `Sessions` and `Ideas` as primary views.
+- Let Sessions switch between a stage Kanban and a compact grid without changing the underlying session state.
 - Use five board stages: `Ideas`, `Planning`, `Running`, `Reviewing`, and `Wrapping up`.
 - Keep completed work off the active board rather than in a Done column. Any future history surface needs explicit pagination and retention semantics.
 - Put the Codex mark in the column title, never on every card.

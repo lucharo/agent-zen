@@ -107,7 +107,7 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
             <span className={styles.sectionIcon} data-tone="projects"><SettingsIcon kind="projects" /></span>
             <div className={styles.sectionCopy}>
               <h3 id="projects-heading">Projects</h3>
-              <p>Registered local checkouts anchor filters, branches, and launches.</p>
+              <p>Active Git repositories register themselves. Add others as launch targets.</p>
             </div>
             <button type="button" className={styles.addProjects} onClick={onAddProjects}>
               Add projects…
@@ -123,6 +123,14 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
                 <span>{project.repository ?? 'Local only'}</span>
               </li>
             ))}
+            {state.projects.length === 0 ? (
+              <li>
+                <div>
+                  <strong>No Git projects observed yet</strong>
+                  <span>Start a Codex session in a repository or add one manually.</span>
+                </div>
+              </li>
+            ) : null}
           </ul>
         </section>
       </div>

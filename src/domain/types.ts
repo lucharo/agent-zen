@@ -162,6 +162,7 @@ export interface LogbookNote {
 export type ThemeChoice = 'system' | 'light' | 'dark'
 export type IdeaGroupBy = 'created' | 'project'
 export type IdeaLayout = 'grid' | 'list'
+export type SessionLayout = 'kanban' | 'grid'
 export type KanbanGroupBy = 'none' | 'project'
 export type KanbanCardDetail = 'titles' | 'details'
 export type View = 'kanban' | 'ideas'

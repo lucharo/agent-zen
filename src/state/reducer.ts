@@ -5,6 +5,7 @@ import type {
   KanbanCardDetail,
   KanbanGroupBy,
   Project,
+  SessionLayout,
   ThemeChoice,
   View,
 } from '@/domain/types'
@@ -24,6 +25,7 @@ export type Action =
   | { type: 'set-project-filter'; projectId: string | null }
   | { type: 'set-idea-group-by'; groupBy: IdeaGroupBy }
   | { type: 'set-idea-layout'; layout: IdeaLayout }
+  | { type: 'set-session-layout'; layout: SessionLayout }
   | { type: 'set-kanban-group-by'; groupBy: KanbanGroupBy }
   | { type: 'set-kanban-card-detail'; detail: KanbanCardDetail }
   | { type: 'toggle-ideas-fold' }
@@ -57,6 +59,9 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
 
     case 'set-idea-layout':
       return { ...state, ideaLayout: action.layout }
+
+    case 'set-session-layout':
+      return { ...state, sessionLayout: action.layout }
 
     case 'set-kanban-group-by':
       return { ...state, kanbanGroupBy: action.groupBy }

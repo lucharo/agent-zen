@@ -12,7 +12,7 @@ test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Running' })).toBeVisible()
   await expect(page.getByRole('button', { name: /Quick capture/ })).toBeVisible()
-  await expectAccessible(page, 'Kanban')
+  await expectAccessible(page, 'Sessions Kanban')
 
   if (process.env.AGENT_ZEN_REQUIRE_LIVE === '1') {
     await page.keyboard.press('Meta+,')
@@ -57,13 +57,13 @@ test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
   await expectAccessible(page, 'Settings')
 
   await page.keyboard.press('Escape')
-  await page.getByRole('tab', { name: 'Kanban' }).click()
+  await page.getByRole('tab', { name: 'Sessions' }).click()
   const theme = page.getByRole('button', { name: /Theme:/ })
   await theme.click()
   await theme.click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-  await expect(page.getByRole('tab', { name: 'Kanban' })).toHaveCSS('color', 'rgb(242, 242, 244)')
-  await expectAccessible(page, 'Kanban dark theme')
+  await expect(page.getByRole('tab', { name: 'Sessions' })).toHaveCSS('color', 'rgb(242, 242, 244)')
+  await expectAccessible(page, 'Sessions dark theme')
 
   await page.keyboard.press('Meta+,')
   const darkSettings = page.getByRole('dialog', { name: 'Settings' })

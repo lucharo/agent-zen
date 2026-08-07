@@ -5,6 +5,7 @@ import type {
   LaunchSessionPayload,
   LaunchSessionResponse,
 } from '../src/bridge/types'
+import { BRIDGE_PROTOCOL_VERSION } from '../src/bridge/types'
 import type { AppServerNotification, CodexAppServerClient } from './codex/appServerClient'
 import type { CodexStateObserver } from './codex/stateObserver'
 import {
@@ -112,14 +113,25 @@ export class AgentZenBridgeService {
 
   async snapshot(): Promise<BridgeSnapshot> {
     if (!this.dependencies.client.isConnected) await this.start()
-    const [settings, projects, projectCandidates, sessions] = await Promise.all([
+    const [settings, projectCandidates, sessions] = await Promise.all([
       this.dependencies.settings.read(),
-      this.dependencies.settings.registeredProjects(),
       this.dependencies.settings.discoverProjects(),
       this.sessions(),
     ])
+    let projects = await this.dependencies.settings.registeredProjects()
+    const registeredIds = new Set(projects.map((project) => project.id))
+    const activeProjectIds = new Set(
+      sessions.flatMap((session) => (session.projectId ? [session.projectId] : [])),
+    )
+    const newlyObservedIds = projectCandidates
+      .filter((candidate) => activeProjectIds.has(candidate.id) && !registeredIds.has(candidate.id))
+      .map((candidate) => candidate.id)
+    if (newlyObservedIds.length > 0) {
+      projects = await this.dependencies.settings.registerProjects(newlyObservedIds)
+    }
     const activeCount = activeSessionCount(sessions, deriveStage)
     return {
+      protocolVersion: BRIDGE_PROTOCOL_VERSION,
       generatedAt: new Date(this.now()).toISOString(),
       connection: this.connection,
       sessions,

@@ -47,7 +47,7 @@ export function CommandPalette({
     const go: Command[] = [
       {
         id: 'go-kanban',
-        label: 'Go to Kanban',
+        label: 'Go to Sessions',
         shortcut: '⌘1',
         group: 'Go',
         run: () => dispatch({ type: 'set-view', view: 'kanban' }),
@@ -101,6 +101,19 @@ export function CommandPalette({
           }),
       },
       {
+        id: 'do-session-layout',
+        label:
+          state.sessionLayout === 'kanban'
+            ? 'Show sessions as a grid'
+            : 'Show sessions as a Kanban',
+        group: 'Do',
+        run: () =>
+          dispatch({
+            type: 'set-session-layout',
+            layout: state.sessionLayout === 'kanban' ? 'grid' : 'kanban',
+          }),
+      },
+      {
         id: 'do-card-detail',
         label: state.kanbanCardDetail === 'details' ? 'Show session titles only' : 'Show session details',
         group: 'Do',
@@ -135,14 +148,14 @@ export function CommandPalette({
       {
         id: `session-${entry.session.id}`,
         label: entry.session.title,
-        detail: `${STAGE_LABELS[entry.stage]} · ${entry.project?.name ?? 'No project'}`,
+        detail: `${STAGE_LABELS[entry.stage]} · ${entry.project?.name ?? 'Outside a Git project'}`,
         group: 'Sessions' as const,
         run: () => onOpenSession(entry.session.id),
       },
       ...entry.children.map((child) => ({
         id: `session-${child.id}`,
         label: child.title,
-        detail: `Child agent · ${projectById(child.projectId)?.name ?? 'No project'}`,
+        detail: `Child agent · ${projectById(child.projectId)?.name ?? 'Outside a Git project'}`,
         group: 'Sessions' as const,
         run: () => onOpenSession(child.id),
       })),

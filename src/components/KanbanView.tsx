@@ -234,7 +234,12 @@ function ScrollableColumn({ children, contentKey }: { children: ReactNode; conte
 
   return (
     <div className={styles.scrollFrame} data-scrollable={scrollable} data-at-end={atEnd}>
-      <div className={styles.columnScroll} ref={ref} tabIndex={scrollable ? 0 : undefined}>
+      <div
+        className={styles.columnScroll}
+        data-column-scroll
+        ref={ref}
+        tabIndex={scrollable ? 0 : undefined}
+      >
         {children}
       </div>
       {scrollable && !atEnd ? <span className={styles.scrollHint}>Scroll for more</span> : null}
@@ -247,7 +252,10 @@ function groupSessions(entries: readonly BoardSession[], byProject: boolean) {
   const grouped = new Map<string, { label: string; entries: BoardSession[] }>()
   for (const entry of entries) {
     const key = entry.project?.id ?? 'no-project'
-    const group = grouped.get(key) ?? { label: entry.project?.name ?? 'No project', entries: [] }
+    const group = grouped.get(key) ?? {
+      label: entry.project?.name ?? 'Outside a Git project',
+      entries: [],
+    }
     group.entries.push(entry)
     grouped.set(key, group)
   }

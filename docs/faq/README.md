@@ -22,7 +22,7 @@ The observer reads thread metadata from `~/.codex/state_5.sqlite` and lifecycle,
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/version: Codex CLI 0.146-era local stores_
 
-## What puts a session in each Kanban stage?
+## What puts a session in each Sessions stage?
 
 **Short answer:** Placement is derived, read-only, and evaluated in this precedence order: Wrapping up, Reviewing, Running, Planning. Ideas are human-authored records without a Codex thread.
 
@@ -66,6 +66,8 @@ Each snapshot re-reads the bounded SQLite thread index and examines indexed roll
 
 This is polling, not a hook. The maximum ordinary visible lag is therefore about two seconds plus local parsing time.
 
+Snapshots also carry a protocol version. If the dashboard and bridge are from different builds, the UI stops and asks for a restart instead of mixing old data with new rendering rules.
+
 ### Sources
 
 - [HTTP bridge client](../../src/bridge/httpBridge.ts) — 2-second polling and request timeout.
@@ -78,17 +80,18 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 **Short answer:** Yes. The bridge discovers Git checkouts under configured roots. A session first matches the deepest project directory containing its cwd; an external worktree then falls back to the normalized GitHub remote.
 
-Registration controls which projects Agent Zen may launch into. Observation and identity matching use all discovered candidates, so an existing worktree can be labelled without registering every worktree as a separate project. The Kanban can group cards by project; that changes presentation only.
+Active session repositories register automatically, so the project filter and Settings registry describe the same live world. Observation and identity matching use all discovered candidates, and worktrees fall back to normalized remote identity, so every worktree does not become a separate project. Manual registration adds inactive repositories as launch targets. Both Sessions layouts can group cards by project; that changes presentation only.
 
 ### Sources
 
 - [Project discovery](../../server/projects.ts) — Git checkout, branch, and remote discovery.
 - [Observer project resolution](../../server/codex/stateObserver.ts) — cwd-first and repository fallback matching.
 - [Kanban grouping](../../src/components/KanbanView.tsx) — project sections inside each stage.
+- [Session grid](../../src/components/SessionGridView.tsx) — the same project grouping without stage columns.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
-## Is the Kanban editable?
+## Are the Sessions views editable?
 
 **Short answer:** No. Session cards cannot be dragged between stages because that would create a second truth that can disagree with Codex.
 
@@ -97,9 +100,23 @@ Humans may capture ideas, register projects, add Logbook notes, choose filters a
 ### Sources
 
 - [ADR-0005](../adr/0005-read-only-board-and-quiet-settings.md) — read-only board decision.
-- [Kanban view](../../src/components/KanbanView.tsx) — presentation without mutation controls.
+- [Kanban view](../../src/components/KanbanView.tsx) — stage presentation without mutation controls.
+- [Session grid](../../src/components/SessionGridView.tsx) — flat presentation without mutation controls.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+
+## Why can a session say “Outside a Git project”?
+
+**Short answer:** Codex recorded a cwd that is not inside a discovered Git checkout, so Agent Zen has no safe project identity to attach.
+
+Agent Zen never guesses a project from prompt text or a nearby directory. Sessions inside repositories and linked worktrees resolve by deepest checkout path, then by normalized Git remote. A session started from a parent directory containing several repositories remains explicitly outside a Git project.
+
+### Sources
+
+- [Observer project resolution](../../server/codex/stateObserver.ts) — cwd and remote matching.
+- [Session cards](../../src/components/SessionCard.tsx) — honest fallback label.
+
+_Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 ## What does the focus limit actually enforce?
 
@@ -145,19 +162,21 @@ That counter has been removed. The bridge now sends active sessions to the focus
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
-## How do dense columns and card detail work?
+## How do Sessions layouts, dense columns, and card detail work?
 
-**Short answer:** Every stage header shows its visible count. Columns scroll independently, show a bottom “Scroll for more” affordance when overflow exists, and can display either full details or titles only.
+**Short answer:** Sessions switches between Kanban and Grid. Every Kanban stage header shows its visible count; columns scroll independently and show a bottom “Scroll for more” affordance. Grid gives every session its own stage-labelled card. Both layouts can display full details or titles only.
 
-Cards reveal repository, branch, worktree, model, effort, Codex version, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project adds project sections inside every stage without duplicating the project label on each card.
+Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner. Cards reveal repository, branch, worktree, model, effort, Codex version, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card.
 
 ### Sources
 
 - [Kanban view](../../src/components/KanbanView.tsx) — counts, overflow detection, grouping, and detail mode.
 - [Kanban styles](../../src/components/KanbanView.module.css) — fixed headers and scroll affordance.
+- [Session grid](../../src/components/SessionGridView.tsx) — stage-labelled flat projection.
+- [Scroll regression](../../qa/e2e/session-scroll.spec.ts) — one horizontal owner and two-axis wheel routing.
 - [Session card styles](../../src/components/SessionCard.module.css) — delayed hover and immediate focus disclosure.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 ## Why does Command-N open a browser window, and what does the native app change?
 
@@ -194,9 +213,9 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## What does project onboarding do?
 
-**Short answer:** It discovers local Git checkouts, lets the user select a small initial set, and stores only those explicit registrations for launch authorization.
+**Short answer:** Active Git repositories register themselves. The onboarding dialog adds inactive checkouts the user wants available as launch targets.
 
-Discovery shows repository identity, path, branch, and registration state. Registration is not needed merely to observe or label a session, but launching requires a registered project so the local bridge never accepts an arbitrary cwd from the browser.
+Discovery shows repository identity, path, branch, and registration state. Launching still requires a registered project so the local bridge never accepts an arbitrary cwd from the browser; automatic registration is limited to repositories already evidenced by a visible active Codex session.
 
 ### Sources
 
@@ -204,7 +223,7 @@ Discovery shows repository identity, path, branch, and registration state. Regis
 - [Project discovery](../../server/projects.ts) — local Git metadata.
 - [Security tests](../../server/security.test.ts) — loopback and launch-boundary checks.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 ## Which earlier visuals are retained?
 

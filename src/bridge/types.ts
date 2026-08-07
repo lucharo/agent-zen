@@ -2,6 +2,8 @@ import type { ProjectCandidate } from '@/adapters/ProjectDiscoverySource'
 import type { LaunchAvailability } from '@/domain/stage'
 import type { AgentSession, Project } from '@/domain/types'
 
+export const BRIDGE_PROTOCOL_VERSION = 2
+
 export interface BridgeConnectionStatus {
   readonly connected: boolean
   readonly label: string
@@ -17,6 +19,7 @@ export interface BridgeFocusState {
 }
 
 export interface BridgeSnapshot {
+  readonly protocolVersion: number
   readonly generatedAt: string
   readonly connection: BridgeConnectionStatus
   readonly sessions: readonly AgentSession[]

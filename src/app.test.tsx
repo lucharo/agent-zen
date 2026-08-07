@@ -45,6 +45,7 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
+  protocolVersion: 2,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
   sessions: [],
@@ -181,9 +182,14 @@ describe('navigation', () => {
     expect(screen.getByRole('banner', { name: 'Agent Zen toolbar' })).toHaveAttribute('data-shortcuts', 'false')
   })
 
-  it('switches between the two primary views', async () => {
+  it('switches between Sessions and Ideas', async () => {
     const { user } = mount()
     const tabs = screen.getByRole('tablist', { name: 'View' })
+
+    expect(within(tabs).getByRole('tab', { name: 'Sessions' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
 
     await user.click(within(tabs).getByText('Ideas'))
 
@@ -269,9 +275,33 @@ describe('navigation', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
     expect(within(column('Running')).getByText('agent-zen')).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Session card detail' }), 'titles')
+    expect(screen.queryByRole('combobox', { name: 'Session card detail' })).toBeNull()
+    await user.click(within(screen.getByRole('group', { name: 'Card detail' })).getByRole('button', {
+      name: 'Titles only',
+    }))
     expect(within(column('Running')).queryByText('42m total · 7m current turn')).toBeNull()
     expect(within(column('Running')).getByText('Revise calm control plane')).toBeInTheDocument()
+  })
+
+  it('switches Sessions between Kanban and a stage-labelled grid', async () => {
+    const { user } = mount()
+
+    await user.click(within(screen.getByRole('group', { name: 'Session layout' })).getByRole('button', {
+      name: 'Grid',
+    }))
+
+    const grid = screen.getByRole('region', { name: 'Session grid' })
+    expect(within(grid).getByText('Revise calm control plane')).toBeInTheDocument()
+    expect(within(grid).getAllByText('Running').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('region', { name: 'Planning' })).toBeNull()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
+    expect(within(grid).getByRole('heading', { name: 'agent-zen' })).toBeInTheDocument()
+
+    await user.click(within(screen.getByRole('group', { name: 'Card detail' })).getByRole('button', {
+      name: 'Titles only',
+    }))
+    expect(within(grid).queryByText('42m total · 7m current turn')).toBeNull()
   })
 })
 
@@ -351,7 +381,7 @@ describe('settings and limits', () => {
     await user.keyboard('{Meta>},{/Meta}')
     await user.click(screen.getByRole('button', { name: 'Add projects…' }))
     const onboarding = screen.getByRole('dialog', {
-      name: 'Choose the repositories you work in',
+      name: 'Add another repository',
     })
     await user.click(within(onboarding).getByText('lucharo/taskflow'))
     await user.click(within(onboarding).getByRole('button', { name: 'Register 1 project' }))

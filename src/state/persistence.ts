@@ -6,6 +6,7 @@ import type {
   KanbanGroupBy,
   LogbookNote,
   Project,
+  SessionLayout,
   ThemeChoice,
   View,
 } from '@/domain/types'
@@ -56,6 +57,7 @@ export interface PersistedState {
   readonly projectFilter: string | null
   readonly ideaGroupBy: IdeaGroupBy
   readonly ideaLayout: IdeaLayout
+  readonly sessionLayout: SessionLayout
   readonly kanbanGroupBy: KanbanGroupBy
   readonly kanbanCardDetail: KanbanCardDetail
   readonly ideasFolded: boolean
@@ -74,6 +76,7 @@ export function createInitialState(_now: number): PersistedState {
     projectFilter: null,
     ideaGroupBy: 'created',
     ideaLayout: 'grid',
+    sessionLayout: 'kanban',
     kanbanGroupBy: 'none',
     kanbanCardDetail: 'details',
     ideasFolded: false,

@@ -1,7 +1,8 @@
 import { currentPlanStep, planProgress } from '@/domain/stage'
 import { formatDuration, elapsedSince, formatSessionTiming } from '@/domain/time'
-import type { AgentSession, KanbanCardDetail } from '@/domain/types'
+import { STAGE_LABELS, type AgentSession, type KanbanCardDetail } from '@/domain/types'
 import type { BoardSession } from '@/state/store'
+import { StageIcon } from './primitives'
 import styles from './SessionCard.module.css'
 
 export interface SessionCardProps {
@@ -12,6 +13,8 @@ export interface SessionCardProps {
   cardIndex: number
   detail: KanbanCardDetail
   showProject: boolean
+  showStage?: boolean
+  showChildren?: boolean
 }
 
 export function SessionCard({
@@ -22,6 +25,8 @@ export function SessionCard({
   cardIndex,
   detail,
   showProject,
+  showStage = false,
+  showChildren = true,
 }: SessionCardProps) {
   const { session, stage, project, children } = entry
   const progress = planProgress(session)
@@ -37,9 +42,15 @@ export function SessionCard({
           data-index={cardIndex}
           onClick={() => onOpen(session.id)}
         >
+          {showStage ? (
+            <span className={styles.stage}>
+              <StageIcon stage={stage as Exclude<typeof stage, 'ideas'>} />
+              {STAGE_LABELS[stage]}
+            </span>
+          ) : null}
           <h3 className={styles.title}>{session.title}</h3>
           {detail === 'details' && showProject ? (
-            <p className={styles.project}>{project?.name ?? 'No project'}</p>
+            <p className={styles.project}>{project?.name ?? 'Outside a Git project'}</p>
           ) : null}
 
           {detail === 'details' && stage === 'planning' ? (
@@ -84,7 +95,7 @@ export function SessionCard({
         <MetaPopover session={session} />
       </article>
 
-      {children.length > 0 ? (
+      {showChildren && children.length > 0 ? (
         <ul className={styles.children}>
           {children.map((child) => (
             <li key={child.id}>

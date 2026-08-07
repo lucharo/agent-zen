@@ -2,6 +2,7 @@
 
 
 - Date: 2026-08-06
+- Updated: 2026-08-07
 
 ## Outcome
 
@@ -19,7 +20,7 @@ Agent Zen has a small AppKit and WKWebView shell with genuine macOS menu command
 
 ## Verified boundary
 
-Launch is not verified there because endpoint security blocks the ad-hoc-signed publisher before application code runs. `security find-identity -v -p codesigning` reported zero valid identities on 2026-08-06.
+Launch is not verified there because endpoint security blocks the ad-hoc-signed publisher before application code runs. On 2026-08-07 the bundle passed `codesign --verify --deep --strict`, while `security find-identity -v -p codesigning` still reported zero valid identities. GitHub issue #13 tracks signed and notarised distribution.
 
 An Apple Developer account is necessary but not sufficient: a certificate and its private key must be installed on the build Mac. A notarised Developer ID build is the preferred first distribution because Mac App Store sandboxing would require a separate access design for Codex stores, repositories, Git, and subprocess control.
 

@@ -111,6 +111,44 @@ export function GridIcon() {
   )
 }
 
+export function BoardIcon() {
+  return (
+    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      {[0.5, 5.25, 10].map((x, index) => (
+        <rect
+          key={x}
+          x={x}
+          y={index === 1 ? 2.5 : 0.5}
+          width="3.5"
+          height={index === 1 ? 8 : 11}
+          rx="1.1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.1"
+        />
+      ))}
+    </svg>
+  )
+}
+
+export function TitleIcon() {
+  return (
+    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      <path d="M2 3.2h10M2 7h7.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      <path d="M2 10.8h5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" opacity="0.45" />
+    </svg>
+  )
+}
+
+export function DetailsIcon() {
+  return (
+    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      <path d="M2 2.5h10M2 6h10M2 9.5h7" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+      <circle cx="11.3" cy="10.2" r="1.2" fill="currentColor" />
+    </svg>
+  )
+}
+
 export function ListIcon() {
   return (
     <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
