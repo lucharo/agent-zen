@@ -16,13 +16,20 @@ export type DetailTarget =
 export interface DetailSheetProps {
   target: DetailTarget
   onClose: () => void
+  onOpenSession: (sessionId: string) => void
 }
 
-export function DetailSheet({ target, onClose }: DetailSheetProps) {
+export function DetailSheet({ target, onClose, onOpenSession }: DetailSheetProps) {
   const { sessions, state } = useAgentZen()
 
   const session = target?.kind === 'session' ? sessions.find((s) => s.id === target.id) : undefined
   const idea = target?.kind === 'idea' ? state.ideas.find((i) => i.id === target.id) : undefined
+  const parent = session?.parentSessionId
+    ? sessions.find((candidate) => candidate.id === session.parentSessionId)
+    : undefined
+  const children = session
+    ? sessions.filter((candidate) => candidate.parentSessionId === session.id)
+    : []
 
   return (
     <Overlay
@@ -32,13 +39,33 @@ export function DetailSheet({ target, onClose }: DetailSheetProps) {
       variant="dialog"
       testId="detail-sheet"
     >
-      {session ? <SessionDetail session={session} onClose={onClose} /> : null}
+      {session ? (
+        <SessionDetail
+          session={session}
+          parent={parent}
+          children={children}
+          onClose={onClose}
+          onOpenSession={onOpenSession}
+        />
+      ) : null}
       {idea ? <IdeaDetail ideaId={idea.id} onClose={onClose} /> : null}
     </Overlay>
   )
 }
 
-function SessionDetail({ session, onClose }: { session: AgentSession; onClose: () => void }) {
+function SessionDetail({
+  session,
+  parent,
+  children,
+  onClose,
+  onOpenSession,
+}: {
+  session: AgentSession
+  parent?: AgentSession
+  children: readonly AgentSession[]
+  onClose: () => void
+  onOpenSession: (sessionId: string) => void
+}) {
   const { now, projectById, interruptSession, steerSession } = useAgentZen()
   const [showHistory, setShowHistory] = useState(false)
   const [steer, setSteer] = useState('')
@@ -53,7 +80,7 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
     <>
       <SheetHeader
         title={session.title}
-        subtitle={`${stage ? STAGE_LABELS[stage] : 'History'}${session.activity === 'idle' ? ' · Idle' : ''} · ${project?.name ?? 'Outside a Git project'}`}
+        subtitle={`${parent ? 'Subagent · ' : ''}${stage ? STAGE_LABELS[stage] : 'History'}${session.activity === 'idle' ? ' · Idle' : ''} · ${project?.name ?? 'Outside a Git project'}`}
         onClose={onClose}
       />
 
@@ -157,11 +184,46 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
             {session.parentSessionId ? (
               <>
                 <dt>Parent</dt>
-                <dd>{session.parentSessionId}</dd>
+                <dd>
+                  {parent ? (
+                    <button
+                      type="button"
+                      className={styles.parentLink}
+                      onClick={() => onOpenSession(parent.id)}
+                    >
+                      {parent.title}
+                    </button>
+                  ) : session.parentSessionId}
+                </dd>
               </>
             ) : null}
           </dl>
         </section>
+
+        {children.length > 0 ? (
+          <section className={styles.subagents} aria-labelledby="subagents-heading">
+            <header className={styles.subagentsHead}>
+              <h3 id="subagents-heading">Subagents</h3>
+              <span>{children.length}</span>
+            </header>
+            <ul className={styles.subagentList}>
+              {children.map((child) => (
+                <li key={child.id}>
+                  <button
+                    type="button"
+                    className={styles.subagent}
+                    onClick={() => onOpenSession(child.id)}
+                  >
+                    <span className={styles.subagentTitle}>{child.title}</span>
+                    <span className={styles.subagentMeta}>
+                      {child.activity === 'working' ? 'Running' : 'Idle'} · {child.model}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {session.source === 'owned' && session.activity === 'working' ? (
           <section className={styles.controls} aria-labelledby="session-controls-title">

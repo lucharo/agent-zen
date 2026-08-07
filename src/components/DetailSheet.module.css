@@ -206,6 +206,76 @@
   font-size: var(--text-micro);
 }
 
+.parentLink {
+  color: var(--accent);
+  text-align: left;
+}
+
+.parentLink:hover {
+  text-decoration: underline;
+}
+
+/* --- Child agents ------------------------------------------------------- */
+
+.subagents {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.subagentsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.subagentsHead h3 {
+  font-size: var(--text-column);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+
+.subagentsHead span {
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.subagentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.subagent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  text-align: left;
+}
+
+.subagent:hover {
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+}
+
+.subagentTitle {
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+}
+
+.subagentMeta {
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}
+
 /* --- Actions ------------------------------------------------------------ */
 
 .actions {

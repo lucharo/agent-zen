@@ -54,6 +54,11 @@ export function SessionCard({
           {detail === 'details' && showProject ? (
             <p className={styles.project}>{project?.name ?? 'Outside a Git project'}</p>
           ) : null}
+          {!showChildren && children.length > 0 ? (
+            <p className={styles.childSummary}>
+              {children.length} {children.length === 1 ? 'subagent' : 'subagents'}
+            </p>
+          ) : null}
 
           {detail === 'details' && stage === 'planning' ? (
             <p className={styles.line}>{idle ? 'Idle · no current turn' : 'Starting · plan pending'}</p>
@@ -104,7 +109,7 @@ export function SessionCard({
       </article>
 
       {showChildren && children.length > 0 ? (
-        <ul className={styles.children}>
+        <ul className={styles.children} aria-label={`Subagents of ${session.title}`}>
           {children.map((child) => (
             <li key={child.id}>
               <button

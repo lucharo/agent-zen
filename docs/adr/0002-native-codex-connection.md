@@ -35,6 +35,8 @@ A prose mention is not an invocation. A marker persists for the current turn, an
 
 The Kanban is read-only. Agent Zen does not persist human stage overrides. Supported session control is a separate controller action and the resulting Codex state flows back through the same source.
 
+Root sessions are the only peer units on both Sessions projections. Child agents remain attached to that unit: nested under the root card in Kanban, summarized by count in Grid, and listed with navigation inside the root detail. A child detail identifies and links back to its parent rather than presenting a raw parent id as its only context.
+
 Do not require the agent to maintain another task ledger. Each native plan update replaces the current plan projection while rollout history preserves prior updates.
 
 The local HTTP bridge binds only to `127.0.0.1`, validates loopback `Host` and allowed `Origin` values on every route, and never exposes an arbitrary cwd launch. Launch requests must reference a registered project. Existing external sessions remain read-only; steering and interruption require a thread launched by the current Agent Zen app-server connection. Control ownership is process-scoped and is not restored after a bridge restart.
@@ -57,6 +59,7 @@ Sessions leave the focus board when their owning Codex process no longer holds t
 
 - Sessions launched by Agent Zen have the richest live control and event stream.
 - Sessions launched in Codex Desktop, terminals, and cloud worktrees remain visible while their local Codex process owns the rollout; idle turns remain on the board without pretending to be running.
+- Child agents remain inspectable without inflating the apparent number of independent sessions.
 - The adapter must isolate internal SQLite/JSONL parsing so a Codex schema change has one repair point.
 - The implementation should generate or vendor types from the installed Codex version during development rather than hand-maintain the protocol.
 - The browser UI needs a small local bridge or daemon because it cannot launch `codex app-server` or read `~/.codex` directly.

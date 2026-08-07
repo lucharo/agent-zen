@@ -1,5 +1,3 @@
-import { deriveStage } from '@/domain/stage'
-import type { AgentSession, Project } from '@/domain/types'
 import { useAgentZen, type BoardSession } from '@/state/store'
 import { SessionCard } from './SessionCard'
 import styles from './SessionGridView.module.css'
@@ -9,8 +7,8 @@ export interface SessionGridViewProps {
 }
 
 export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
-  const { state, board, now, projectById } = useAgentZen()
-  const entries = flattenBoard(board, projectById).filter(
+  const { state, board, now } = useAgentZen()
+  const entries = board.filter(
     (entry) => !state.projectFilter || entry.session.projectId === state.projectFilter,
   )
   const groups = groupSessions(entries, state.kanbanGroupBy === 'project')
@@ -54,27 +52,6 @@ export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
       )}
     </section>
   )
-}
-
-function flattenBoard(
-  board: readonly BoardSession[],
-  projectById: (id: string | null) => Project | null,
-): BoardSession[] {
-  return board.flatMap((entry) => [
-    { ...entry, children: [] },
-    ...entry.children.flatMap((session) => {
-      const stage = deriveStage(session)
-      if (!stage) return []
-      return [
-        {
-          session,
-          stage,
-          project: projectById(session.projectId),
-          children: [] as readonly AgentSession[],
-        },
-      ]
-    }),
-  ])
 }
 
 function groupSessions(entries: readonly BoardSession[], byProject: boolean) {

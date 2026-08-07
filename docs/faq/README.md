@@ -51,14 +51,14 @@ _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 The earlier implementation treated the rollout's latest `task_complete` record as the end of the whole session. That collapsed two different lifecycles: a turn can finish while its terminal, Codex window, or cloud-worktree Codex process remains open for another turn. Agent Zen now inventories open rollout files from live Codex processes, then classifies the latest turn as `working` or `idle`.
 
-This is why `data-pipeline-human-spec` remains visible after “HOLD ON FOR MORE!”: its latest turn completed, but its Codex process still owns the rollout. Child-agent rollouts are discovered by the same mechanism, nested under their parent in Kanban, and shown as individual stage-labelled cards in Grid. Closing the owning process or archiving the thread removes it.
+This is why `data-pipeline-human-spec` remains visible after “HOLD ON FOR MORE!”: its latest turn completed, but its Codex process still owns the rollout. Child-agent rollouts are discovered by the same mechanism, but never become peer cards: Kanban nests them under their parent, Grid shows a compact subagent count, and the parent detail contains the full navigable list. Closing the owning process or archiving the thread removes it.
 
 ### Sources
 
 - [Process inventory](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/processInventory.ts) — open rollout discovery from live Codex processes.
 - [Observer regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.test.ts) — an idle process-owned session remains visible while stale unowned history does not.
 - [Bridge regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.test.ts) — Agent Zen-owned turn completion becomes idle rather than disappearing.
-- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — root and child projection.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — root-only peer projection.
 
 _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -118,7 +118,7 @@ Humans may capture ideas, register projects, add Logbook notes, choose filters a
 
 - [ADR-0005](../adr/0005-read-only-board-and-quiet-settings.md) — read-only board decision.
 - [Kanban view](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.tsx) — stage presentation without mutation controls.
-- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — flat presentation without mutation controls.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — root-only presentation without mutation controls.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -189,7 +189,7 @@ Horizontal trackpad gestures over a Kanban column bubble to the board, while ver
 
 - [Kanban view](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.tsx) — counts, overflow detection, grouping, and detail mode.
 - [Kanban styles](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.module.css) — fixed headers and scroll affordance.
-- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — stage-labelled flat projection.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — stage-labelled root-session projection.
 - [Scroll regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/qa/e2e/session-scroll.spec.ts) — one horizontal owner and two-axis wheel routing.
 - [Session card styles](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionCard.module.css) — delayed hover and immediate focus disclosure.
 

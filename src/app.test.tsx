@@ -312,6 +312,8 @@ describe('navigation', () => {
 
     const grid = screen.getByRole('region', { name: 'Session grid' })
     expect(within(grid).getByText('Revise calm control plane')).toBeInTheDocument()
+    expect(within(grid).queryByRole('button', { name: /Sweep board fixtures into tests/ })).toBeNull()
+    expect(within(grid).getByText('1 subagent')).toBeInTheDocument()
     expect(within(grid).getAllByText('Running').length).toBeGreaterThan(0)
     expect(screen.queryByRole('region', { name: 'Planning' })).toBeNull()
 
@@ -362,7 +364,19 @@ describe('session detail', () => {
     expect(within(sheet).getByText('read-only')).toBeInTheDocument()
     expect(within(sheet).getByText(/Plan revision 3/)).toBeInTheDocument()
     expect(within(sheet).getByText('Generate three new mockups')).toBeInTheDocument()
+    const subagents = within(sheet).getByRole('region', { name: 'Subagents' })
+    expect(subagents).toHaveTextContent('Sweep board fixtures into tests')
     expect(within(sheet).queryByText('Agent Zen stage')).toBeNull()
+
+    await user.click(
+      within(subagents).getByRole('button', { name: /Sweep board fixtures into tests/ }),
+    )
+    expect(
+      within(sheet).getByRole('heading', { name: 'Sweep board fixtures into tests' }),
+    ).toBeInTheDocument()
+    expect(
+      within(sheet).getByRole('button', { name: 'Revise calm control plane' }),
+    ).toBeInTheDocument()
 
     const logbook = within(sheet).getByRole('region', { name: 'Logbook' })
     expect(within(logbook).getByText('Yours. Agents never write here.')).toBeInTheDocument()

@@ -168,7 +168,7 @@ export function App() {
         onOpenCapture={openCapture}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      <DetailSheet target={detail} onClose={() => setDetail(null)} />
+      <DetailSheet target={detail} onClose={() => setDetail(null)} onOpenSession={openSession} />
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

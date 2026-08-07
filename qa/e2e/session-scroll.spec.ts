@@ -48,7 +48,16 @@ const snapshot: BridgeSnapshot = {
   protocolVersion: 2,
   generatedAt: '2026-08-07T10:00:00.000Z',
   connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
-  sessions: Array.from({ length: 8 }, (_, index) => session(index + 1)),
+  sessions: [
+    ...Array.from({ length: 8 }, (_, index) => session(index + 1)),
+    {
+      ...session(9),
+      id: 'session-child',
+      threadId: 'thread-child',
+      title: 'Child review worker',
+      parentSessionId: 'session-1',
+    },
+  ],
   focus: {
     enabled: false,
     limit: 3,
@@ -96,6 +105,8 @@ test('the session grid uses one compact card size with content anchored at the t
   await page.getByRole('button', { name: 'Grid' }).first().click()
   await page.getByRole('button', { name: 'Titles only' }).click()
   await expect(page.getByRole('button', { name: /Running session 1.*Idle/ })).toBeVisible()
+  await expect(page.getByText('1 subagent')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Child review worker/ })).toHaveCount(0)
 
   const titleCards = await page.locator('[data-card-id]').evaluateAll((nodes) =>
     nodes.map((node) => {
@@ -111,6 +122,7 @@ test('the session grid uses one compact card size with content anchored at the t
   expect(new Set(titleCards.map((card) => card.width))).toEqual(new Set([260]))
   expect(new Set(titleCards.map((card) => card.height))).toEqual(new Set([152]))
   expect(new Set(titleCards.map((card) => card.stageOffset))).toEqual(new Set([12]))
+  expect(titleCards).toHaveLength(8)
 
   await page.getByRole('button', { name: 'Details' }).click()
   const detailHeights = await page.locator('[data-card-id]').evaluateAll((nodes) =>
