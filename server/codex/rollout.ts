@@ -54,7 +54,7 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     if (record.type === 'event_msg' && payload?.type === 'user_message') {
       latestUserMessage = stringValue(payload.message)
       const explicit = stageHintFromMessage(latestUserMessage)
-      if (explicit) currentStageHint = explicit
+      currentStageHint = mergeStageHint(currentStageHint, explicit)
       continue
     }
     if (
@@ -65,6 +65,8 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
       endedAt = timestamp
       continue
     }
+
+    currentStageHint = mergeStageHint(currentStageHint, stageHintFromAgentAction(record))
 
     const update = planUpdateFromRecord(record, timestamp, (plan?.revision ?? 0) + 1)
     if (update) {
@@ -166,17 +168,42 @@ function normalisePlanStatus(status: string): PlanStep['status'] | null {
 
 export function stageHintFromMessage(message: string | null): RolloutSnapshot['stageHint'] {
   if (!message) return null
-  if (/(?:^|\s)[\/$]wrapup\b/i.test(message) || /^\s*wrapup\b/i.test(message)) {
-    return 'wrapping-up'
+  for (const rawLine of message.split('\n')) {
+    const line = rawLine.trim()
+    if (/^[\/$]wrapup(?:\s|$)/i.test(line)) return 'wrapping-up'
+    if (
+      /^[\/$](?:[a-z0-9]+-)*review(?:-[a-z0-9]+)*(?:\s|$)/i.test(line) ||
+      /^[\/$]webapp-agent-demo(?:\s|$)/i.test(line)
+    ) {
+      return 'reviewing'
+    }
   }
+  return null
+}
+
+function stageHintFromAgentAction(record: RolloutRecord): RolloutSnapshot['stageHint'] {
+  const payload = record.payload
   if (
-    /(?:^|\s)[\/$](?:[a-z0-9]+-)*review(?:-[a-z0-9]+)*\b/i.test(message) ||
-    /(?:^|\s)[\/$]webapp-agent-demo\b/i.test(message) ||
-    /^\s*review\b/i.test(message)
+    record.type !== 'response_item' ||
+    payload?.type !== 'custom_tool_call' ||
+    typeof payload.input !== 'string'
   ) {
+    return null
+  }
+  const input = payload.input.replaceAll('\\', '/')
+  if (/\/wrapup\/SKILL\.md\b/i.test(input)) return 'wrapping-up'
+  if (/\/(?:[^/\s]*review[^/\s]*|webapp-agent-demo)\/SKILL\.md\b/i.test(input)) {
     return 'reviewing'
   }
   return null
+}
+
+function mergeStageHint(
+  current: RolloutSnapshot['stageHint'],
+  next: RolloutSnapshot['stageHint'],
+): RolloutSnapshot['stageHint'] {
+  if (!next || current === 'wrapping-up') return current
+  return next
 }
 
 function stringValue(value: unknown): string | null {

@@ -37,6 +37,8 @@ const EMPTY: BridgeSnapshot = {
   projectCandidates: [],
 }
 
+export const SNAPSHOT_POLL_INTERVAL_MS = 1_000
+
 export function createHttpBridge(
   baseUrl = resolveBridgeBaseUrl(
     import.meta.env.VITE_AGENT_ZEN_BRIDGE_URL,
@@ -127,7 +129,7 @@ export function createHttpBridge(
       if (current.generatedAt !== EMPTY.generatedAt) listener(current)
       if (!timer) {
         void refresh()
-        timer = setInterval(() => void refresh(), 2_000)
+        timer = setInterval(() => void refresh(), SNAPSHOT_POLL_INTERVAL_MS)
       }
       return () => {
         listeners.delete(listener)

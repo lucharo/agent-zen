@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite'
 import { open, stat } from 'node:fs/promises'
 import type { AgentSession, Project } from '../../src/domain/types'
 import { normaliseGitHubRepository } from '../projects'
-import { parseRolloutLines, stageHintFromMessage, type RolloutSnapshot } from './rollout'
+import { parseRolloutLines, type RolloutSnapshot } from './rollout'
 
 interface ThreadRow {
   readonly id: string
@@ -288,15 +288,8 @@ function planLineType(line: string): boolean {
 }
 
 function stageLineType(line: string): boolean {
-  if (!line.includes('user_message')) return false
-  try {
-    const record = JSON.parse(line) as { type?: string; payload?: { type?: string; message?: unknown } }
-    return record.type === 'event_msg' &&
-      record.payload?.type === 'user_message' &&
-      stageHintFromMessage(typeof record.payload.message === 'string' ? record.payload.message : null) !== null
-  } catch {
-    return false
-  }
+  if (!line.includes('user_message') && !line.includes('SKILL.md')) return false
+  return parseRolloutLines([line]).stageHint !== null
 }
 
 function planBelongsToLifecycle(planLine: string, lifecycleLine: string | null): boolean {

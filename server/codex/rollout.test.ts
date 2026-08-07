@@ -53,7 +53,16 @@ describe('parseRolloutLines', () => {
   test('keeps an explicit review skill marker for the rest of the active turn', () => {
     const result = parseRolloutLines([
       line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
-      line({ timestamp: '2026-08-06T12:00:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Please run $visual-review before handoff.' } }),
+      line({ timestamp: '2026-08-06T12:00:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Please run the visual review before handoff.' } }),
+      line({
+        timestamp: '2026-08-06T12:00:01.500Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          input: 'sed -n \'1,240p\' /Users/me/.refined/skills/visual/visual-review/SKILL.md',
+        },
+      }),
       line({ timestamp: '2026-08-06T12:00:02.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Also check the mobile layout.' } }),
     ])
 
@@ -78,12 +87,46 @@ describe('parseRolloutLines', () => {
         type: 'event_msg',
         payload: {
           type: 'user_message',
-          message: 'Validate the finished interface with $webapp-agent-demo.',
+          message: '$webapp-agent-demo',
         },
       }),
     ])
 
     expect(snapshot.stageHint).toBe('reviewing')
+  })
+
+  test('does not treat discussion of a skill as an invocation', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-06T10:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-4' } }),
+      line({
+        timestamp: '2026-08-06T10:01:00.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'Sometimes I mention $wrapup while explaining the stage, but I am not invoking it.',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('moves to wrapping up when the agent actually loads the wrapup skill', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-06T10:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-5' } }),
+      line({ timestamp: '2026-08-06T10:01:00.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Okay, we are done, wrap up.' } }),
+      line({
+        timestamp: '2026-08-06T10:01:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          input: 'sed -n \'1,220p\' /Users/me/.refined/skills/engineering/wrapup/SKILL.md',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBe('wrapping-up')
   })
 
   test('resets the previous turn stage marker when a new task starts', () => {

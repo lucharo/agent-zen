@@ -32,7 +32,7 @@ export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
                   <span>{group.entries.length}</span>
                 </header>
               ) : null}
-              <ul className={styles.grid}>
+              <ul className={styles.grid} data-detail={state.kanbanCardDetail}>
                 {group.entries.map((entry, index) => (
                   <SessionCard
                     key={entry.session.id}

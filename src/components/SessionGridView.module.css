@@ -49,9 +49,37 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 268px), 1fr));
+  grid-template-columns: repeat(auto-fill, 260px);
   align-items: start;
+  justify-content: start;
   gap: var(--space-4);
+}
+
+.grid > li {
+  height: 152px;
+}
+
+.grid > li > article,
+.grid > li > article > button {
+  height: 100%;
+}
+
+.grid > li > article > button {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.grid[data-detail='details'] > li {
+  height: 252px;
+}
+
+.grid h3 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .empty {

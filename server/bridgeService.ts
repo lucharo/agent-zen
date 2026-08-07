@@ -269,6 +269,11 @@ export class AgentZenBridgeService {
     const params = notification.params as Record<string, unknown>
     const threadId = typeof params.threadId === 'string' ? params.threadId : null
     if (!threadId) return
+    // The bundled app-server may report lifecycle events for threads created by
+    // another Codex process. Those threads belong to the read-only observer;
+    // applying a runtime overlay here can hide a newer external turn behind a
+    // stale completion event.
+    if (!this.ownsThreadInCurrentConnection(threadId)) return
     const previous = this.overlays.get(threadId) ?? {}
 
     if (notification.method === 'turn/started' && isObject(params.turn)) {

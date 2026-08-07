@@ -2,7 +2,7 @@
 
 Agent Zen is a local, Codex-first control plane: Codex owns session state; Agent Zen reads it, groups it, and adds a separate human Ideas and Logbook layer.
 
-![Agent Zen stage and refresh flow](2026-08-06-agent-zen-stage-refresh.png)
+![Agent Zen stage contract](2026-08-07-agent-zen-stage-contract.png)
 
 _Conceptual visual generated from the verified contracts below. The code and tests remain authoritative for exact predicates._
 
@@ -17,8 +17,8 @@ The observer reads thread metadata from `~/.codex/state_5.sqlite` and lifecycle,
 ### Sources
 
 - [ADR-0002](../adr/0002-native-codex-connection.md) — accepted integration boundary and rejected alternatives.
-- [Codex observer](../../server/codex/stateObserver.ts) — SQLite and rollout observation.
-- [Bridge service](../../server/bridgeService.ts) — observation and App Server control composition.
+- [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — SQLite and rollout observation.
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — observation and App Server control composition.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/version: Codex CLI 0.146-era local stores_
 
@@ -31,19 +31,35 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/ver
 | Ideas | A human-created Agent Zen idea; no Codex session exists yet. |
 | Planning | The current Codex turn is live and has no native plan steps. |
 | Running | The current Codex turn is live and has one or more native plan steps. |
-| Reviewing | The current live turn contains an explicit review command or skill marker, such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`. The marker persists for that turn. |
-| Wrapping up | The current live turn contains `$wrapup`, `/wrapup`, or leading `wrapup`. It overrides Reviewing and plan-derived placement. |
+| Reviewing | The current live turn begins a review action. This is either an explicit command line such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`, or the agent actually loading a matching review skill. The marker persists for that turn. |
+| Wrapping up | The current live turn begins wrap-up. This is either an explicit `$wrapup` or `/wrapup` command line, or the agent actually loading the wrap-up skill. It overrides Reviewing and plan-derived placement. |
 | Finished | The turn is ended and leaves the focus board. There is intentionally no Done column or approximate history counter. |
 
-Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan. A later ordinary human message does not erase an explicit marker from the same turn.
+Mentioning a skill in prose does not move the card. For example, “I have not invoked `$wrapup`” remains plan-derived. A natural-language request such as “we are done, wrap up” moves only when the agent starts the wrap-up skill. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
 
 ### Sources
 
-- [Stage derivation](../../src/domain/stage.ts) — precedence and plan predicates.
-- [Rollout parser](../../server/codex/rollout.ts) — current-turn lifecycle, plan, review, and wrap-up extraction.
-- [Stage tests](../../server/codex/rollout.test.ts) — marker persistence and precedence.
+- [Stage derivation](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/stage.ts) — precedence and plan predicates.
+- [Rollout parser](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/rollout.ts) — current-turn lifecycle, plan, review, and wrap-up extraction.
+- [Stage tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/rollout.test.ts) — marker persistence and precedence.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+
+## Why can a live Codex session disappear from the board?
+
+**Short answer:** Only an ended turn should leave the board. Agent Zen merges read-only rollout observation with live App Server events only for sessions launched by the current Agent Zen bridge.
+
+A bug allowed a stale `turn/completed` event from the bundled App Server to override newer rollout state for an externally owned Codex thread. That made one of five live root sessions disappear. Runtime overlays are now process-owned: external sessions always take their lifecycle from the read-only observer, while Agent Zen-owned sessions may use their live App Server stream.
+
+Child-agent sessions are nested under their parent in Kanban and shown as individual stage-labelled cards in Grid. Finished turns leave both focus views.
+
+### Sources
+
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — process-owned runtime overlays.
+- [Bridge regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.test.ts) — stale external completion cannot hide a newer observed turn.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — root and child projection.
+
+_Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 ## Why did automated RoboRev sessions appear in Planning, and how are they hidden?
 
@@ -53,28 +69,28 @@ The app-side exclusion is deliberately narrow: `source = exec` and a normalized 
 
 ### Sources
 
-- [Observer query](../../server/codex/stateObserver.ts) — exact pre-classification exclusion.
-- [Observer tests](../../server/codex/stateObserver.test.ts) — positive exclusion evidence.
+- [Observer query](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — exact pre-classification exclusion.
+- [Observer tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.test.ts) — positive exclusion evidence.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## How and how often does the board refresh?
 
-**Short answer:** The UI requests a fresh snapshot every 2 seconds. A separate 1-second UI clock only updates elapsed-time labels.
+**Short answer:** The UI requests a fresh snapshot every second. A separate 1-second UI clock updates elapsed-time labels.
 
 Each snapshot re-reads the bounded SQLite thread index and examines indexed rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for the latest lifecycle, plan, and stage-marker anchors so state does not disappear merely because it fell outside the tail window.
 
-This is polling, not a hook. The maximum ordinary visible lag is therefore about two seconds plus local parsing time.
+This is polling, not a hook. The maximum ordinary visible lag is therefore about one second plus local parsing time.
 
 Snapshots also carry a protocol version. If the dashboard and bridge are from different builds, the UI stops and asks for a restart instead of mixing old data with new rendering rules.
 
 ### Sources
 
-- [HTTP bridge client](../../src/bridge/httpBridge.ts) — 2-second polling and request timeout.
-- [Codex observer](../../server/codex/stateObserver.ts) — cache, bounded tail, and anchor recovery.
-- [App state provider](../../src/state/store.tsx) — 1-second display clock.
+- [HTTP bridge client](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/bridge/httpBridge.ts) — 1-second polling and request timeout.
+- [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — cache, bounded tail, and anchor recovery.
+- [App state provider](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/state/store.tsx) — 1-second display clock.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 ## Are worktrees discovered and linked to their main project?
 
@@ -84,10 +100,10 @@ Active session repositories register automatically, so the project filter and Se
 
 ### Sources
 
-- [Project discovery](../../server/projects.ts) — Git checkout, branch, and remote discovery.
-- [Observer project resolution](../../server/codex/stateObserver.ts) — cwd-first and repository fallback matching.
-- [Kanban grouping](../../src/components/KanbanView.tsx) — project sections inside each stage.
-- [Session grid](../../src/components/SessionGridView.tsx) — the same project grouping without stage columns.
+- [Project discovery](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/projects.ts) — Git checkout, branch, and remote discovery.
+- [Observer project resolution](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — cwd-first and repository fallback matching.
+- [Kanban grouping](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.tsx) — project sections inside each stage.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — the same project grouping without stage columns.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -100,8 +116,8 @@ Humans may capture ideas, register projects, add Logbook notes, choose filters a
 ### Sources
 
 - [ADR-0005](../adr/0005-read-only-board-and-quiet-settings.md) — read-only board decision.
-- [Kanban view](../../src/components/KanbanView.tsx) — stage presentation without mutation controls.
-- [Session grid](../../src/components/SessionGridView.tsx) — flat presentation without mutation controls.
+- [Kanban view](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.tsx) — stage presentation without mutation controls.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — flat presentation without mutation controls.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -113,8 +129,8 @@ Agent Zen never guesses a project from prompt text or a nearby directory. Sessio
 
 ### Sources
 
-- [Observer project resolution](../../server/codex/stateObserver.ts) — cwd and remote matching.
-- [Session cards](../../src/components/SessionCard.tsx) — honest fallback label.
+- [Observer project resolution](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — cwd and remote matching.
+- [Session cards](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionCard.tsx) — honest fallback label.
 
 _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -126,9 +142,9 @@ Planning and Running root sessions consume slots. Child agents share their paren
 
 ### Sources
 
-- [Focus policy](../../server/domain/focusPolicy.ts) — server-side launch decision.
-- [Stage domain](../../src/domain/stage.ts) — active-slot counting rules.
-- [Bridge service](../../server/bridgeService.ts) — serialized enforcement before launch.
+- [Focus policy](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/domain/focusPolicy.ts) — server-side launch decision.
+- [Stage domain](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/stage.ts) — active-slot counting rules.
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — serialized enforcement before launch.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
@@ -142,9 +158,9 @@ Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross
 
 ### Sources
 
-- [Local persistence](../../src/state/persistence.ts) — empty defaults, schema migration, and exact prototype IDs.
-- [Persistence tests](../../src/domain/derivation.test.ts) — prototype removal and user-data preservation.
-- [Settings store](../../server/settings.ts) — bridge-owned durable settings.
+- [Local persistence](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/state/persistence.ts) — empty defaults, schema migration, and exact prototype IDs.
+- [Persistence tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/derivation.test.ts) — prototype removal and user-data preservation.
+- [Settings store](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/settings.ts) — bridge-owned durable settings.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/version: local schema v2_
 
@@ -156,27 +172,43 @@ That counter has been removed. The bridge now sends active sessions to the focus
 
 ### Sources
 
-- [Bridge service](../../server/bridgeService.ts) — active-session projection.
-- [App tests](../../src/app.test.tsx) — no synthetic history count.
-- [Codex observer](../../server/codex/stateObserver.ts) — bounded recent-thread query.
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — active-session projection.
+- [App tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/app.test.tsx) — no synthetic history count.
+- [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — bounded recent-thread query.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## How do Sessions layouts, dense columns, and card detail work?
 
-**Short answer:** Sessions switches between Kanban and Grid. Every Kanban stage header shows its visible count; columns scroll independently and show a bottom “Scroll for more” affordance. Grid gives every session its own stage-labelled card. Both layouts can display full details or titles only.
+**Short answer:** Sessions switches between Kanban and Grid. Every Kanban stage header shows its visible count; columns scroll independently and show a bottom “Scroll for more” affordance. Grid gives every session its own equal-size, stage-labelled card. Both layouts can display full details or titles only.
 
-Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner. Cards reveal repository, branch, worktree, model, effort, Codex version, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card.
+Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner. Grid title cards are `260 × 152px`; detail cards are `260 × 252px`, top-aligned without stretching to fill sparse rows. Cards reveal repository, branch, worktree, model, effort, Codex version, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card.
 
 ### Sources
 
-- [Kanban view](../../src/components/KanbanView.tsx) — counts, overflow detection, grouping, and detail mode.
-- [Kanban styles](../../src/components/KanbanView.module.css) — fixed headers and scroll affordance.
-- [Session grid](../../src/components/SessionGridView.tsx) — stage-labelled flat projection.
-- [Scroll regression](../../qa/e2e/session-scroll.spec.ts) — one horizontal owner and two-axis wheel routing.
-- [Session card styles](../../src/components/SessionCard.module.css) — delayed hover and immediate focus disclosure.
+- [Kanban view](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.tsx) — counts, overflow detection, grouping, and detail mode.
+- [Kanban styles](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.module.css) — fixed headers and scroll affordance.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — stage-labelled flat projection.
+- [Scroll regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/qa/e2e/session-scroll.spec.ts) — one horizontal owner and two-axis wheel routing.
+- [Session card styles](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionCard.module.css) — delayed hover and immediate focus disclosure.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+
+## What does Quick Capture create?
+
+**Short answer:** One local Idea. It does not launch a session or create a GitHub issue.
+
+The centred capture dialog contains title, notes, and one optional project field. Selecting a project also records its linked repository, so a separate repository field would be duplicate noise. `C` opens capture in the browser, `Command-N` does so in the native shell, `Command-M` jumps to Project, and `Command-Return` saves. Capture keeps these field hints visible as part of its keyboard-first form; toolbar button hints appear only while Command is held. Focus stays in the field the human selected while shortcut hints or live session data update behind the dialog.
+
+![Agent Zen centred Quick Capture](2026-08-07-agent-zen-quick-capture.png)
+
+### Sources
+
+- [Quick Capture](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/CaptureSheet.tsx) — Ideas-only capture contract.
+- [Overlay primitive](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/primitives.tsx) — stable focus and modal keyboard handling.
+- [Capture regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/app.test.tsx) — field focus survives surrounding rerenders.
+
+_Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 ## Why does Command-N open a browser window, and what does the native app change?
 
@@ -188,9 +220,9 @@ This is an environment/distribution blocker, not a JavaScript shortcut bug.
 
 ### Sources
 
-- [Native shell](../../native/AgentZenApp.swift) — menus, WKWebView, bridge ownership, and menu-bar status.
-- [macOS build](../../scripts/build-macos-app.sh) — app bundling and automatic Apple-identity selection.
-- [Bridge URL tests](../../src/bridge/httpBridge.test.ts) — browser-development and packaged-origin routing.
+- [Native shell](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/native/AgentZenApp.swift) — menus, WKWebView, bridge ownership, and menu-bar status.
+- [macOS build](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/scripts/build-macos-app.sh) — app bundling and automatic Apple-identity selection.
+- [Bridge URL tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/bridge/httpBridge.test.ts) — browser-development and packaged-origin routing.
 - [ADR-0006](../adr/0006-browser-keyboard-and-accessibility.md) — keyboard and accessibility contract.
 
 
@@ -219,20 +251,22 @@ Discovery shows repository identity, path, branch, and registration state. Launc
 
 ### Sources
 
-- [Project onboarding UI](../../src/components/ProjectOnboardingDialog.tsx) — selection flow.
-- [Project discovery](../../server/projects.ts) — local Git metadata.
-- [Security tests](../../server/security.test.ts) — loopback and launch-boundary checks.
+- [Project onboarding UI](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/ProjectOnboardingDialog.tsx) — selection flow.
+- [Project discovery](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/projects.ts) — local Git metadata.
+- [Security tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/security.test.ts) — loopback and launch-boundary checks.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 ## Which earlier visuals are retained?
 
-**Short answer:** The connection diagram, live-demo poster, and current stage/refresh diagram are stored beside this FAQ so they remain discoverable after the session dashboard disappears.
+**Short answer:** The connection diagram, live-demo poster, current stage contract, and Quick Capture screenshot are stored beside this FAQ so they remain discoverable after the session dashboard disappears.
 
 - [Codex connection architecture](2026-08-06-agent-zen-codex-connection.png)
 - [Live Codex demo poster](2026-08-06-agent-zen-live-demo-poster.png)
-- [Stage and refresh flow](2026-08-06-agent-zen-stage-refresh.png)
-- [Browser QA evidence](../../qa/README.md)
+- [Current stage contract](2026-08-07-agent-zen-stage-contract.png)
+- [Centred Quick Capture](2026-08-07-agent-zen-quick-capture.png)
+- [Superseded 2-second stage/refresh visual](2026-08-06-agent-zen-stage-refresh.png)
+- Browser QA evidence is retained in the repository's `qa/` directory.
 
 ![Agent Zen live Codex demo poster](2026-08-06-agent-zen-live-demo-poster.png)
 
@@ -240,7 +274,7 @@ The poster records the first live bridge demonstration; it is historical evidenc
 
 ### Sources
 
-- [QA index](../../qa/README.md) — retained screenshots, video, and validation context.
-- [Visual design exploration](../../explorations/2026-08-05-codex-zen-directions/README.md) — selected visual direction.
+- Repository `qa/README.md` — retained screenshots, video, and validation context.
+- Repository `explorations/2026-08-05-codex-zen-directions/README.md` — selected visual direction.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_

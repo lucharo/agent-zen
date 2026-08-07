@@ -28,8 +28,10 @@ Derive the board stage locally:
 - `Ideas`: Agent Zen-owned idea; no session.
 - `Planning`: an active turn exists and no native plan is available.
 - `Running`: an active turn exists and a native plan is available.
-- `Reviewing`: an explicit review or web-app demo skill marker observed in the current Codex turn.
-- `Wrapping up`: an explicit wrap-up skill marker observed in the current Codex turn.
+- `Reviewing`: an explicit review command or an observed review-skill load in the current Codex turn.
+- `Wrapping up`: an explicit wrap-up command or an observed wrap-up skill load in the current Codex turn.
+
+A prose mention is not an invocation. A marker persists for the current turn, and wrap-up has precedence over review. The next native `task_started` event resets the current plan and semantic stage marker.
 
 The Kanban is read-only. Agent Zen does not persist human stage overrides. Supported session control is a separate controller action and the resulting Codex state flows back through the same source.
 
@@ -41,7 +43,9 @@ Every snapshot carries a bridge protocol version. A newer dashboard refuses a st
 
 The rollout observer keeps the latest lifecycle and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. It does not infer a second plan or ask the agent to republish one.
 
-The web client requests `/api/snapshot` every two seconds. The observer reuses rollout parses when file size and modification time are unchanged; a separate one-second UI clock updates elapsed-time labels without rescanning Codex.
+The web client requests `/api/snapshot` every second. The observer reuses rollout parses when file size and modification time are unchanged; a separate one-second UI clock updates elapsed-time labels without rescanning Codex.
+
+App Server lifecycle overlays apply only to threads launched by the current bridge connection. Externally owned threads always take liveness from persisted rollout observation, preventing stale App Server completion events from hiding a newer external turn.
 
 Generated RoboRev execution threads are excluded before stage classification only when their source is `exec` and their normalized generated title starts `You are a code reviewer. Review the code changes shown below.` Human review sessions remain visible.
 

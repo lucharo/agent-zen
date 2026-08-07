@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BridgeSnapshot } from './types'
-import { createHttpBridge, resolveBridgeBaseUrl } from './httpBridge'
+import { createHttpBridge, resolveBridgeBaseUrl, SNAPSHOT_POLL_INTERVAL_MS } from './httpBridge'
 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('resolveBridgeBaseUrl', () => {
+  it('polls local Codex state every second', () => {
+    expect(SNAPSHOT_POLL_INTERVAL_MS).toBe(1_000)
+  })
+
   it('uses an explicit configured bridge', () => {
     expect(resolveBridgeBaseUrl('http://127.0.0.1:9000', null, true)).toBe('http://127.0.0.1:9000')
   })

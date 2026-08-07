@@ -145,6 +145,8 @@ export interface OverlayProps {
 export function Overlay({ open, onClose, labelledBy, children, variant, testId }: OverlayProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const returnTo = useRef<HTMLElement | null>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
 
   useEffect(() => {
     if (!open) return
@@ -159,7 +161,7 @@ export function Overlay({ open, onClose, labelledBy, children, variant, testId }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation()
-        onClose()
+        closeRef.current()
         return
       }
       if (event.key === 'Tab' && panelRef.current) {
@@ -188,7 +190,7 @@ export function Overlay({ open, onClose, labelledBy, children, variant, testId }
       document.body.style.overflow = previousOverflow
       returnTo.current?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 

@@ -2,7 +2,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  width: min(100%, 1280px);
+  margin-inline: auto;
   padding: var(--space-4) var(--space-5);
+  box-sizing: border-box;
   flex: none;
 }
 
@@ -110,8 +113,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex: 1 1 auto;
-  min-width: 160px;
+  flex: 1 1 220px;
+  width: clamp(160px, 22vw, 300px);
+  max-width: 300px;
+  min-width: 140px;
   height: var(--control-height);
   padding: 0 var(--space-2) 0 var(--space-3);
   border-radius: var(--radius-md);
@@ -139,6 +144,16 @@
   color: var(--ink-faint);
   letter-spacing: 0.04em;
   padding: 1px var(--space-1);
+}
+
+.search .kbd,
+.addShortcut {
+  display: none;
+}
+
+.toolbar[data-shortcuts='true'] .search .kbd,
+.toolbar[data-shortcuts='true'] .addShortcut {
+  display: inline;
 }
 
 /* --- Right-hand readings ------------------------------------------------ */
@@ -229,7 +244,14 @@
   }
 
   .search {
-    flex: 0 1 auto;
+    flex: none;
+    width: var(--control-height);
     min-width: 0;
+    padding-inline: 9px;
+  }
+
+  .toolbar[data-shortcuts='true'] .search {
+    width: auto;
+    padding-inline: var(--space-3);
   }
 }

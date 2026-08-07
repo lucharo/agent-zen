@@ -21,7 +21,7 @@ test('maps the read-only Codex state database and rollout tail into native sessi
     rolloutPath,
     [
       JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
-      JSON.stringify({ timestamp: '2026-08-06T12:00:10.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Please finish with $wrapup.' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:10.000Z', type: 'event_msg', payload: { type: 'user_message', message: '$wrapup\nPlease finish the work.' } }),
       JSON.stringify({ timestamp: '2026-08-06T12:00:30.000Z', type: 'response_item', payload: { type: 'reasoning', text: 'x'.repeat(2_000) } }),
       JSON.stringify({
         timestamp: '2026-08-06T12:01:00.000Z',

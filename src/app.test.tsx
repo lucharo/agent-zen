@@ -181,10 +181,15 @@ describe('navigation', () => {
   it('reveals contextual shortcut hints while Command is held', () => {
     mount()
 
+    const toolbar = screen.getByRole('banner', { name: 'Agent Zen toolbar' })
+    expect(toolbar).toHaveAttribute('data-shortcuts', 'false')
+
     fireEvent.keyDown(window, { key: 'Meta', metaKey: true })
-    expect(screen.getByRole('banner', { name: 'Agent Zen toolbar' })).toHaveAttribute('data-shortcuts', 'true')
+    expect(toolbar).toHaveAttribute('data-shortcuts', 'true')
+    expect(within(toolbar).getByText('⌘K')).toBeInTheDocument()
+    expect(within(toolbar).getByText('C')).toBeInTheDocument()
     fireEvent.keyUp(window, { key: 'Meta' })
-    expect(screen.getByRole('banner', { name: 'Agent Zen toolbar' })).toHaveAttribute('data-shortcuts', 'false')
+    expect(toolbar).toHaveAttribute('data-shortcuts', 'false')
   })
 
   it('switches between Sessions and Ideas', async () => {
@@ -327,6 +332,13 @@ describe('capture', () => {
     await user.keyboard('c')
     const sheet = screen.getByRole('dialog', { name: 'Quick capture' })
     expect(within(sheet).getByLabelText('Title')).toHaveFocus()
+    expect(within(sheet).queryByLabelText('Action')).toBeNull()
+    expect(within(sheet).queryByLabelText('Repository')).toBeNull()
+
+    await user.click(within(sheet).getByLabelText('Notes'))
+    fireEvent.keyDown(window, { key: 'Meta', metaKey: true })
+    expect(within(sheet).getByLabelText('Notes')).toHaveFocus()
+    fireEvent.keyUp(window, { key: 'Meta' })
 
     await user.type(within(sheet).getByLabelText('Title'), 'Try the app-server transport')
     await user.click(within(sheet).getByRole('button', { name: 'Save' }))

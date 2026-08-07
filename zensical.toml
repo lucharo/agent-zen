@@ -1,0 +1,55 @@
+[project]
+site_name = "Agent Zen"
+site_description = "A calm local control plane for Codex sessions"
+repo_url = "https://github.com/lucharo/agent-zen"
+repo_name = "lucharo/agent-zen"
+
+nav = [
+  { "Overview" = "index.md" },
+  { "FAQ" = "faq/README.md" },
+  { "Decisions" = [
+    { "Index" = "adr/README.md" },
+    { "Control plane" = "adr/0001-codex-first-zen-control-plane.md" },
+    { "Codex connection" = "adr/0002-native-codex-connection.md" },
+    { "Human Logbook" = "adr/0003-human-logbook.md" },
+    { "Visual prototype" = "adr/0004-first-working-visual-prototype.md" },
+    { "Read-only board" = "adr/0005-read-only-board-and-quiet-settings.md" },
+    { "Keyboard and accessibility" = "adr/0006-browser-keyboard-and-accessibility.md" },
+    { "Native distribution" = "adr/0007-native-shell-and-distribution.md" },
+  ] },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.code.copy",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.sections",
+  "navigation.top",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[project.markdown_extensions]
+attr_list = {}
+md_in_html = {}
+toc = { permalink = true }
+pymdownx.highlight = {}
+pymdownx.superfences = {}

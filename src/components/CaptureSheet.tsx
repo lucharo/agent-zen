@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CaptureAction } from '@/domain/types'
 import { useAgentZen } from '@/state/store'
 import { Overlay, Select } from './primitives'
 import styles from './CaptureSheet.module.css'
-
-const ACTIONS: ReadonlyArray<{ value: CaptureAction; label: string }> = [
-  { value: 'keep-idea', label: 'Keep as idea' },
-  { value: 'github-issue', label: 'Draft GitHub issue' },
-  { value: 'launch-session', label: 'Launch session' },
-]
 
 export interface CaptureSheetProps {
   open: boolean
@@ -18,17 +11,14 @@ export interface CaptureSheetProps {
 
 /**
  * Things-style capture: the title takes the caret immediately, Tab walks one
- * compact row of quick fields, ⌘M jumps to the project, ⌘↵ saves. Nothing
- * launches by default — the action field starts on `Keep as idea`.
+ * compact project field, ⌘M jumps to it, and ⌘↵ saves. Capture remains an
+ * Ideas-only action; session control stays on the read-only session surface.
  */
 export function CaptureSheet({ open, onClose, onSaved }: CaptureSheetProps) {
-  const { state, dispatch, launchAvailability, launchSession } = useAgentZen()
+  const { state, dispatch } = useAgentZen()
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [projectId, setProjectId] = useState<string | null>(state.projectFilter)
-  const [action, setAction] = useState<CaptureAction>('keep-idea')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const projectRef = useRef<HTMLDivElement>(null)
 
@@ -37,9 +27,6 @@ export function CaptureSheet({ open, onClose, onSaved }: CaptureSheetProps) {
     setTitle('')
     setNotes('')
     setProjectId(state.projectFilter)
-    setAction('keep-idea')
-    setSaving(false)
-    setError(null)
     titleRef.current?.focus()
     // Reset once per opening, deliberately not on every filter change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,26 +36,8 @@ export function CaptureSheet({ open, onClose, onSaved }: CaptureSheetProps) {
 
   const project = state.projects.find((p) => p.id === projectId) ?? null
 
-  const save = async () => {
+  const save = () => {
     if (!title.trim()) return
-    setSaving(true)
-    setError(null)
-    if (action === 'launch-session') {
-      if (!projectId) {
-        setSaving(false)
-        setError('Choose a project before launching a Codex session.')
-        return
-      }
-      try {
-        await launchSession(projectId, notes.trim() ? `${title.trim()}\n\n${notes.trim()}` : title.trim())
-        onSaved('Session launched')
-        onClose()
-      } catch (launchError) {
-        setSaving(false)
-        setError(launchError instanceof Error ? launchError.message : String(launchError))
-      }
-      return
-    }
     dispatch({
       type: 'capture-idea',
       draft: {
@@ -76,11 +45,11 @@ export function CaptureSheet({ open, onClose, onSaved }: CaptureSheetProps) {
         notes,
         projectId,
         repository: project?.repository ?? null,
-        action,
+        action: 'keep-idea',
       },
       now: Date.now(),
     })
-    onSaved(action === 'github-issue' ? 'Issue draft saved to Ideas' : 'Saved to Ideas')
+    onSaved('Saved to Ideas')
     onClose()
   }
 
@@ -92,7 +61,7 @@ export function CaptureSheet({ open, onClose, onSaved }: CaptureSheetProps) {
     }
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
-      void save()
+      save()
       return
     }
     if (event.key.toLowerCase() === 'm' && (event.metaKey || event.ctrlKey)) {
@@ -100,8 +69,6 @@ export function CaptureSheet({ open, onClose, onSaved }: CaptureSheetProps) {
       projectRef.current?.querySelector('select')?.focus()
     }
   }
-
-  const launchBlocked = action === 'launch-session' && (!projectId || !launchAvailability.allowed)
 
   return (
     <Overlay
@@ -144,35 +111,19 @@ export function CaptureSheet({ open, onClose, onSaved }: CaptureSheetProps) {
             ]}
           />
         </div>
-        <p className={styles.repo} aria-label="Repository">
-          <span className={styles.repoLabel}>Repository</span>
-          <span className={styles.repoValue}>{project?.repository ?? '—'}</span>
-        </p>
-        <div className={styles.field}>
-          <Select
-            label="Action"
-            block
-            value={action}
-            onChange={(value) => setAction(value as CaptureAction)}
-            options={ACTIONS}
-          />
-        </div>
       </div>
 
       <footer className={styles.footer}>
-        <span className={styles.hint}>Tab through fields · ⌘↵ {action === 'launch-session' ? 'Launch' : 'Save'}</span>
+        <span className={styles.hint}>Tab through fields · ⌘↵ Save</span>
         <button
           type="button"
           className={styles.save}
-          onClick={() => void save()}
-          disabled={!title.trim() || launchBlocked || saving}
+          onClick={save}
+          disabled={!title.trim()}
         >
-          {saving ? 'Working…' : action === 'launch-session' ? 'Launch' : 'Save'}
+          Save
         </button>
       </footer>
-      {launchBlocked && projectId && !launchAvailability.allowed ? (
-        <p className={styles.error}>Focus limit reached. Capture still works; a new root session does not.</p>
-      ) : error ? <p className={styles.error} role="alert">{error}</p> : null}
       </div>
     </Overlay>
   )

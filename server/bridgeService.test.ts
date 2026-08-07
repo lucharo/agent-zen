@@ -54,6 +54,38 @@ class FakeClient {
   async close(): Promise<void> {
     this.isConnected = false
   }
+
+  notify(notification: AppServerNotification): void {
+    for (const listener of this.listeners) listener(notification)
+  }
+}
+
+function activeExternalSession(id = 'thread-external'): AgentSession {
+  return {
+    id,
+    threadId: id,
+    turnId: 'turn-external',
+    title: 'External live work',
+    agent: 'codex',
+    source: 'external',
+    model: 'gpt-test',
+    reasoningEffort: 'high',
+    cliVersion: '0.146.0',
+    createdAt: '2026-08-07T08:00:00.000Z',
+    turnStartedAt: '2026-08-07T09:00:00.000Z',
+    activity: 'working',
+    parentSessionId: null,
+    cwd: '/repo',
+    repository: 'lucharo/agent-zen',
+    branch: 'main',
+    worktree: '/repo',
+    projectId: project.id,
+    plan: null,
+    planHistory: [],
+    review: null,
+    wrapup: null,
+    endedAt: null,
+  }
 }
 
 function dependencies(client: FakeClient): BridgeServiceDependencies {
@@ -114,6 +146,24 @@ describe('AgentZenBridgeService ownership', () => {
     )
   })
 
+  test('does not let app-server notifications override externally observed threads', async () => {
+    const client = new FakeClient()
+    const base = dependencies(client)
+    const service = new AgentZenBridgeService({
+      ...base,
+      observer: { snapshot: async () => [activeExternalSession()] },
+    })
+
+    client.notify({
+      method: 'turn/completed',
+      params: { threadId: 'thread-external', turn: { id: 'turn-external' } },
+    })
+
+    const snapshot = await service.snapshot()
+    expect(snapshot.sessions.map((session) => session.id)).toEqual(['thread-external'])
+    expect(snapshot.sessions[0]?.activity).toBe('working')
+  })
+
   test('registers the Git project of an active observed session', async () => {
     const client = new FakeClient()
     const candidate: ProjectCandidate = {
@@ -127,29 +177,11 @@ describe('AgentZenBridgeService ownership', () => {
     let registered: Project[] = []
     const registeredCalls: string[][] = []
     const activeSession: AgentSession = {
-      id: 'thread-live',
-      threadId: 'thread-live',
-      turnId: 'turn-live',
-      title: 'Live work',
-      agent: 'codex',
-      source: 'external',
-      model: 'gpt-test',
-      reasoningEffort: 'high',
-      cliVersion: '0.146.0',
-      createdAt: '2026-08-07T08:00:00.000Z',
-      turnStartedAt: '2026-08-07T09:00:00.000Z',
-      activity: 'working',
-      parentSessionId: null,
+      ...activeExternalSession('thread-live'),
       cwd: candidate.directory,
       repository: candidate.repository,
-      branch: 'main',
       worktree: candidate.directory,
       projectId: candidate.id,
-      plan: null,
-      planHistory: [],
-      review: null,
-      wrapup: null,
-      endedAt: null,
     }
     const base = dependencies(client)
     const service = new AgentZenBridgeService({
