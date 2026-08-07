@@ -1,3 +1,4 @@
+import { Focus, FolderGit2, Link2, X } from 'lucide-react'
 import { useAgentZen } from '@/state/store'
 import { Overlay } from './primitives'
 import styles from './SettingsDialog.module.css'
@@ -25,7 +26,7 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
           <p>Local by default. Read-only unless you launch here.</p>
         </div>
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close settings">
-          ×
+          <X size={16} strokeWidth={1.7} aria-hidden="true" />
         </button>
       </header>
 
@@ -42,7 +43,7 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
             </span>
           </div>
           {connectionError ? (
-            <p className={styles.notice} role="alert">{connectionError}</p>
+            <p className={styles.notice}>{connectionError}</p>
           ) : sourceMode === 'fixture' ? (
             <p className={styles.notice}>
               The local bridge is unavailable, so Agent Zen is showing sample sessions until it reconnects.
@@ -139,23 +140,6 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
 }
 
 function SettingsIcon({ kind }: { kind: 'connection' | 'focus' | 'projects' }) {
-  return (
-    <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
-      {kind === 'connection' ? (
-        <>
-          <path d="M6.4 6.5 4.8 8.1a3 3 0 0 0 4.2 4.2l1.7-1.7M13.6 13.5l1.6-1.6A3 3 0 0 0 11 7.7L9.3 9.4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        </>
-      ) : kind === 'focus' ? (
-        <>
-          <circle cx="10" cy="10" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-          <circle cx="10" cy="10" r="2.2" fill="currentColor" />
-        </>
-      ) : (
-        <>
-          <path d="M3.5 6.2h5l1.5 1.6h6.5v7.1H3.5Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-          <path d="M3.5 6.2V4.8h5.2l1.2 1.4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-        </>
-      )}
-    </svg>
-  )
+  const Icon = kind === 'connection' ? Link2 : kind === 'focus' ? Focus : FolderGit2
+  return <Icon size={20} strokeWidth={1.6} aria-hidden="true" />
 }

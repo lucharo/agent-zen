@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { deriveStage } from '@/domain/stage'
 import { elapsedSince, formatCaptureTime, formatDuration } from '@/domain/time'
 import { STAGE_LABELS, type AgentSession } from '@/domain/types'
@@ -339,14 +340,7 @@ function SheetHeader({
         <p className={styles.headerSub}>{subtitle}</p>
       </div>
       <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
-        <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-          <path
-            d="M3.5 3.5l7 7M10.5 3.5l-7 7"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-        </svg>
+        <X size={14} strokeWidth={1.7} aria-hidden="true" />
       </button>
     </header>
   )

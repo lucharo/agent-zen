@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { CircleAlert } from 'lucide-react'
 import { filterIdeas } from '@/domain/ideas'
 import { CAPTURE_SHORTCUT } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
@@ -14,7 +15,7 @@ import { Toolbar } from '@/components/Toolbar'
 import styles from './App.module.css'
 
 export function App() {
-  const { state, dispatch, sourceReady } = useAgentZen()
+  const { state, dispatch, sourceReady, connectionError } = useAgentZen()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -126,6 +127,16 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         showShortcuts={shortcutHints}
       />
+
+      {connectionError ? (
+        <div className={styles.connectionAlert} role="alert">
+          <CircleAlert size={16} strokeWidth={1.7} aria-hidden="true" />
+          <div>
+            <strong>Codex bridge needs attention</strong>
+            <span>{connectionError}</span>
+          </div>
+        </div>
+      ) : null}
 
       <main className={styles.main}>
         {state.view === 'kanban' ? (

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type {
   IdeaGroupBy,
   IdeaLayout,
@@ -7,6 +8,7 @@ import type {
   ThemeChoice,
   View,
 } from '@/domain/types'
+import { Monitor, Moon, Plus, Sun } from 'lucide-react'
 import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import {
@@ -42,14 +44,25 @@ export function Toolbar({
   showShortcuts,
 }: ToolbarProps) {
   const { state, dispatch, activeCount, availableProjects } = useAgentZen()
+  const [tooltipsDismissed, setTooltipsDismissed] = useState(false)
   const onIdeas = state.view === 'ideas'
 
   const setView = (view: View) => dispatch({ type: 'set-view', view })
+
+  useEffect(() => {
+    const dismissTooltips = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTooltipsDismissed(true)
+    }
+    document.addEventListener('keydown', dismissTooltips)
+    return () => document.removeEventListener('keydown', dismissTooltips)
+  }, [])
 
   return (
     <header
       className={styles.toolbar}
       data-shortcuts={showShortcuts}
+      data-tooltips-dismissed={tooltipsDismissed}
+      onPointerLeave={() => setTooltipsDismissed(false)}
       aria-label="Agent Zen toolbar"
     >
       <div className={styles.viewSwitch} role="tablist" aria-label="View">
@@ -104,6 +117,7 @@ export function Toolbar({
                 data-selected={state.ideaLayout === layout}
                 aria-pressed={state.ideaLayout === layout}
                 aria-label={layout === 'grid' ? 'Grid' : 'List'}
+                data-tooltip={layout === 'grid' ? 'Grid layout' : 'List layout'}
                 onClick={() => dispatch({ type: 'set-idea-layout', layout: layout as IdeaLayout })}
               >
                 {layout === 'grid' ? <GridIcon /> : <ListIcon />}
@@ -122,7 +136,7 @@ export function Toolbar({
                 data-selected={state.sessionLayout === layout}
                 aria-pressed={state.sessionLayout === layout}
                 aria-label={layout === 'kanban' ? 'Kanban' : 'Grid'}
-                title={layout === 'kanban' ? 'Kanban layout' : 'Grid layout'}
+                data-tooltip={layout === 'kanban' ? 'Kanban layout' : 'Grid layout'}
                 onClick={() =>
                   dispatch({ type: 'set-session-layout', layout: layout as SessionLayout })
                 }
@@ -152,7 +166,7 @@ export function Toolbar({
                 data-selected={state.kanbanCardDetail === detail}
                 aria-pressed={state.kanbanCardDetail === detail}
                 aria-label={detail === 'titles' ? 'Titles only' : 'Details'}
-                title={detail === 'titles' ? 'Show titles only' : 'Show session details'}
+                data-tooltip={detail === 'titles' ? 'Titles only' : 'Full details'}
                 onClick={() =>
                   dispatch({ type: 'set-kanban-card-detail', detail: detail as KanbanCardDetail })
                 }
@@ -209,14 +223,7 @@ export function Toolbar({
         aria-label={`Quick capture (${captureShortcutLabel()})`}
         title={`Quick capture · ${captureShortcutLabel()}`}
       >
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-          <path
-            d="M8 3.2v9.6M3.2 8h9.6"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
+        <Plus size={16} strokeWidth={1.7} aria-hidden="true" />
         <kbd className={styles.addShortcut}>{captureShortcutLabel()}</kbd>
       </button>
     </header>
@@ -233,19 +240,6 @@ function themeLabel(theme: ThemeChoice): string {
 }
 
 function ThemeIcon({ theme }: { theme: ThemeChoice }) {
-  return (
-    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      {theme === 'system' ? (
-        <>
-          <rect x="2.2" y="3" width="11.6" height="8" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.25" />
-          <path d="M6 13h4M8 11v2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-        </>
-      ) : (
-        <>
-          <circle cx="8" cy="8" r="2.5" fill={theme === 'light' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.2" />
-          <path d="M8 1.6v1.5M8 12.9v1.5M1.6 8h1.5M12.9 8h1.5M3.5 3.5l1.1 1.1M11.4 11.4l1.1 1.1M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
-        </>
-      )}
-    </svg>
-  )
+  const Icon = theme === 'system' ? Monitor : theme === 'light' ? Sun : Moon
+  return <Icon size={15} strokeWidth={1.7} aria-hidden="true" />
 }

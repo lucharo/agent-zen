@@ -1,15 +1,6 @@
 .chevron {
   color: var(--ink-faint);
   flex: none;
-  transition: transform var(--duration-fast) var(--ease);
-}
-
-.chevron[data-direction='right'] {
-  transform: rotate(-90deg);
-}
-
-.chevron[data-direction='left'] {
-  transform: rotate(90deg);
 }
 
 .stageIcon {

@@ -1,4 +1,19 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import {
+  AlignJustify,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleEllipsis,
+  CirclePlay,
+  Columns3,
+  Eye,
+  Grid2X2,
+  List,
+  ListTree,
+  PackageCheck,
+  Search,
+} from 'lucide-react'
 import type { Stage } from '@/domain/types'
 import styles from './primitives.module.css'
 
@@ -12,157 +27,51 @@ export function CodexMark({ title = 'Codex' }: { title?: string }) {
 }
 
 export function Chevron({ direction = 'down' }: { direction?: 'down' | 'left' | 'right' }) {
-  return (
-    <svg
-      className={styles.chevron}
-      data-direction={direction}
-      viewBox="0 0 12 12"
-      width="12"
-      height="12"
-      aria-hidden="true"
-    >
-      <path
-        d="M3 4.5 6 7.5 9 4.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
+  const Icon = direction === 'left' ? ChevronLeft : direction === 'right' ? ChevronRight : ChevronDown
+  return <Icon className={styles.chevron} size={12} strokeWidth={1.7} aria-hidden="true" />
 }
 
 export function StageIcon({ stage }: { stage: Exclude<Stage, 'ideas'> }) {
-  const common = {
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.35,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-  }
+  const Icon = {
+    planning: CircleEllipsis,
+    running: CirclePlay,
+    reviewing: Eye,
+    'wrapping-up': PackageCheck,
+  }[stage]
+
   return (
-    <svg
+    <Icon
       className={styles.stageIcon}
       data-stage={stage}
-      viewBox="0 0 16 16"
-      width="16"
-      height="16"
+      size={16}
+      strokeWidth={1.6}
       aria-hidden="true"
-    >
-      {stage === 'planning' ? (
-        <>
-          <circle cx="8" cy="8" r="5.3" {...common} />
-          <circle cx="5.4" cy="8" r="0.7" fill="currentColor" />
-          <circle cx="8" cy="8" r="0.7" fill="currentColor" />
-          <circle cx="10.6" cy="8" r="0.7" fill="currentColor" />
-        </>
-      ) : null}
-      {stage === 'running' ? (
-        <>
-          <circle cx="8" cy="8" r="5.3" {...common} />
-          <path d="m7 5.7 3.4 2.3L7 10.3Z" fill="currentColor" stroke="none" />
-        </>
-      ) : null}
-      {stage === 'reviewing' ? (
-        <>
-          <path d="M2.2 8s2.1-3.3 5.8-3.3S13.8 8 13.8 8 11.7 11.3 8 11.3 2.2 8 2.2 8Z" {...common} />
-          <circle cx="8" cy="8" r="1.45" {...common} />
-        </>
-      ) : null}
-      {stage === 'wrapping-up' ? (
-        <>
-          <path d="m3.1 5.4 4.9-2.5 4.9 2.5v5.2L8 13.1l-4.9-2.5Z" {...common} />
-          <path d="m3.3 5.5 4.7 2.4 4.7-2.4M8 8v5" {...common} />
-        </>
-      ) : null}
-    </svg>
+    />
   )
 }
 
 export function SearchIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-      <circle cx="6" cy="6" r="4.1" fill="none" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M9.2 9.2 12 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  )
+  return <Search size={14} strokeWidth={1.7} aria-hidden="true" />
 }
 
 export function GridIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-      {[0, 8].flatMap((y) =>
-        [0, 8].map((x) => (
-          <rect
-            key={`${x}-${y}`}
-            x={x + 0.5}
-            y={y + 0.5}
-            width="5"
-            height="5"
-            rx="1.2"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.2"
-          />
-        )),
-      )}
-    </svg>
-  )
+  return <Grid2X2 size={14} strokeWidth={1.7} aria-hidden="true" />
 }
 
 export function BoardIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-      {[0.5, 5.25, 10].map((x, index) => (
-        <rect
-          key={x}
-          x={x}
-          y={index === 1 ? 2.5 : 0.5}
-          width="3.5"
-          height={index === 1 ? 8 : 11}
-          rx="1.1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.1"
-        />
-      ))}
-    </svg>
-  )
+  return <Columns3 size={14} strokeWidth={1.7} aria-hidden="true" />
 }
 
 export function TitleIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-      <path d="M2 3.2h10M2 7h7.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-      <path d="M2 10.8h5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" opacity="0.45" />
-    </svg>
-  )
+  return <AlignJustify size={14} strokeWidth={1.7} aria-hidden="true" />
 }
 
 export function DetailsIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-      <path d="M2 2.5h10M2 6h10M2 9.5h7" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-      <circle cx="11.3" cy="10.2" r="1.2" fill="currentColor" />
-    </svg>
-  )
+  return <ListTree size={14} strokeWidth={1.7} aria-hidden="true" />
 }
 
 export function ListIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
-      {[2.5, 7, 11.5].map((y) => (
-        <path
-          key={y}
-          d={`M1 ${y}h12`}
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-      ))}
-    </svg>
-  )
+  return <List size={14} strokeWidth={1.7} aria-hidden="true" />
 }
 
 export interface SelectProps {

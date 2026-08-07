@@ -117,6 +117,11 @@ describe('the board', () => {
     expect(
       within(column('Ideas')).getByRole('button', { name: /Session dashboard agent-zen/ }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('offline')
+
+    fireEvent.keyDown(window, { key: ',', metaKey: true })
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
   it('shows five columns and marks only the agent-backed ones as Codex', () => {
@@ -285,10 +290,20 @@ describe('navigation', () => {
 
   it('switches Sessions between Kanban and a stage-labelled grid', async () => {
     const { user } = mount()
+    const layout = screen.getByRole('group', { name: 'Session layout' })
+    const gridButton = within(layout).getByRole('button', { name: 'Grid' })
 
-    await user.click(within(screen.getByRole('group', { name: 'Session layout' })).getByRole('button', {
-      name: 'Grid',
-    }))
+    expect(gridButton).toHaveAttribute('data-tooltip', 'Grid layout')
+    expect(gridButton).not.toHaveAttribute('title')
+    expect(gridButton.querySelector('.lucide-grid-2x2')).not.toBeNull()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    const toolbar = screen.getByRole('banner', { name: 'Agent Zen toolbar' })
+    expect(toolbar).toHaveAttribute('data-tooltips-dismissed', 'true')
+    fireEvent.pointerLeave(toolbar)
+    expect(toolbar).toHaveAttribute('data-tooltips-dismissed', 'false')
+
+    await user.click(gridButton)
 
     const grid = screen.getByRole('region', { name: 'Session grid' })
     expect(within(grid).getByText('Revise calm control plane')).toBeInTheDocument()

@@ -56,6 +56,7 @@
 }
 
 .segment {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -66,6 +67,35 @@
   color: var(--ink-muted);
   font-size: var(--text-meta);
   transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+}
+
+.segment[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  left: 50%;
+  translate: -50% -2px;
+  padding: 5px 8px;
+  color: var(--toast-ink);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: auto;
+  visibility: hidden;
+  opacity: 0;
+  border-radius: var(--radius-sm);
+  background: var(--toast-bg);
+  box-shadow: var(--shadow-popover);
+  transition: opacity 80ms var(--ease), translate 80ms var(--ease), visibility 0s linear 80ms;
+}
+
+.toolbar:not([data-tooltips-dismissed='true']) .segment[data-tooltip]:is(:hover, :focus-visible)::after {
+  visibility: visible;
+  opacity: 1;
+  translate: -50% 0;
+  transition-delay: 180ms;
 }
 
 .segment[data-selected='true'] {
