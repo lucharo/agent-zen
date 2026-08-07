@@ -12,10 +12,11 @@ leave the focus board.
     bun run check    # typecheck + unit/server tests + production build
     bun run test:a11y
 
-The bridge reads Codex's local thread index and rollout files without mutating
-them, filters generated RoboRev review workers, and owns one bundled
-`codex app-server --stdio` child for sessions launched from Agent Zen. Existing
-Codex Desktop sessions are visible but read-only. Ideas and the human-only
+The bridge inventories rollout files held open by live Codex processes, then
+reads Codex's local thread index and matching rollouts without mutating them. It
+filters generated RoboRev review workers and owns one bundled
+`codex app-server --stdio` child for sessions launched from Agent Zen. Existing Codex Desktop
+sessions are visible but read-only. Ideas and the human-only
 Logbook stay in localStorage; registered projects, owned-thread identity, and the
 optional focus limit live in `~/.agent-zen/settings.json`.
 
@@ -25,7 +26,7 @@ The implementation follows [the selected Codex-first visual direction](explorati
 
 The rendered app is live. A loopback-only Bun bridge combines:
 
-- read-only observation of `~/.codex/state_5.sqlite` and indexed rollout JSONL files;
+- read-only active-process discovery plus observation of `~/.codex/state_5.sqlite` and matching rollout JSONL files;
 - supported App Server control for sessions launched by Agent Zen;
 - local Git discovery with automatic registration of active repositories;
 - a serialized launch gate for the optional focus limit.

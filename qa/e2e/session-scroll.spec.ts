@@ -21,7 +21,7 @@ const session = (index: number): AgentSession => ({
   cliVersion: '0.146.0',
   createdAt: '2026-08-07T08:00:00.000Z',
   turnStartedAt: '2026-08-07T09:00:00.000Z',
-  activity: 'working',
+  activity: index === 1 ? 'idle' : 'working',
   parentSessionId: null,
   cwd: project.directory,
   repository: project.repository,
@@ -95,6 +95,7 @@ test('the session grid uses one compact card size with content anchored at the t
   await page.goto('/')
   await page.getByRole('button', { name: 'Grid' }).first().click()
   await page.getByRole('button', { name: 'Titles only' }).click()
+  await expect(page.getByRole('button', { name: /Running session 1.*Idle/ })).toBeVisible()
 
   const titleCards = await page.locator('[data-card-id]').evaluateAll((nodes) =>
     nodes.map((node) => {

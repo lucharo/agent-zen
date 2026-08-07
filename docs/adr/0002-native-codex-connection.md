@@ -11,7 +11,7 @@ Agent Zen uses the bundled Codex App Server for supported session control and na
 
 - **Does Codex ship the required server?** Yes. Codex CLI 0.146.0 bundles `codex app-server`, JSON-RPC transports, generated schemas, thread inventory/history, turn control, runtime events, and `turn/plan/updated`.
 - **Can a fresh app-server see sessions created elsewhere?** It can list persisted sessions, history, repository metadata, and parent-child relationships, but its runtime status for threads loaded by another app-server process is `notLoaded`.
-- **Where does cross-process liveness live?** Codex continuously appends turn lifecycle, plan/tool, and completion events to per-thread rollouts under `~/.codex/sessions/`; `~/.codex/state_5.sqlite` indexes thread metadata, model, reasoning effort, rollout path, and spawn edges.
+- **Where does cross-process liveness live?** A live `codex` process keeps its current root and child rollout JSONL files open. On macOS, `lsof` exposes those file handles without attaching to the process. `~/.codex/state_5.sqlite` then maps those thread ids to metadata and spawn edges, while the rollout records describe the latest turn.
 - **Would ACP solve aggregation?** No. `codex-acp` is an adapter that starts a Codex App Server and translates one ACP session surface. It does not attach to the private stdio connection owned by Codex Desktop.
 - **Are hooks required?** No. Native protocol events and persisted rollouts carry the core lifecycle. Hooks add trust, configuration, and failure modes and should remain optional semantic hints.
 
@@ -20,16 +20,16 @@ Agent Zen uses the bundled Codex App Server for supported session control and na
 Implement one typed Codex adapter with three internal responsibilities:
 
 1. **Catalog reader:** use `thread/list`, `thread/read(includeTurns=true)`, and parent/ancestor filters for persisted session inventory and history.
-2. **Rollout observer:** read the state database and tail only the indexed rollout files to detect turns running in other Codex processes, current plan updates, model/effort, and parent-child edges. Treat these stores as read-only and version-sensitive.
+2. **Process + rollout observer:** inventory rollout files held open by live Codex processes, query those exact thread ids from the state database, and tail their rollouts for turn activity, current plan updates, model/effort, and parent-child edges. Treat process handles and stores as read-only and version-sensitive.
 3. **Controller:** run one Agent Zen-owned bundled `codex app-server --stdio` child for sessions launched through Agent Zen. Use `turn/start`, `turn/steer`, `turn/interrupt`, and streamed events for control. Keep the transport boundary replaceable by the managed daemon when Codex is installed through the standalone channel that provides it.
 
 Derive the board stage locally:
 
 - `Ideas`: Agent Zen-owned idea; no session.
-- `Planning`: an active turn exists and no native plan is available.
-- `Running`: an active turn exists and a native plan is available.
-- `Reviewing`: an explicit review command or an observed review-skill load in the current Codex turn.
-- `Wrapping up`: an explicit wrap-up command or an observed wrap-up skill load in the current Codex turn.
+- `Planning`: an active Codex session exists and its latest turn has no native plan.
+- `Running`: an active Codex session exists and its latest turn has a native plan.
+- `Reviewing`: the latest turn contains an explicit review command or an observed review-skill load.
+- `Wrapping up`: the latest turn contains an explicit wrap-up command or an observed wrap-up skill load.
 
 A prose mention is not an invocation. A marker persists for the current turn, and wrap-up has precedence over review. The next native `task_started` event resets the current plan and semantic stage marker.
 
@@ -45,22 +45,22 @@ The rollout observer keeps the latest lifecycle and native plan records as bound
 
 The web client requests `/api/snapshot` every second. The observer reuses rollout parses when file size and modification time are unchanged; a separate one-second UI clock updates elapsed-time labels without rescanning Codex.
 
-App Server lifecycle overlays apply only to threads launched by the current bridge connection. Externally owned threads always take liveness from persisted rollout observation, preventing stale App Server completion events from hiding a newer external turn.
+App Server lifecycle overlays apply only to threads launched by the current bridge connection. Externally owned threads take session membership from the live-process rollout inventory and turn activity from persisted rollout observation. A completed turn becomes idle; it does not end the session or hide the card.
 
 Generated RoboRev execution threads are excluded before stage classification only when their source is `exec` and their normalized generated title starts `You are a code reviewer. Review the code changes shown below.` Human review sessions remain visible.
 
 Project resolution uses the deepest discovered checkout containing the session cwd, then falls back to normalized GitHub repository identity. This links worktrees outside the main checkout to their project without requiring every worktree to be registered separately.
 
-Ended sessions leave the focus board. Agent Zen does not present the observer's bounded recent-thread window as complete history.
+Sessions leave the focus board when their owning Codex process no longer holds the rollout open or the thread is archived. Agent Zen does not present the unarchived SQLite catalog as an active set or complete history.
 
 ## Consequences
 
 - Sessions launched by Agent Zen have the richest live control and event stream.
-- Sessions launched in Codex Desktop remain visible through persisted native state; control may require resuming them through Agent Zen after their external turn is idle.
+- Sessions launched in Codex Desktop, terminals, and cloud worktrees remain visible while their local Codex process owns the rollout; idle turns remain on the board without pretending to be running.
 - The adapter must isolate internal SQLite/JSONL parsing so a Codex schema change has one repair point.
 - The implementation should generate or vendor types from the installed Codex version during development rather than hand-maintain the protocol.
 - The browser UI needs a small local bridge or daemon because it cannot launch `codex app-server` or read `~/.codex` directly.
-- A cold observer start may scan backwards through one long active rollout to recover its latest lifecycle and plan anchors; subsequent polling uses a bounded cache.
+- A cold observer start inventories live Codex file handles, then may scan backwards through one long active rollout to recover its latest lifecycle and plan anchors; subsequent polling uses a bounded cache.
 
 ## Rejected alternatives
 

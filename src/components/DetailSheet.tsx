@@ -47,13 +47,13 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
   const stage = deriveStage(session)
   const project = projectById(session.projectId)
   const age = elapsedSince(session.createdAt, now)
-  const turn = elapsedSince(session.turnStartedAt, now)
+  const turn = session.activity === 'working' ? elapsedSince(session.turnStartedAt, now) : null
 
   return (
     <>
       <SheetHeader
         title={session.title}
-        subtitle={`${stage ? STAGE_LABELS[stage] : 'History'} · ${project?.name ?? 'Outside a Git project'}`}
+        subtitle={`${stage ? STAGE_LABELS[stage] : 'History'}${session.activity === 'idle' ? ' · Idle' : ''} · ${project?.name ?? 'Outside a Git project'}`}
         onClose={onClose}
       />
 
@@ -134,6 +134,8 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
           ) : null}
 
           <dl className={styles.meta}>
+            <dt>Activity</dt>
+            <dd>{session.activity === 'working' ? 'Current turn running' : 'Session open · between turns'}</dd>
             <dt>Model</dt>
             <dd>{session.model}{session.reasoningEffort ? ` · ${session.reasoningEffort}` : ''}</dd>
             <dt>Control</dt>
@@ -151,7 +153,7 @@ function SessionDetail({ session, onClose }: { session: AgentSession; onClose: (
             <dt>Session age</dt>
             <dd>{age === null ? '—' : formatDuration(age)}</dd>
             <dt>Current turn</dt>
-            <dd>{turn === null ? '—' : formatDuration(turn)}</dd>
+            <dd>{turn === null ? 'No turn running' : formatDuration(turn)}</dd>
             {session.parentSessionId ? (
               <>
                 <dt>Parent</dt>

@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite'
 import { open, stat } from 'node:fs/promises'
 import type { AgentSession, Project } from '../../src/domain/types'
 import { normaliseGitHubRepository } from '../projects'
+import { discoverActiveCodexThreadIds } from './processInventory'
 import { parseRolloutLines, type RolloutSnapshot } from './rollout'
 
 interface ThreadRow {
@@ -38,25 +39,56 @@ export interface CodexStateObserverOptions {
   readonly getProjects: () => readonly Project[] | Promise<readonly Project[]>
   readonly maxThreads?: number
   readonly maxRolloutBytes?: number
+  readonly getActiveThreadIds?: () => Promise<ReadonlySet<string> | null>
 }
 
 /** Read-only cross-process observer for Codex threads and rollout tails. */
 export class CodexStateObserver {
   private readonly cache = new Map<string, CachedRollout>()
+  private lastActiveThreadIds: ReadonlySet<string> | null = null
 
   constructor(private readonly options: CodexStateObserverOptions) {}
 
   async snapshot(): Promise<AgentSession[]> {
-    const [rows, projects] = await Promise.all([
-      Promise.resolve(this.readRows()),
+    const [discoveredThreadIds, projects] = await Promise.all([
+      this.options.getActiveThreadIds?.() ?? discoverActiveCodexThreadIds(),
       this.options.getProjects(),
     ])
-    return Promise.all(rows.map((row) => this.toSession(row, projects)))
+    if (discoveredThreadIds !== null) this.lastActiveThreadIds = discoveredThreadIds
+    const activeThreadIds = discoveredThreadIds ?? this.lastActiveThreadIds
+    const rows = this.readRows(activeThreadIds)
+    const sessions = await Promise.all(
+      rows.map((row) => this.toSession(row, projects, activeThreadIds !== null)),
+    )
+    return activeThreadIds === null
+      ? sessions.filter((session) => session.activity === 'working')
+      : sessions
   }
 
-  private readRows(): ThreadRow[] {
+  private readRows(activeThreadIds: ReadonlySet<string> | null): ThreadRow[] {
     const database = new Database(this.options.dbPath, { readonly: true })
     try {
+      if (activeThreadIds !== null) {
+        if (activeThreadIds.size === 0) return []
+        const query = database.query<ThreadRow, [string]>(`
+          SELECT
+            t.id, t.rollout_path, t.created_at, t.updated_at, t.cwd, t.title,
+            t.preview, t.name, t.model_provider, t.model, t.reasoning_effort,
+            t.cli_version, t.git_branch, t.git_origin_url, t.created_at_ms,
+            t.updated_at_ms, e.parent_thread_id
+          FROM threads t
+          LEFT JOIN thread_spawn_edges e ON e.child_thread_id = t.id
+          WHERE t.archived = 0
+            AND t.id IN (SELECT value FROM json_each(?))
+            AND NOT (
+              t.source = 'exec'
+              AND lower(trim(t.title)) LIKE 'you are a code reviewer. review the code changes shown below.%'
+            )
+          ORDER BY COALESCE(t.updated_at_ms, t.updated_at * 1000) DESC
+        `)
+        return query.all(JSON.stringify([...activeThreadIds]))
+      }
+
       const query = database.query<ThreadRow, [number]>(`
         SELECT
           t.id, t.rollout_path, t.created_at, t.updated_at, t.cwd, t.title,
@@ -82,13 +114,14 @@ export class CodexStateObserver {
   private async toSession(
     row: ThreadRow,
     projects: readonly Project[],
+    processActive: boolean,
   ): Promise<AgentSession> {
     const rollout = await this.rollout(row.rollout_path)
     const createdMs = row.created_at_ms ?? row.created_at * 1000
     const updatedMs = row.updated_at_ms ?? row.updated_at * 1000
     const repository = normaliseGitHubRepository(row.git_origin_url)
     const project = resolveProject(projects, row.cwd, repository)
-    const active = rollout.activity === 'working'
+    const turnActive = rollout.activity === 'working'
     const review = rollout.stageHint === 'reviewing'
       ? { visualChecked: false, prReady: false, openNotes: 0, pullRequest: null }
       : null
@@ -108,7 +141,7 @@ export class CodexStateObserver {
       cliVersion: row.cli_version || null,
       createdAt: new Date(createdMs).toISOString(),
       turnStartedAt: rollout.turnStartedAt,
-      activity: active ? 'working' : 'ended',
+      activity: turnActive ? 'working' : processActive ? 'idle' : 'ended',
       parentSessionId: row.parent_thread_id,
       cwd: row.cwd,
       repository,
@@ -119,7 +152,9 @@ export class CodexStateObserver {
       planHistory: rollout.planHistory,
       review,
       wrapup,
-      endedAt: active ? null : rollout.endedAt ?? new Date(updatedMs).toISOString(),
+      endedAt: turnActive || processActive
+        ? null
+        : rollout.endedAt ?? new Date(updatedMs).toISOString(),
     }
   }
 

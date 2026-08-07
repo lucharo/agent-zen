@@ -2,14 +2,14 @@ Create one clean, light-mode editorial systems diagram titled “How Agent Zen d
 
 Use exactly four numbered zones from left to right with clear arrows between adjacent zones only:
 
-1. “Codex native state”. Two stacked sources: database icon labelled “state_5.sqlite: thread, title, cwd, parent” and document icon labelled “rollout JSONL: turn, plan, skill action, completion”.
+1. “Codex native state”. Three stacked sources: process icon labelled “live codex process: open rollout”, database icon labelled “state_5.sqlite: thread, title, cwd, parent”, and document icon labelled “rollout JSONL: turn, plan, skill action, completion”.
 
-2. “Read-only observer”. Show three short lines: “1-second snapshot”, “active root + child sessions”, “project and worktree matching”. Add a small filter line: “known generated RoboRev workers hidden”.
+2. “Read-only observer”. Show three short lines: “1-second process inventory”, “active root + child sessions”, “project and worktree matching”. Add a small filter line: “known generated RoboRev workers hidden”.
 
-3. “Stage precedence”. Show a vertical precedence ladder, highest first: “Wrapping up — wrapup invoked”, “Reviewing — review invoked”, “Running — native plan exists”, “Planning — live turn, no plan”. Add a prominent small note below: “Mentioning a skill is not invocation.” Put “Finished leaves the focus board” outside and below the ladder with a downward arrow.
+3. “Stage precedence”. Show a vertical precedence ladder, highest first: “Wrapping up — wrapup invoked”, “Reviewing — review invoked”, “Running — native plan exists”, “Planning — no native plan”. Add a prominent small note below: “A completed turn becomes idle.” Put “Process closes or thread archives → leaves board” outside and below the ladder with a downward arrow.
 
 4. “Zen surfaces”. Show two minimal app panels: “Kanban: child agents nested” and “Grid: equal 260 px cards”. Add a small line “titles update from Codex”.
 
-At the bottom, one concise sentence: “Codex owns state. Agent Zen observes, classifies, and presents it.”
+At the bottom, one concise sentence: “Codex owns state. Agent Zen observes the process and latest turn separately.”
 
 Use these labels exactly. Ensure arrows do not skip zones. No other prose, legends, or labels. No empty decorative boxes. No logos except simple generic database, document, filter, and window glyphs.

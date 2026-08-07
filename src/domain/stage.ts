@@ -3,7 +3,8 @@ import type { AgentSession, Stage } from './types'
 /**
  * Where a session sits on the board, or `null` once it has left the focus surface.
  *
- * An ended thread leaves the board entirely. Every other placement is derived
+ * A thread whose Codex process is gone leaves the board entirely. An idle
+ * process remains in its latest agent-derived stage. Every placement is derived
  * from Codex-owned state: wrapup, review, then the native plan. The Kanban is a
  * projection, not an editor, so no local override can silently contradict the
  * session that produced it.

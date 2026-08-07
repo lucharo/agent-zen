@@ -90,7 +90,12 @@ test('maps the read-only Codex state database and rollout tail into native sessi
   const projects: Project[] = [{
     id: 'repo', name: 'repo', directory: '/repo', repository: 'lucharo/repo',
   }]
-  const observer = new CodexStateObserver({ dbPath, getProjects: () => projects, maxRolloutBytes: 500 })
+  const observer = new CodexStateObserver({
+    dbPath,
+    getProjects: () => projects,
+    getActiveThreadIds: async () => null,
+    maxRolloutBytes: 500,
+  })
   const sessions = await observer.snapshot()
 
   expect(sessions).toHaveLength(2)
@@ -126,4 +131,74 @@ test('maps the read-only Codex state database and rollout tail into native sessi
     .toEqual({ step: 'Build', status: 'in_progress' })
   expect(afterGrowth.find((session) => session.id === 'thread-1')?.wrapup)
     .toEqual({ checksPassed: 0, checksTotal: 1 })
+})
+
+test('keeps an idle unarchived thread visible while its Codex process still owns the rollout', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-active-process-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const activeRollout = join(directory, 'rollout-active.jsonl')
+  const staleRollout = join(directory, 'rollout-stale.jsonl')
+  const completedTurn = [
+    JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+    JSON.stringify({
+      timestamp: '2026-08-06T12:01:00.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'custom_tool_call',
+        name: 'exec',
+        input: 'await tools.update_plan({plan:[{step:"Build",status:"completed"}]});',
+      },
+    }),
+    JSON.stringify({ timestamp: '2026-08-06T12:02:00.000Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-1' } }),
+  ].join('\n') + '\n'
+  await Promise.all([
+    writeFile(activeRollout, completedTurn),
+    writeFile(staleRollout, completedTurn),
+  ])
+
+  const database = new Database(dbPath, { create: true })
+  database.exec(`
+    CREATE TABLE threads (
+      id TEXT PRIMARY KEY, rollout_path TEXT NOT NULL, created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL, source TEXT NOT NULL, model_provider TEXT NOT NULL,
+      cwd TEXT NOT NULL, title TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
+      git_sha TEXT, git_branch TEXT, git_origin_url TEXT, cli_version TEXT NOT NULL DEFAULT '',
+      preview TEXT NOT NULL DEFAULT '', name TEXT, model TEXT, reasoning_effort TEXT,
+      created_at_ms INTEGER, updated_at_ms INTEGER
+    );
+    CREATE TABLE thread_spawn_edges (
+      parent_thread_id TEXT NOT NULL, child_thread_id TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL
+    );
+  `)
+  const insert = database.query(`
+    INSERT INTO threads (
+      id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+      cli_version, preview, created_at_ms, updated_at_ms
+    ) VALUES (?, ?, ?, ?, 'cli', 'openai', '/repo', ?, '0.146.0', '', ?, ?)
+  `)
+  insert.run('thread-active', activeRollout, 1_786_012_800, 1_786_012_920, 'Human spec', 1_786_012_800_000, 1_786_012_920_000)
+  insert.run('thread-stale', staleRollout, 1_786_012_700, 1_786_012_910, 'Old session', 1_786_012_700_000, 1_786_012_910_000)
+  database.close()
+
+  let processInventoryAvailable = true
+  const observer = new CodexStateObserver({
+    dbPath,
+    getProjects: () => [],
+    getActiveThreadIds: async () => processInventoryAvailable
+      ? new Set(['thread-active'])
+      : null,
+  })
+
+  const sessions = await observer.snapshot()
+
+  expect(sessions.map((session) => session.id)).toEqual(['thread-active'])
+  expect(sessions[0]).toMatchObject({
+    activity: 'idle',
+    endedAt: null,
+    plan: { steps: [{ step: 'Build', status: 'completed' }] },
+  })
+
+  processInventoryAvailable = false
+  expect((await observer.snapshot()).map((session) => session.id)).toEqual(['thread-active'])
 })

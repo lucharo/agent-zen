@@ -30,6 +30,7 @@ export function SessionCard({
 }: SessionCardProps) {
   const { session, stage, project, children } = entry
   const progress = planProgress(session)
+  const idle = session.activity === 'idle'
 
   return (
     <li className={styles.slot}>
@@ -49,31 +50,38 @@ export function SessionCard({
             </span>
           ) : null}
           <h3 className={styles.title}>{session.title}</h3>
+          {detail === 'titles' && idle ? <p className={styles.idle}>Idle</p> : null}
           {detail === 'details' && showProject ? (
             <p className={styles.project}>{project?.name ?? 'Outside a Git project'}</p>
           ) : null}
 
           {detail === 'details' && stage === 'planning' ? (
-            <p className={styles.line}>Starting · plan pending</p>
+            <p className={styles.line}>{idle ? 'Idle · no current turn' : 'Starting · plan pending'}</p>
           ) : null}
 
           {detail === 'details' && stage === 'running' ? (
-            <p className={styles.line}>{currentPlanStep(session) ?? 'Between plan steps'}</p>
+            <p className={styles.line}>
+              {idle ? 'Idle · plan retained' : currentPlanStep(session) ?? 'Between plan steps'}
+            </p>
           ) : null}
 
           {detail === 'details' && stage === 'reviewing' && session.review ? (
-            <p className={styles.line}>{reviewSummary(session)}</p>
+            <p className={styles.line}>{idle ? `Idle · ${reviewSummary(session)}` : reviewSummary(session)}</p>
           ) : null}
 
           {detail === 'details' && stage === 'wrapping-up' && session.wrapup ? (
             <p className={styles.line}>
-              wrapup · checks {session.wrapup.checksPassed} / {session.wrapup.checksTotal}
+              {idle ? 'Idle · ' : ''}wrapup · checks {session.wrapup.checksPassed} / {session.wrapup.checksTotal}
             </p>
           ) : null}
 
           {detail === 'details' && stage !== 'planning' ? (
             <p className={styles.timing}>
-              {formatSessionTiming(session.createdAt, session.turnStartedAt, now)}
+              {formatSessionTiming(
+                session.createdAt,
+                session.activity === 'working' ? session.turnStartedAt : null,
+                now,
+              )}
             </p>
           ) : null}
 
@@ -112,7 +120,9 @@ export function SessionCard({
                 </span>
                 <span className={styles.childTitle}>{child.title}</span>
                 <span className={styles.childTime}>
-                  {formatDuration(elapsedSince(child.turnStartedAt ?? child.createdAt, now) ?? 0)}
+                  {child.activity === 'working'
+                    ? formatDuration(elapsedSince(child.turnStartedAt ?? child.createdAt, now) ?? 0)
+                    : 'idle'}
                 </span>
                 <span className="visuallyHidden">Child agent</span>
               </button>
@@ -145,6 +155,8 @@ function MetaPopover({ session }: { session: AgentSession }) {
     <div className={styles.popover} role="note">
       <span className={styles.caret} aria-hidden="true" />
       <dl className={styles.metaList}>
+        <dt>Activity</dt>
+        <dd>{activityLabel(session)}</dd>
         <dt>Model</dt>
         <dd>{session.model}</dd>
         <dt>Effort</dt>
@@ -170,6 +182,13 @@ function MetaPopover({ session }: { session: AgentSession }) {
       </dl>
     </div>
   )
+}
+
+function activityLabel(session: AgentSession): string {
+  if (session.activity === 'working') return 'Turn running'
+  if (session.activity === 'awaiting-input') return 'Awaiting input'
+  if (session.activity === 'idle') return 'Session open · between turns'
+  return 'Ended'
 }
 
 function compactPath(path: string): string {

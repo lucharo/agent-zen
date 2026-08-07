@@ -8,9 +8,9 @@ _Conceptual visual generated from the verified contracts below. The code and tes
 
 ## How does Agent Zen connect to Codex?
 
-**Short answer:** The local bridge combines supported Codex App Server control for sessions it launches with read-only observation of all indexed Codex sessions. ACP and hooks are not required.
+**Short answer:** The local bridge combines supported Codex App Server control for sessions it launches with read-only process, SQLite, and rollout observation for sessions running elsewhere. ACP and hooks are not required.
 
-The observer reads thread metadata from `~/.codex/state_5.sqlite` and lifecycle, message, plan, and completion records from each thread's rollout JSONL. It never writes to those stores. Agent Zen-owned launches use a bundled `codex app-server --stdio` child; externally launched sessions remain visible but read-only.
+On macOS, the observer asks `lsof` which rollout JSONL files are currently held open by live `codex` processes. Those thread ids define the active shelf. It then reads metadata from `~/.codex/state_5.sqlite` and lifecycle, message, plan, and completion records from the matching rollout files. It never writes to those stores. Agent Zen-owned launches use a bundled `codex app-server --stdio` child; externally launched sessions remain visible but read-only.
 
 ![Codex connection architecture](2026-08-06-agent-zen-codex-connection.png)
 
@@ -29,11 +29,11 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/ver
 | Stage | Exact qualifying condition |
 | --- | --- |
 | Ideas | A human-created Agent Zen idea; no Codex session exists yet. |
-| Planning | The current Codex turn is live and has no native plan steps. |
-| Running | The current Codex turn is live and has one or more native plan steps. |
-| Reviewing | The current live turn begins a review action. This is either an explicit command line such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`, or the agent actually loading a matching review skill. The marker persists for that turn. |
-| Wrapping up | The current live turn begins wrap-up. This is either an explicit `$wrapup` or `/wrapup` command line, or the agent actually loading the wrap-up skill. It overrides Reviewing and plan-derived placement. |
-| Finished | The turn is ended and leaves the focus board. There is intentionally no Done column or approximate history counter. |
+| Planning | A live Codex process owns the session and its latest turn has no native plan steps. The card can be actively planning or idle between turns. |
+| Running | A live Codex process owns the session and its latest turn has one or more native plan steps. The card can be actively running or idle with its plan retained. |
+| Reviewing | The latest turn begins a review action. This is either an explicit command line such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`, or the agent actually loading a matching review skill. The marker remains while that Codex session stays open. |
+| Wrapping up | The latest turn begins wrap-up. This is either an explicit `$wrapup` or `/wrapup` command line, or the agent actually loading the wrap-up skill. It overrides Reviewing and plan-derived placement. |
+| Finished | The owning Codex process closes or unloads the rollout, or the thread is archived. The session then leaves the focus board. There is intentionally no Done column or approximate history counter. |
 
 Mentioning a skill in prose does not move the card. For example, “I have not invoked `$wrapup`” remains plan-derived. A natural-language request such as “we are done, wrap up” moves only when the agent starts the wrap-up skill. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
 
@@ -45,18 +45,19 @@ Mentioning a skill in prose does not move the card. For example, “I have not i
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
-## Why can a live Codex session disappear from the board?
+## Which Codex sessions count as active, and why did idle ones disappear?
 
-**Short answer:** Only an ended turn should leave the board. Agent Zen merges read-only rollout observation with live App Server events only for sessions launched by the current Agent Zen bridge.
+**Short answer:** A session is active while a live `codex` process holds its rollout file open. Completing a turn makes that session idle; it does not remove the card.
 
-A bug allowed a stale `turn/completed` event from the bundled App Server to override newer rollout state for an externally owned Codex thread. That made one of five live root sessions disappear. Runtime overlays are now process-owned: external sessions always take their lifecycle from the read-only observer, while Agent Zen-owned sessions may use their live App Server stream.
+The earlier implementation treated the rollout's latest `task_complete` record as the end of the whole session. That collapsed two different lifecycles: a turn can finish while its terminal, Codex window, or cloud-worktree Codex process remains open for another turn. Agent Zen now inventories open rollout files from live Codex processes, then classifies the latest turn as `working` or `idle`.
 
-Child-agent sessions are nested under their parent in Kanban and shown as individual stage-labelled cards in Grid. Finished turns leave both focus views.
+This is why `data-pipeline-human-spec` remains visible after “HOLD ON FOR MORE!”: its latest turn completed, but its Codex process still owns the rollout. Child-agent rollouts are discovered by the same mechanism, nested under their parent in Kanban, and shown as individual stage-labelled cards in Grid. Closing the owning process or archiving the thread removes it.
 
 ### Sources
 
-- [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — process-owned runtime overlays.
-- [Bridge regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.test.ts) — stale external completion cannot hide a newer observed turn.
+- [Process inventory](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/processInventory.ts) — open rollout discovery from live Codex processes.
+- [Observer regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.test.ts) — an idle process-owned session remains visible while stale unowned history does not.
+- [Bridge regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.test.ts) — Agent Zen-owned turn completion becomes idle rather than disappearing.
 - [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — root and child projection.
 
 _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
@@ -78,7 +79,7 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 **Short answer:** The UI requests a fresh snapshot every second. A separate 1-second UI clock updates elapsed-time labels.
 
-Each snapshot re-reads the bounded SQLite thread index and examines indexed rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for the latest lifecycle, plan, and stage-marker anchors so state does not disappear merely because it fell outside the tail window.
+Each snapshot first inventories rollout files held open by live Codex processes, then queries those exact thread ids from SQLite and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for the latest lifecycle, plan, and stage-marker anchors so state does not disappear merely because it fell outside the tail window.
 
 This is polling, not a hook. The maximum ordinary visible lag is therefore about one second plus local parsing time.
 
@@ -138,7 +139,7 @@ _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 **Short answer:** When enabled, it refuses only a new root-session launch after every slot is occupied. It never kills, pauses, or moves existing work.
 
-Planning and Running root sessions consume slots. Child agents share their parent's slot. Reviewing and Wrapping up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot.
+Planning and Running root sessions consume slots while their Codex process remains open, including idle sessions between turns. Child agents share their parent's slot. Reviewing and Wrapping up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot.
 
 ### Sources
 
@@ -168,13 +169,13 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/ver
 
 **Short answer:** It was not a trustworthy history total. The observer loaded a bounded window of 120 recent threads; at that moment seven were live, so the UI displayed the remaining 113 as “history”.
 
-That counter has been removed. The bridge now sends active sessions to the focus board and does not imply that a bounded recent-thread sample is a complete archive. A real history view would need explicit pagination and a clear retention contract.
+That counter has been removed. The bridge now sends sessions owned by live Codex processes to the focus board and does not imply that the unarchived thread catalog is active work or complete history. A real history view would need explicit pagination and a clear retention contract.
 
 ### Sources
 
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — active-session projection.
 - [App tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/app.test.tsx) — no synthetic history count.
-- [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — bounded recent-thread query.
+- [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — exact process-active query with a bounded live-turn fallback when process discovery is unavailable.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 

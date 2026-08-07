@@ -45,6 +45,12 @@
   color: var(--ink-muted);
 }
 
+.idle {
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}
+
 .line {
   margin-top: var(--space-3);
   font-size: var(--text-body);

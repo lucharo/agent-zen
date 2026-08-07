@@ -204,6 +204,7 @@ export class AgentZenBridgeService {
   private async sessions(): Promise<AgentSession[]> {
     const observed = await this.dependencies.observer.snapshot()
     const ids = new Set(observed.map((session) => session.id))
+    for (const id of ids) this.transientSessions.delete(id)
     const merged = observed.map((session) => this.withRuntimeOwnership(this.mergeOverlay(session)))
     for (const transient of this.transientSessions.values()) {
       if (!ids.has(transient.id)) merged.push(this.withRuntimeOwnership(this.mergeOverlay(transient)))
@@ -314,10 +315,12 @@ export class AgentZenBridgeService {
       return
     }
     if (notification.method === 'turn/completed') {
+      const completedTurnId = isObject(params.turn) ? stringValue(params.turn.id) : null
+      if (previous.turnId && completedTurnId && previous.turnId !== completedTurnId) return
       this.overlays.set(threadId, {
         ...previous,
-        activity: 'ended',
-        endedAt: new Date(this.now()).toISOString(),
+        activity: 'idle',
+        endedAt: null,
       })
     }
   }

@@ -116,7 +116,7 @@ export interface AgentSession {
   readonly planHistory: readonly PlanRevision[]
   readonly review: ReviewSignals | null
   readonly wrapup: WrapupSignals | null
-  /** Set once the thread is finished; ended sessions leave the focus board. */
+  /** Set once the owning Codex process is gone; ended sessions leave the focus board. */
   readonly endedAt: string | null
 }
 

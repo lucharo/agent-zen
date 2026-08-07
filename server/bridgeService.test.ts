@@ -146,6 +146,67 @@ describe('AgentZenBridgeService ownership', () => {
     )
   })
 
+  test('keeps an owned session visible and idle after its current turn completes', async () => {
+    const client = new FakeClient()
+    const service = new AgentZenBridgeService(dependencies(client))
+    await service.start()
+    await service.launch({ projectId: project.id, prompt: 'Do the work' })
+
+    client.notify({
+      method: 'turn/completed',
+      params: { threadId: 'thread-owned', turn: { id: 'turn-owned' } },
+    })
+
+    const snapshot = await service.snapshot()
+    expect(snapshot.sessions.map((session) => session.id)).toEqual(['thread-owned'])
+    expect(snapshot.sessions[0]).toMatchObject({ activity: 'idle', endedAt: null })
+  })
+
+  test('ignores a stale completion for an older owned turn', async () => {
+    const client = new FakeClient()
+    const service = new AgentZenBridgeService(dependencies(client))
+    await service.start()
+    await service.launch({ projectId: project.id, prompt: 'Do the work' })
+
+    client.notify({
+      method: 'turn/started',
+      params: { threadId: 'thread-owned', turn: { id: 'turn-new' } },
+    })
+    client.notify({
+      method: 'turn/completed',
+      params: { threadId: 'thread-owned', turn: { id: 'turn-owned' } },
+    })
+
+    expect((await service.snapshot()).sessions[0]).toMatchObject({
+      turnId: 'turn-new',
+      activity: 'working',
+      endedAt: null,
+    })
+  })
+
+  test('drops a launched transient after the observer has owned and then removed it', async () => {
+    const client = new FakeClient()
+    let observed: AgentSession[] = []
+    const base = dependencies(client)
+    const service = new AgentZenBridgeService({
+      ...base,
+      observer: { snapshot: async () => observed },
+    })
+    await service.start()
+    await service.launch({ projectId: project.id, prompt: 'Do the work' })
+    expect((await service.snapshot()).sessions.map((session) => session.id)).toEqual(['thread-owned'])
+
+    observed = [{
+      ...activeExternalSession('thread-owned'),
+      turnId: 'turn-owned',
+      title: 'Do the work',
+    }]
+    expect((await service.snapshot()).sessions.map((session) => session.id)).toEqual(['thread-owned'])
+
+    observed = []
+    expect((await service.snapshot()).sessions).toEqual([])
+  })
+
   test('does not let app-server notifications override externally observed threads', async () => {
     const client = new FakeClient()
     const base = dependencies(client)
