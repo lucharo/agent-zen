@@ -200,6 +200,7 @@ test('keeps an idle unarchived thread visible while its Codex process still owns
     hasSubstantiveActivity: true,
     plan: { steps: [{ step: 'Build', status: 'completed' }] },
   })
+  expect(deriveStage(sessions[0]!)).toBe('planning')
 
   processInventoryAvailable = false
   expect((await observer.snapshot()).map((session) => session.id)).toEqual(['thread-active'])

@@ -109,7 +109,7 @@ export function SessionCard({
 
           {timing ? <p className={styles.timing}>{timing}</p> : null}
 
-          {stage === 'running' && progress ? (
+          {(stage === 'planning' || stage === 'running') && progress ? (
             <span className={styles.progress}>
               <span className={styles.progressCount}>
                 {progress.completed} / {progress.total}

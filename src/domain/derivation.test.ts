@@ -48,6 +48,14 @@ describe('deriveStage', () => {
     expect(deriveStage({ ...planning, hasSubstantiveActivity: false })).toBe('planning')
     expect(deriveStage({ ...planning, hasSubstantiveActivity: true })).toBe('running')
   })
+
+  it('moves non-progressing work out of Running while preserving review and wrap-up stages', () => {
+    const running = byId('sess-control-plane')
+    expect(deriveStage({ ...running, activity: 'idle' })).toBe('planning')
+    expect(deriveStage({ ...running, activity: 'awaiting-input' })).toBe('planning')
+    expect(deriveStage({ ...byId('sess-harbor-canary'), activity: 'idle' })).toBe('reviewing')
+    expect(deriveStage({ ...byId('sess-retire-dask'), activity: 'idle' })).toBe('wrapping-up')
+  })
 })
 
 describe('activeSessionCount', () => {

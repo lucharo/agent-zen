@@ -12,7 +12,7 @@ This is not a throughput dashboard. It is an active shelf for choosing what to c
 
 - Shows one card per root Codex session, with child agents contained inside it.
 - Reads native Codex plans, turns, session names, projects, branches and worktrees without asking the agent to maintain another ledger.
-- Projects sessions into Planning, Running, Reviewing and Wrapping up. Attention such as Idle or Needs you is shown separately from workflow stage.
+- Projects sessions into Planning / Idle, Running, Reviewing and Wrapping up. Running means the turn is progressing; Idle and Needs you return ordinary work to the first column.
 - Offers a compact grid when the Kanban columns are too much.
 - Keeps Ideas as a human-owned space before planning, plus a private Logbook attached to each session.
 - Leaves the session board read-only. Agent Zen observes Codex; it does not become a second workflow authority.
@@ -91,4 +91,4 @@ bun run test:a11y    # Playwright and axe
 
 Stop the installed daemon before running the source bridge on the same port.
 
-The accepted product decisions are indexed in [docs/adr](docs/adr/README.md). The [FAQ](docs/faq/README.md) explains stages, refresh, storage, worktree identity and focus limits. The [QA index](qa/README.md) records browser evidence rather than treating a successful build as proof of the UI.
+The accepted product decisions are indexed in [docs/adr](docs/adr/README.md). The [FAQ](docs/faq/README.md) explains stages, refresh, storage, daemon persistence, native requests, worktree identity and focus limits. The [QA index](qa/README.md) records browser evidence rather than treating a successful build as proof of the UI.

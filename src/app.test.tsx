@@ -178,7 +178,7 @@ describe('the board', () => {
   it('shows five columns and marks only the agent-backed ones as Codex', () => {
     mount()
 
-    for (const name of ['Ideas', 'Planning', 'Running', 'Reviewing', 'Wrapping up']) {
+    for (const name of ['Ideas', 'Planning / Idle', 'Running', 'Reviewing', 'Wrapping up']) {
       expect(column(name)).toBeInTheDocument()
     }
 
@@ -192,7 +192,7 @@ describe('the board', () => {
   it('places each fixture session in the column its own state implies', () => {
     mount()
 
-    expect(within(column('Planning')).getByText('Index local Codex threads')).toBeInTheDocument()
+    expect(within(column('Planning / Idle')).getByText('Index local Codex threads')).toBeInTheDocument()
     expect(within(column('Running')).getByText('Revise calm control plane')).toBeInTheDocument()
     expect(within(column('Running')).queryByText(/Generate three new mockups/)).toBeNull()
     expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
@@ -513,7 +513,7 @@ describe('navigation', () => {
     expect(within(grid).queryByRole('button', { name: /Sweep board fixtures into tests/ })).toBeNull()
     expect(within(grid).getByText('1 subagent')).toBeInTheDocument()
     expect(within(grid).getAllByText(/Running ·/).length).toBeGreaterThan(0)
-    expect(screen.queryByRole('region', { name: 'Planning' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Planning / Idle' })).toBeNull()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
     expect(within(grid).getByRole('heading', { name: 'agent-zen' })).toBeInTheDocument()

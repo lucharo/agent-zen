@@ -272,7 +272,7 @@ function projectName(projects: readonly { id: string; name: string }[], projectI
 function emptyLabel(stage: Stage): string {
   switch (stage) {
     case 'planning':
-      return 'Nothing starting'
+      return 'Nothing starting or idle'
     case 'running':
       return 'Nothing in flight'
     case 'reviewing':

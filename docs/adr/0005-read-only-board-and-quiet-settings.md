@@ -22,7 +22,7 @@ The Sessions views remain an agent-authored projection. Human configuration move
 - Replace three theme targets with one `System → Light → Dark` cycling control.
 - Persist theme, current view, layout, grouping, card detail, Ideas folding, project filter, and focus policy in the local bridge settings file at `~/.agent-zen/settings.json`.
 - Collapse Ideas horizontally into a narrow left rail.
-- Give Planning, Running, Reviewing, and Wrapping up distinct stage symbols in their column headings.
+- Give Planning / Idle, Running, Reviewing, and Wrapping up distinct stage symbols in their column headings.
 - Keep project discovery behind its own source interface; the live bridge scans configured local roots and reads Git remotes and branches.
 - Automatically register a discovered Git project when it owns a visible active session. Manual registration remains for inactive repositories the user wants as launch targets.
 - Show the current connection status in Settings, with an explicit error if the live bridge is unavailable.
@@ -32,4 +32,4 @@ The Sessions views remain an agent-authored projection. Human configuration move
 - The launch controller consults the same focus-limit function used by the UI before calling `thread/start` or `turn/start`, and serializes competing launch requests so two callers cannot claim the final slot.
 - Project discovery remains local and Git-based. An active repository becomes visible, filterable, and launch-authorised without a separate onboarding step.
 - Stage correction happens by correcting the Codex adapter’s observations, not by dragging a card.
-- Existing browser preferences migrate into the bridge once. Browser storage remains only for human Ideas and Logbook data plus a theme paint cache; it is not the live settings authority.
+- Existing browser preferences migrate into the bridge once. Browser storage remains only for a project cache used by Ideas, human Ideas and Logbook data, plus a theme paint cache; it is not the live settings authority. Agent Zen-owned app-server identity remains connection-scoped and is not persisted.

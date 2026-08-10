@@ -24,7 +24,7 @@ export const STAGES: readonly Stage[] = [
 
 export const STAGE_LABELS: Record<Stage, string> = {
   ideas: 'Ideas',
-  planning: 'Planning',
+  planning: 'Planning / Idle',
   running: 'Running',
   reviewing: 'Reviewing',
   'wrapping-up': 'Wrapping up',

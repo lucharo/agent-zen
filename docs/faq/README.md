@@ -10,32 +10,66 @@ _Conceptual visual generated from the verified contracts below. The code and tes
 
 **Short answer:** The local bridge combines supported Codex App Server control for sessions it launches with read-only process, SQLite, and rollout observation for sessions running elsewhere. ACP and hooks are not required.
 
-On macOS, the observer asks `lsof` which rollout JSONL files are currently held open by live `codex` processes. Those thread ids define the active shelf. It then reads metadata from `~/.codex/state_5.sqlite` and lifecycle, message, plan, and completion records from the matching rollout files. It never writes to those stores. Agent Zen-owned launches use a bundled `codex app-server --stdio` child; externally launched sessions remain visible but read-only.
+On macOS, the observer asks `lsof` which rollout JSONL files are currently held open by live `codex` processes. Those thread ids define the active shelf. It then reads metadata from `~/.codex/state_5.sqlite` and lifecycle, message, plan, and completion records from the matching rollout files. It never writes to those stores. Agent Zen-owned launches use a bundled `codex app-server --stdio` child; externally launched sessions remain visible but read-only. Ownership is connection-scoped: restarting the Agent Zen daemon preserves visibility but turns previously owned sessions into external, observation-only sessions.
 
 ![Codex connection architecture](2026-08-06-agent-zen-codex-connection.png)
 
 ### Sources
 
 - [ADR-0002](../adr/0002-native-codex-connection.md) — accepted integration boundary and rejected alternatives.
-- [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — SQLite and rollout observation.
-- [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — observation and App Server control composition.
+- [Codex observer](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — SQLite and rollout observation.
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — observation and App Server control composition.
 
 _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: Codex CLI 0.147.0 local stores_
 
+## Which native Codex requests can Agent Zen answer?
+
+**Short answer:** For a session launched by the current Agent Zen bridge, the centred detail dialog can answer native user questions, command approvals, file-change approvals, and additional permission requests. External sessions remain observation-only.
+
+User questions preserve Codex's question text and selectable options. Command and file approvals expose only decisions advertised by the request, including approve once, approve for session, decline, and cancel where supported. Permission requests grant the exact requested network or filesystem profile for either the current turn or session. Agent Zen does not silently broaden a request.
+
+Unknown App Server request types remain visibly blocked and keep **Interrupt** available, but must be answered in the native Codex client. Every response is sent as a JSON-RPC response on the same App Server connection that created the session.
+
+### Sources
+
+- [App Server client](https://github.com/lucharo/agent-zen/blob/main/server/codex/appServerClient.ts) — JSON-RPC request and response transport.
+- [Request mapping](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — supported native requests, exact permission profile, and connection ownership.
+- [Centred request UI](https://github.com/lucharo/agent-zen/blob/main/src/components/DetailSheet.tsx) — question, approval, permission, fallback, and interrupt surfaces.
+- [Request regressions](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.test.ts) — native response payloads and permission scope.
+
+_Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: Codex CLI 0.147.0 App Server_
+
+## What survives an Agent Zen daemon restart?
+
+**Short answer:** The daemon, settings, registered projects, Ideas, Logbook notes, and observed Codex sessions return. Control ownership of previously launched sessions does not.
+
+`agent-zen daemon start` validates installed assets, repairs a missing LaunchAgent plist or disabled login override, and waits for the authenticated health endpoint. Preferences, focus policy, project roots, and registered project directories remain in `~/.agent-zen/settings.json`. Ideas, Logbook notes, and their project cache remain in browser storage.
+
+The App Server connection and its owned-thread map are intentionally in memory. After restart, the same Codex sessions are rediscovered through their live process, SQLite, and rollout records, but they appear as external read-only sessions. Agent Zen will not claim control of a thread created by an earlier process.
+
+### Sources
+
+- [Daemon CLI](https://github.com/lucharo/agent-zen/blob/main/cli/index.ts) — persistence repair and authenticated health checks.
+- [Daemon contract tests](https://github.com/lucharo/agent-zen/blob/main/cli/daemon.test.ts) — missing-plist and disabled-override regression.
+- [Bridge ownership](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — connection-generation ownership map.
+- [Ownership regression](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.test.ts) — reconnect turns an owned session into external observation.
+
+_Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10_
+
 ## What puts a session in each Sessions stage?
 
-**Short answer:** Placement is derived, read-only, and evaluated in this precedence order: Wrapping up, Reviewing, Running, Planning. Ideas are human-authored records without a Codex thread.
+**Short answer:** Placement is derived, read-only, and evaluated in this precedence order: Wrapping up, Reviewing, attention, then native work. Ideas are human-authored records without a Codex thread.
 
 | Stage | Exact qualifying condition |
 | --- | --- |
 | Ideas | A human-created Agent Zen idea; no Codex session exists yet. |
-| Planning | A live turn has started, but Codex has not yet emitted visible assistant output, invoked a tool, or published a native plan. |
-| Running | The latest turn has visible assistant/tool activity or a native plan. A plan is optional. If that turn completes while the process remains open, the workflow remains Running and its attention becomes Idle. |
+| Planning / Idle | A live turn has just started without substantive work, the session is between turns, or ordinary work is blocked on native input. |
+| Running | The latest turn is actively working and has visible assistant/tool activity or a native plan. A plan is optional. |
 | Reviewing | The latest turn begins an allow-listed review action. This is either an explicit command line such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`, or the agent actually loading the matching review skill. |
 | Wrapping up | The latest turn begins wrap-up. This is either an explicit `$wrapup` or `/wrapup` command line, or the agent actually loading the wrap-up skill. It overrides Reviewing and plan-derived placement. |
 | Finished | The owning Codex process closes or unloads the rollout, or the thread is archived. The session then leaves the focus board. There is intentionally no Done column or approximate history counter. |
 
-Attention is a second axis: **Working** means the current turn is progressing, **Idle** means the process remains open between turns, and **Needs you** means a native blocking input or approval request is unresolved. “Waiting for you” is not a separate state.
+Attention remains visible on the card: **Working** means the current turn is progressing, **Idle** means the process remains open between turns, and **Needs you** means a native blocking input or approval request is unresolved. Reviewing and Wrapping up retain their workflow columns when idle or blocked; ordinary work returns to Planning / Idle so the Running column contains only progressing turns.
 
 Mentioning a skill in prose does not move the card. User-message markers count only when the first non-empty line is the command. A natural-language request such as “we are done, wrap up” moves only when the agent starts the wrap-up skill. Loaded review skills use an explicit allow-list: `acm-review` no longer misclassifies an ordinary ACM restart as Reviewing. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
 
@@ -43,9 +77,10 @@ Agent Zen never turns a bare marker into invented evidence. If no PR, visual res
 
 ### Sources
 
-- [Stage derivation](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/stage.ts) — precedence and plan predicates.
-- [Rollout parser](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/rollout.ts) — current-turn lifecycle, plan, review, and wrap-up extraction.
-- [Stage tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/rollout.test.ts) — marker persistence and precedence.
+- [Stage derivation](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — precedence and plan predicates.
+- [Rollout parser](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.ts) — observed current-turn lifecycle, plan, review, and wrap-up extraction.
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — owned `turn/started` and plan overlays use the same stage model.
+- [Stage tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.test.ts) — marker persistence and precedence.
 
 _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
@@ -59,10 +94,10 @@ This is why `data-pipeline-human-spec` remains visible after “HOLD ON FOR MORE
 
 ### Sources
 
-- [Process inventory](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/processInventory.ts) — open rollout discovery from live Codex processes.
-- [Observer regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.test.ts) — an idle process-owned session remains visible while stale unowned history does not.
-- [Bridge regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.test.ts) — Agent Zen-owned turn completion becomes idle rather than disappearing.
-- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — root-only peer projection.
+- [Process inventory](https://github.com/lucharo/agent-zen/blob/main/server/codex/processInventory.ts) — open rollout discovery from live Codex processes.
+- [Observer regression](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.test.ts) — an idle process-owned session remains visible while stale unowned history does not.
+- [Bridge regression](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.test.ts) — Agent Zen-owned turn completion becomes idle rather than disappearing.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — root-only peer projection.
 
 _Created: 2026-08-07 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
@@ -74,28 +109,28 @@ The app-side exclusion is deliberately narrow: `source = exec` and a normalized 
 
 ### Sources
 
-- [Observer query](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — exact pre-classification exclusion.
-- [Observer tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.test.ts) — positive exclusion evidence.
+- [Observer query](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — exact pre-classification exclusion.
+- [Observer tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.test.ts) — positive exclusion evidence.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## How and how often does the board refresh?
 
-**Short answer:** The UI requests a fresh snapshot every second. Agent Zen-owned App Server events update plan, activity, and blocking requests immediately; a separate 1-second UI clock updates elapsed-time labels.
+**Short answer:** The bridge applies Agent Zen-owned App Server events immediately, and the browser requests a fresh snapshot every second. A separate 1-second UI clock updates elapsed-time labels.
 
 Each snapshot first inventories rollout files held open by live Codex processes, then queries those exact thread ids from SQLite and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for lifecycle, plan, stage-marker, substantive-activity, and unresolved-input anchors so state does not disappear merely because it fell outside the tail window.
 
 Display names come from a lightweight supported `thread/read(includeTurns=false)` lookup for each observed live thread id. This is where Codex Desktop exposes sidebar renames in current builds; SQLite may still have `name = NULL`. If the catalog has no explicit name, Agent Zen falls back to the persisted title or preview. Resuming the same thread therefore keeps its renamed card title.
 
-This is polling, not a hook. The maximum ordinary visible lag is therefore about one second plus local parsing time.
+This is polling, not a hook. App Server state can be current inside the bridge before the browser sees it; the maximum ordinary visible lag is about one second plus local parsing time.
 
-Snapshots also carry a protocol version. If the dashboard and bridge are from different builds, the UI stops and asks for a restart instead of mixing old data with new rendering rules.
+Snapshots also carry a protocol version. If the dashboard and bridge are from different builds, the UI retains its previous snapshot, marks the bridge unavailable, and keeps polling until both builds agree.
 
 ### Sources
 
-- [HTTP bridge client](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/bridge/httpBridge.ts) — 1-second polling and request timeout.
-- [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — cache, bounded tail, and anchor recovery.
-- [App state provider](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/state/store.tsx) — 1-second display clock.
+- [HTTP bridge client](https://github.com/lucharo/agent-zen/blob/main/src/bridge/httpBridge.ts) — 1-second polling and request timeout.
+- [Codex observer](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — cache, bounded tail, and anchor recovery.
+- [App state provider](https://github.com/lucharo/agent-zen/blob/main/src/state/store.tsx) — 1-second display clock.
 
 _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
@@ -103,28 +138,46 @@ _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 **Short answer:** Yes. The bridge discovers Git checkouts under configured roots. A session first matches the deepest project directory containing its cwd; an external worktree then falls back to the normalized GitHub remote.
 
-Active session repositories register automatically, so the project filter and Settings registry describe the same live world. Observation and identity matching use all discovered candidates, and worktrees fall back to normalized remote identity, so every worktree does not become a separate project. Manual registration adds inactive repositories as launch targets. Both Sessions layouts can group cards by project; that changes presentation only.
+Active session repositories register automatically only after they match a discovered candidate, so the project filter and Settings registry describe the same live world. The default root is `~/Projects/github.com`, scanned two directory levels below that root. Observation and identity matching use all discovered candidates, and GitHub worktrees fall back to normalized remote identity, so every worktree does not become a separate project. Manual registration adds inactive repositories as launch targets. Both Sessions layouts can group cards by project; that changes presentation only.
 
 ### Sources
 
-- [Project discovery](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/projects.ts) — Git checkout, branch, and remote discovery.
-- [Observer project resolution](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — cwd-first and repository fallback matching.
-- [Kanban grouping](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.tsx) — project sections inside each stage.
-- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — the same project grouping without stage columns.
+- [Project discovery](https://github.com/lucharo/agent-zen/blob/main/server/projects.ts) — Git checkout, branch, and remote discovery.
+- [Server defaults](https://github.com/lucharo/agent-zen/blob/main/server/index.ts) — default project root.
+- [Observer project resolution](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — cwd-first and repository fallback matching.
+- [Kanban grouping](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.tsx) — project sections inside each stage.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — the same project grouping without stage columns.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
-## Are the Sessions views editable?
+## Why is my repository or worktree missing?
 
-**Short answer:** No. Session cards cannot be dragged between stages because that would create a second truth that can disagree with Codex.
+**Short answer:** Agent Zen can attach only checkouts found beneath a configured discovery root, or GitHub worktrees whose remote matches one of those discovered repositories.
 
-Humans may capture ideas, register projects, add Logbook notes, choose filters and grouping, and control Agent Zen-owned sessions. Stage corrections belong in the observer or classifier rather than as per-card overrides.
+The default discovery root is `~/Projects/github.com`, with a two-level walk below it. The scanner stops at the first Git checkout and recognises GitHub SSH and HTTPS remotes. A repository deeper than that boundary, outside the configured roots, or hosted on an unrecognised remote will not become a project candidate automatically. Add its parent to the local `projectRoots` setting before expecting automatic registration.
+
+A visible session can still appear as **Outside a Git project** when its cwd is a parent directory rather than a checkout. Agent Zen does not infer identity from prompt text or neighbouring directories.
+
+### Sources
+
+- [Server defaults](https://github.com/lucharo/agent-zen/blob/main/server/index.ts) — default project root.
+- [Project scanner](https://github.com/lucharo/agent-zen/blob/main/server/projects.ts) — depth limit, checkout boundary, and GitHub remote normalisation.
+- [Settings schema](https://github.com/lucharo/agent-zen/blob/main/server/settings.ts) — persisted project roots and registered directories.
+
+_Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10_
+
+## Are the Sessions views editable or controllable?
+
+**Short answer:** Workflow state is not editable. Session cards cannot be dragged between stages because that would create a second truth that can disagree with Codex. Sessions launched by the current Agent Zen bridge can still be steered, interrupted, or answered through Codex's native protocol.
+
+Plans, stage, project identity, model, branch, and worktree remain agent-derived. Humans may capture ideas, register projects, add Logbook notes, choose filters and grouping, and control only current-connection Agent Zen-owned sessions. External sessions are observation-only. Stage corrections belong in the observer or classifier rather than as per-card overrides.
 
 ### Sources
 
 - [ADR-0005](../adr/0005-read-only-board-and-quiet-settings.md) — read-only board decision.
-- [Kanban view](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.tsx) — stage presentation without mutation controls.
-- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — root-only presentation without mutation controls.
+- [Kanban view](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.tsx) — stage presentation without mutation controls.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — root-only presentation without mutation controls.
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — connection-scoped steer, interrupt, and request-response controls.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -136,8 +189,8 @@ Agent Zen never guesses a project from prompt text or a nearby directory. Sessio
 
 ### Sources
 
-- [Observer project resolution](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — cwd and remote matching.
-- [Session cards](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionCard.tsx) — honest fallback label.
+- [Observer project resolution](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — cwd and remote matching.
+- [Session cards](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionCard.tsx) — honest fallback label.
 
 _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -145,13 +198,13 @@ _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 **Short answer:** When enabled, it refuses only a new root-session launch after every slot is occupied. It never kills, pauses, or moves existing work.
 
-Planning and Running root sessions consume slots while their Codex process remains open, including idle sessions between turns. Child agents share their parent's slot. Reviewing and Wrapping up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot.
+Planning / Idle and Running root sessions consume slots while their Codex process remains open. Child agents share their parent's slot. Reviewing and Wrapping up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot.
 
 ### Sources
 
-- [Focus policy](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/domain/focusPolicy.ts) — server-side launch decision.
-- [Stage domain](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/stage.ts) — active-slot counting rules.
-- [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — serialized enforcement before launch.
+- [Focus policy](https://github.com/lucharo/agent-zen/blob/main/server/domain/focusPolicy.ts) — server-side launch decision.
+- [Stage domain](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — active-slot counting rules.
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — serialized enforcement before launch.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
@@ -159,18 +212,18 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 **Short answer:** Ideas and Logbook notes live only in browser localStorage under `agent-zen.state.v1`. Interface preferences and focus settings live in `~/.agent-zen/settings.json`, so they survive browser sessions and are shared by Agent Zen windows.
 
-The browser data schema is version 4 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Older browser-owned choices are copied once into the bridge, then browser storage is reduced to projects needed by local Ideas, Ideas themselves, and Logbook notes. A separate theme key remains only to avoid a light-theme flash before React connects; bridge settings correct it on startup.
+The browser data schema is version 4 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Older browser-owned choices are copied once into the bridge, then browser storage is reduced to a project cache needed by local Ideas, Ideas themselves, and Logbook notes. A separate theme key remains only to avoid a light-theme flash before React connects; bridge settings correct it on startup.
 
-The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, Titles or Details, Ideas folding, focus enablement and focus limit. Registered projects and Agent Zen-owned thread identity also remain local bridge state.
+The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, Titles or Details, Ideas folding, focus enablement, focus limit, project discovery roots, and registered project directories. Agent Zen-owned thread identity is in memory only and does not survive a daemon restart.
 
 Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross-machine sync is not implemented.
 
 ### Sources
 
-- [Local persistence](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/state/persistence.ts) — empty defaults, schema migration, and exact prototype IDs.
-- [UI preference contract](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/preferences.ts) — bridge-owned preference fields and safe defaults.
-- [Persistence tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/derivation.test.ts) — prototype removal and user-data preservation.
-- [Settings store](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/settings.ts) — bridge-owned durable settings.
+- [Local persistence](https://github.com/lucharo/agent-zen/blob/main/src/state/persistence.ts) — empty defaults, schema migration, and exact prototype IDs.
+- [UI preference contract](https://github.com/lucharo/agent-zen/blob/main/src/domain/preferences.ts) — bridge-owned preference fields and safe defaults.
+- [Persistence tests](https://github.com/lucharo/agent-zen/blob/main/src/domain/derivation.test.ts) — prototype removal and user-data preservation.
+- [Settings store](https://github.com/lucharo/agent-zen/blob/main/server/settings.ts) — bridge-owned durable settings.
 
 _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: browser schema v4, settings schema v2_
 
@@ -182,9 +235,9 @@ That counter has been removed. The bridge now sends sessions owned by live Codex
 
 ### Sources
 
-- [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — active-session projection.
-- [App tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/app.test.tsx) — no synthetic history count.
-- [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — exact process-active query with a bounded live-turn fallback when process discovery is unavailable.
+- [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — active-session projection.
+- [App tests](https://github.com/lucharo/agent-zen/blob/main/src/app.test.tsx) — no synthetic history count.
+- [Codex observer](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — exact process-active query with a bounded live-turn fallback when process discovery is unavailable.
 
 _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
@@ -196,11 +249,11 @@ Horizontal trackpad gestures over a Kanban column bubble to the board, while ver
 
 ### Sources
 
-- [Kanban view](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.tsx) — counts, overflow detection, grouping, and detail mode.
-- [Kanban styles](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/KanbanView.module.css) — fixed headers and scroll affordance.
-- [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — stage-labelled root-session projection.
-- [Scroll regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/qa/e2e/session-scroll.spec.ts) — one horizontal owner and two-axis wheel routing.
-- [Session card styles](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionCard.module.css) — delayed hover and immediate focus disclosure.
+- [Kanban view](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.tsx) — counts, overflow detection, grouping, and detail mode.
+- [Kanban styles](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.module.css) — fixed headers and scroll affordance.
+- [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — stage-labelled root-session projection.
+- [Scroll regression](https://github.com/lucharo/agent-zen/blob/main/qa/e2e/session-scroll.spec.ts) — one horizontal owner and two-axis wheel routing.
+- [Session card styles](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionCard.module.css) — delayed hover and immediate focus disclosure.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -214,9 +267,9 @@ The centred capture dialog contains title, notes, and one optional project field
 
 ### Sources
 
-- [Quick Capture](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/CaptureSheet.tsx) — Ideas-only capture contract.
-- [Overlay primitive](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/primitives.tsx) — stable focus and modal keyboard handling.
-- [Capture regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/app.test.tsx) — field focus survives surrounding rerenders.
+- [Quick Capture](https://github.com/lucharo/agent-zen/blob/main/src/components/CaptureSheet.tsx) — Ideas-only capture contract.
+- [Overlay primitive](https://github.com/lucharo/agent-zen/blob/main/src/components/primitives.tsx) — stable focus and modal keyboard handling.
+- [Capture regression](https://github.com/lucharo/agent-zen/blob/main/src/app.test.tsx) — field focus survives surrounding rerenders.
 
 _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
@@ -230,9 +283,9 @@ This is an environment/distribution blocker, not a JavaScript shortcut bug.
 
 ### Sources
 
-- [Native shell](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/native/AgentZenApp.swift) — menus, WKWebView, bridge ownership, and menu-bar status.
-- [macOS build](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/scripts/build-macos-app.sh) — app bundling and automatic Apple-identity selection.
-- [Bridge URL tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/bridge/httpBridge.test.ts) — browser-development and packaged-origin routing.
+- [Native shell](https://github.com/lucharo/agent-zen/blob/main/native/AgentZenApp.swift) — menus, WKWebView, bridge ownership, and menu-bar status.
+- [macOS build](https://github.com/lucharo/agent-zen/blob/main/scripts/build-macos-app.sh) — app bundling and automatic Apple-identity selection.
+- [Bridge URL tests](https://github.com/lucharo/agent-zen/blob/main/src/bridge/httpBridge.test.ts) — browser-development and packaged-origin routing.
 - [ADR-0006](../adr/0006-browser-keyboard-and-accessibility.md) — keyboard and accessibility contract.
 
 
@@ -261,9 +314,9 @@ Discovery shows repository identity, path, branch, and registration state. Launc
 
 ### Sources
 
-- [Project onboarding UI](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/ProjectOnboardingDialog.tsx) — selection flow.
-- [Project discovery](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/projects.ts) — local Git metadata.
-- [Security tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/security.test.ts) — loopback and launch-boundary checks.
+- [Project onboarding UI](https://github.com/lucharo/agent-zen/blob/main/src/components/ProjectOnboardingDialog.tsx) — selection flow.
+- [Project discovery](https://github.com/lucharo/agent-zen/blob/main/server/projects.ts) — local Git metadata.
+- [Security tests](https://github.com/lucharo/agent-zen/blob/main/server/security.test.ts) — loopback and launch-boundary checks.
 
 _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 

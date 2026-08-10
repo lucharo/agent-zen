@@ -19,7 +19,7 @@ Agent Zen presents a quiet local control plane with exactly two primary views: S
 
 - Provide only `Sessions` and `Ideas` as primary views.
 - Let Sessions switch between a stage Kanban and a compact grid without changing the underlying session state.
-- Use five board stages: `Ideas`, `Planning`, `Running`, `Reviewing`, and `Wrapping up`.
+- Use five board stages: `Ideas`, `Planning / Idle`, `Running`, `Reviewing`, and `Wrapping up`.
 - Keep completed work off the active board rather than in a Done column. Any future history surface needs explicit pagination and retention semantics.
 - Put the Codex mark in the column title, never on every card.
 - Show only title, project, native plan step, labelled timing, and exceptional state on cards. Put model, repository, branch, worktree, and session identity in accessible progressive disclosure.

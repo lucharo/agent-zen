@@ -3,9 +3,10 @@ import type { AgentSession, Stage } from './types'
 /**
  * Where a session sits on the board, or `null` once it has left the focus surface.
  *
- * A thread whose Codex process is gone leaves the board entirely. An idle
- * process remains in its latest agent-derived stage. Every placement is derived
- * from Codex-owned state: wrapup, review, then native work activity. The Kanban is a
+ * A thread whose Codex process is gone leaves the board entirely. Idle or
+ * input-blocked ordinary work returns to the first session column rather than
+ * claiming it is Running. Every placement is derived from Codex-owned state:
+ * wrapup, review, attention, then native work activity. The Kanban is a
  * projection, not an editor, so no local override can silently contradict the
  * session that produced it.
  */
@@ -22,6 +23,7 @@ export function nativeStage(session: AgentSession): Stage {
 }
 
 function planStage(session: AgentSession): Stage {
+  if (session.activity !== 'working') return 'planning'
   return session.plan?.steps.length || session.hasSubstantiveActivity ? 'running' : 'planning'
 }
 
@@ -48,7 +50,8 @@ export function planProgress(session: AgentSession): PlanProgress | null {
 /**
  * How many concurrency slots are in use.
  *
- * Precisely: root sessions whose derived stage is `planning` or `running`. A
+ * Precisely: root sessions whose derived stage is `planning` or `running`. The
+ * first bucket includes live sessions that are starting, idle, or need input. A
  * child agent runs inside its parent's slot, and `reviewing` / `wrapping up`
  * are waiting on a human, so neither consumes one. That is why a board showing
  * four session cards can honestly read `Active 2 / 3`.

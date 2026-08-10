@@ -21,19 +21,19 @@ Implement one typed Codex adapter with three internal responsibilities:
 
 1. **Catalog reader:** use `thread/list`, `thread/read(includeTurns=true)`, and parent/ancestor filters for persisted session inventory and history.
 2. **Process + rollout observer:** inventory rollout files held open by live Codex processes, query those exact thread ids from the state database, and tail their rollouts for turn activity, current plan updates, model/effort, and parent-child edges. Treat process handles and stores as read-only and version-sensitive.
-3. **Controller:** run one Agent Zen-owned bundled `codex app-server --stdio` child for sessions launched through Agent Zen. Use `turn/start`, `turn/steer`, `turn/interrupt`, and streamed events for control. Keep the transport boundary replaceable by the managed daemon when Codex is installed through the standalone channel that provides it.
+3. **Controller:** run one Agent Zen-owned bundled `codex app-server --stdio` child for sessions launched through Agent Zen. Use `turn/start`, `turn/steer`, `turn/interrupt`, streamed events, and JSON-RPC server-request responses for control. Keep the transport boundary replaceable by the managed daemon when Codex is installed through the standalone channel that provides it.
 
 Derive the board stage locally:
 
 - `Ideas`: Agent Zen-owned idea; no session.
-- `Planning`: a turn has started but no visible assistant output or tool work has begun.
-- `Running`: visible assistant/tool work has begun, or a native plan exists. A plan is optional.
+- `Planning / Idle`: a turn has started without visible work, the process is open between turns, or ordinary work is blocked on native input.
+- `Running`: the current turn is working and visible assistant/tool work has begun, or a native plan exists. A plan is optional.
 - `Reviewing`: the latest turn contains an explicit review command or an observed allow-listed review-skill load.
 - `Wrapping up`: the latest turn contains an explicit wrap-up command or an observed wrap-up skill load.
 
 A prose mention is not an invocation. User-message markers are read only from the first non-empty command line; loaded skill paths use an explicit allow-list, so a helper such as `acm-review` cannot accidentally classify ordinary work as Reviewing. A marker persists for the current turn, and wrap-up has precedence over review. The next native `task_started` event resets the current plan and semantic stage marker.
 
-Workflow stage and attention are separate. `working`, `idle`, and `awaiting-input` render as Working, Idle, and Needs you without becoming extra columns. Native `request_user_input` call ids are correlated with their outputs. Agent Zen-owned sessions also consume blocking App Server input and approval requests directly.
+Attention remains explicit on cards. `working`, `idle`, and `awaiting-input` render as Working, Idle, and Needs you. Reviewing and Wrapping up retain their semantic workflow columns while idle or blocked. Ordinary idle or input-blocked work returns to Planning / Idle so Running means the turn is progressing. Native `request_user_input` call ids are correlated with their outputs. Agent Zen-owned sessions answer supported App Server user-input, command, file-change, and exact permission requests directly; unknown request types stay visible and interruptible but fall back to the native Codex client.
 
 The Kanban is read-only. Agent Zen does not persist human stage overrides. Supported session control is a separate controller action and the resulting Codex state flows back through the same source.
 
@@ -47,7 +47,7 @@ Every snapshot carries a bridge protocol version. A newer dashboard refuses a st
 
 The rollout observer keeps the latest lifecycle and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. It does not infer a second plan or ask the agent to republish one.
 
-The observer also keeps a bounded substantive-activity anchor and unresolved input-request anchors. A long planless turn therefore remains Running, and a request that fell outside the ordinary tail remains Needs you until its matching response arrives.
+The observer also keeps a bounded substantive-activity anchor and unresolved input-request anchors. A long working planless turn therefore remains Running, and a request that fell outside the ordinary tail remains Needs you until its matching response arrives in Planning / Idle or its preserved review/wrap-up stage.
 
 The web client requests `/api/snapshot` every second. The observer reuses rollout parses when file size and modification time are unchanged; a separate one-second UI clock updates elapsed-time labels without rescanning Codex.
 
