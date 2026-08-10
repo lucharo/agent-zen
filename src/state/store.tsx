@@ -237,10 +237,9 @@ export function AgentZenProvider({
   }, [now])
 
   useEffect(() => {
-    if (bridge && !preferenceBridgeReady) return
     if (bridge) saveHumanState(store, state)
     else saveState(store, state)
-  }, [bridge, preferenceBridgeReady, store, state])
+  }, [bridge, store, state])
 
   useEffect(() => {
     if (!bridge || !preferenceBridgeReady) return

@@ -45,6 +45,7 @@ export function DetailSheet({ target, onClose, onOpenSession }: DetailSheetProps
     >
       {session ? (
         <SessionDetail
+          key={session.id}
           session={session}
           parent={parent}
           children={children}

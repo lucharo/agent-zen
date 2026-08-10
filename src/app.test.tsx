@@ -305,6 +305,35 @@ describe('navigation', () => {
     })
   })
 
+  it('persists human-owned ideas while preference migration is still pending', async () => {
+    const storage = createMemoryStorage()
+    storage.setItem(STORAGE_KEY, JSON.stringify(createInitialState(NOW)))
+    const emptySnapshot = { ...disconnectedSnapshot, preferences: null }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => emptySnapshot,
+      subscribe: (listener) => {
+        listener(emptySnapshot)
+        return () => undefined
+      },
+      setPreferences: () => new Promise(() => undefined),
+    }
+    const user = userEvent.setup({ document })
+    const view = render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={storage}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await user.keyboard('c')
+    const sheet = screen.getByRole('dialog', { name: 'Quick capture' })
+    await user.type(within(sheet).getByLabelText('Title'), 'Persist during migration')
+    await user.click(within(sheet).getByRole('button', { name: 'Save' }))
+
+    view.unmount()
+    expect(storage.getItem(STORAGE_KEY)).toContain('Persist during migration')
+  })
+
   it('hydrates preferences even while Codex itself is disconnected', async () => {
     const { bridge } = preferenceBridge({
       ...createInitialState(NOW),
@@ -576,6 +605,24 @@ describe('session detail', () => {
 
     const logbook = within(sheet).getByRole('region', { name: 'Logbook' })
     expect(within(logbook).getByText('Yours. Agents never write here.')).toBeInTheDocument()
+  })
+
+  it('resets session-local detail state when navigating between parent and subagent', async () => {
+    const { user } = mount()
+
+    await user.click(within(column('Running')).getByText('Revise calm control plane'))
+    const sheet = screen.getByRole('dialog')
+    const history = within(sheet).getByRole('button', { name: /earlier plan revisions/ })
+    await user.click(history)
+    expect(history).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(
+      within(sheet).getByRole('button', { name: /Sweep board fixtures into tests/ }),
+    )
+    await user.click(within(sheet).getByRole('button', { name: 'Revise calm control plane' }))
+
+    expect(within(sheet).getByRole('button', { name: /earlier plan revisions/ }))
+      .toHaveAttribute('aria-expanded', 'false')
   })
 
   it('appends a human note to the Logbook', async () => {

@@ -311,6 +311,7 @@ export class AgentZenBridgeService {
       return { threadId, turnId: turn.turn.id }
     } catch (error) {
       if (threadId) {
+        await this.dependencies.client.request('thread/archive', { threadId }).catch(() => undefined)
         this.ownedThreads.delete(threadId)
         this.transientSessions.delete(threadId)
         this.overlays.delete(threadId)

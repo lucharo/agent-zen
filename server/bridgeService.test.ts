@@ -17,6 +17,7 @@ class FakeClient {
   failTurn = false
   threadNames = new Map<string, string>()
   readonly requests: string[] = []
+  readonly requestCalls: Array<{ method: string; params: unknown }> = []
   readonly responses: Array<{ id: number | string; result: unknown }> = []
   private readonly listeners = new Set<(notification: AppServerNotification) => void>()
 
@@ -32,6 +33,7 @@ class FakeClient {
 
   async request<T>(method: string, params?: unknown): Promise<T> {
     this.requests.push(method)
+    this.requestCalls.push({ method, params })
     if (method === 'thread/start') {
       return {
         thread: { id: 'thread-owned', cwd: '/repo', createdAt: 1_786_012_800 },
@@ -150,6 +152,10 @@ describe('AgentZenBridgeService ownership', () => {
     const snapshot = await service.snapshot()
     expect(snapshot.sessions).toEqual([])
     expect(snapshot.focus.activeCount).toBe(0)
+    expect(client.requestCalls).toContainEqual({
+      method: 'thread/archive',
+      params: { threadId: 'thread-owned' },
+    })
   })
 
   test('keeps control only for the app-server connection that launched the thread', async () => {
