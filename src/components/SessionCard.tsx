@@ -30,10 +30,24 @@ export function SessionCard({
   const progress = planProgress(session)
   const idle = session.activity === 'idle'
   const needsUser = session.activity === 'awaiting-input'
+  const projectLabel = project?.name ?? 'Outside a Git project'
+  const childLabel = children.length > 0
+    ? `${children.length} ${children.length === 1 ? 'subagent' : 'subagents'}`
+    : null
+  const compactMeta = [needsUser ? '● Needs you' : idle ? 'Idle' : null, childLabel]
+    .filter((value): value is string => Boolean(value))
+    .join(' · ')
+  const timing = formatSessionTiming(
+    session.createdAt,
+    session.activity === 'working' || session.activity === 'awaiting-input'
+      ? session.turnStartedAt
+      : null,
+    now,
+  )
 
   return (
     <li className={styles.slot}>
-      <article className={styles.card}>
+      <article className={styles.card} data-detail={detail}>
         <button
           type="button"
           className={styles.hit}
@@ -42,27 +56,30 @@ export function SessionCard({
           data-index={cardIndex}
           onClick={() => onOpen(session.id)}
         >
-          {showStage ? (
-            <span className={styles.stage}>
-              <StageIcon stage={stage as Exclude<typeof stage, 'ideas'>} />
-              {STAGE_LABELS[stage]}
+          {showStage || showProject ? (
+            <span className={styles.identity}>
+              {showStage ? (
+                <StageIcon stage={stage as Exclude<typeof stage, 'ideas'>} />
+              ) : null}
+              <span>
+                {showStage ? STAGE_LABELS[stage] : null}
+                {showStage && showProject ? ' · ' : null}
+                {showProject ? projectLabel : null}
+              </span>
             </span>
           ) : null}
           <h3 className={styles.title}>{session.title}</h3>
-          {detail === 'titles' && (idle || needsUser) ? (
+          {detail === 'titles' && compactMeta ? (
             <p
-              className={needsUser ? styles.needs : styles.idle}
+              className={needsUser ? styles.compactNeeds : styles.compactMeta}
               aria-live={needsUser ? 'polite' : undefined}
             >
-              {needsUser ? '● Needs you' : 'Idle'}
+              {compactMeta}
             </p>
           ) : null}
-          {detail === 'details' && showProject ? (
-            <p className={styles.project}>{project?.name ?? 'Outside a Git project'}</p>
-          ) : null}
-          {children.length > 0 ? (
+          {detail === 'details' && childLabel ? (
             <p className={styles.childSummary}>
-              {children.length} {children.length === 1 ? 'subagent' : 'subagents'}
+              {childLabel}
             </p>
           ) : null}
 
@@ -90,19 +107,9 @@ export function SessionCard({
             </p>
           ) : null}
 
-          {detail === 'details' && stage !== 'planning' ? (
-            <p className={styles.timing}>
-              {formatSessionTiming(
-                session.createdAt,
-                session.activity === 'working' || session.activity === 'awaiting-input'
-                  ? session.turnStartedAt
-                  : null,
-                now,
-              )}
-            </p>
-          ) : null}
+          {timing ? <p className={styles.timing}>{timing}</p> : null}
 
-          {detail === 'details' && stage === 'running' && progress ? (
+          {stage === 'running' && progress ? (
             <span className={styles.progress}>
               <span className={styles.progressCount}>
                 {progress.completed} / {progress.total}

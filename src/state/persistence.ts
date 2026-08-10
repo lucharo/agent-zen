@@ -48,7 +48,7 @@ export const THEME_KEY = 'agent-zen.theme'
  * store loses ideas and Logbook notes, never session state.
  */
 export interface PersistedState {
-  readonly version: 2
+  readonly version: 3
   readonly projects: readonly Project[]
   readonly ideas: readonly Idea[]
   readonly logbook: readonly LogbookNote[]
@@ -67,7 +67,7 @@ export interface PersistedState {
 
 export function createInitialState(_now: number): PersistedState {
   return {
-    version: 2,
+    version: 3,
     projects: [],
     ideas: [],
     logbook: [],
@@ -78,7 +78,7 @@ export function createInitialState(_now: number): PersistedState {
     ideaLayout: 'grid',
     sessionLayout: 'kanban',
     kanbanGroupBy: 'none',
-    kanbanCardDetail: 'details',
+    kanbanCardDetail: 'titles',
     ideasFolded: false,
     activeLimitEnabled: false,
     activeLimit: 3,
@@ -103,12 +103,13 @@ export function loadState(storage: Storage | undefined, now: number): PersistedS
     const parsed = JSON.parse(raw) as Omit<Partial<PersistedState>, 'version'> & {
       version?: number
     }
-    if (parsed?.version !== 1 && parsed?.version !== 2) return fallback
+    if (parsed?.version !== 1 && parsed?.version !== 2 && parsed?.version !== 3) return fallback
     const migratingPrototype = parsed.version === 1
+    const migratingCompactCards = parsed.version < 3
     return {
       ...fallback,
       ...parsed,
-      version: 2,
+      version: 3,
       projects: migratingPrototype
         ? (parsed.projects ?? []).filter((project) => !PROTOTYPE_PROJECT_IDS.has(project.id))
         : parsed.projects ?? [],
@@ -118,6 +119,9 @@ export function loadState(storage: Storage | undefined, now: number): PersistedS
       logbook: migratingPrototype
         ? (parsed.logbook ?? []).filter((note) => !PROTOTYPE_LOGBOOK_IDS.has(note.id))
         : parsed.logbook ?? [],
+      kanbanCardDetail: migratingCompactCards
+        ? 'titles'
+        : parsed.kanbanCardDetail ?? fallback.kanbanCardDetail,
     }
   } catch {
     return fallback

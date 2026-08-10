@@ -245,6 +245,22 @@ describe('persistence', () => {
     expect(initial.projects).toEqual([])
     expect(initial.ideas).toEqual([])
     expect(initial.logbook).toEqual([])
+    expect(initial.kanbanCardDetail).toBe('titles')
+  })
+
+  it('migrates older installs to compact cards once, then preserves the chosen detail', () => {
+    const storage = window.localStorage
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...createInitialState(NOW), version: 2, kanbanCardDetail: 'details' }),
+    )
+
+    const migrated = loadState(storage, NOW)
+    expect(migrated.version).toBe(3)
+    expect(migrated.kanbanCardDetail).toBe('titles')
+
+    saveState(storage, { ...migrated, kanbanCardDetail: 'details' })
+    expect(loadState(storage, NOW).kanbanCardDetail).toBe('details')
   })
 
   it('removes old prototype ideas while preserving ideas captured by the user', () => {

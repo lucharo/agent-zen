@@ -15,6 +15,7 @@ class FakeClient {
   isConnected = true
   connectionGeneration = 1
   failTurn = false
+  threadNames = new Map<string, string>()
   readonly requests: string[] = []
   private readonly listeners = new Set<(notification: AppServerNotification) => void>()
 
@@ -28,7 +29,7 @@ class FakeClient {
     return () => this.listeners.delete(listener)
   }
 
-  async request<T>(method: string): Promise<T> {
+  async request<T>(method: string, params?: unknown): Promise<T> {
     this.requests.push(method)
     if (method === 'thread/start') {
       return {
@@ -47,6 +48,12 @@ class FakeClient {
         throw new Error('turn failed')
       }
       return { turn: { id: 'turn-owned', startedAt: 1_786_012_801 } } as T
+    }
+    if (method === 'thread/read') {
+      const threadId = (params as { threadId?: string } | undefined)?.threadId
+      return {
+        thread: { id: threadId, name: threadId ? this.threadNames.get(threadId) ?? null : null },
+      } as T
     }
     return {} as T
   }
@@ -263,6 +270,20 @@ describe('AgentZenBridgeService ownership', () => {
     const snapshot = await service.snapshot()
     expect(snapshot.sessions.map((session) => session.id)).toEqual(['thread-external'])
     expect(snapshot.sessions[0]?.activity).toBe('working')
+  })
+
+  test('uses the native catalog name for a renamed external thread', async () => {
+    const client = new FakeClient()
+    client.threadNames.set('thread-external', 'Renamed Codex session')
+    const base = dependencies(client)
+    const service = new AgentZenBridgeService({
+      ...base,
+      observer: { snapshot: async () => [activeExternalSession()] },
+    })
+
+    const snapshot = await service.snapshot()
+
+    expect(snapshot.sessions[0]?.title).toBe('Renamed Codex session')
   })
 
   test('registers the Git project of an active observed session', async () => {

@@ -106,9 +106,12 @@ test('the session grid uses one compact card size with content anchored at the t
   await page.route('**/api/snapshot', (route) => route.fulfill({ json: snapshot }))
   await page.goto('/')
   await page.getByRole('button', { name: 'Grid' }).first().click()
-  await page.getByRole('button', { name: 'Titles only' }).click()
+  await expect(page.getByRole('button', { name: 'Titles only' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('button', { name: /Running session 1.*Idle/ })).toBeVisible()
+  await expect(page.getByText('Running · demo').first()).toBeVisible()
   await expect(page.getByText('1 subagent')).toBeVisible()
+  await expect(page.getByText('2 / 3').first()).toBeVisible()
+  await expect(page.getByText('Build slice 2')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Child review worker/ })).toHaveCount(0)
 
   const titleCards = await page.locator('[data-card-id]').evaluateAll((nodes) =>
@@ -123,9 +126,25 @@ test('the session grid uses one compact card size with content anchored at the t
     }),
   )
   expect(new Set(titleCards.map((card) => card.width))).toEqual(new Set([260]))
-  expect(new Set(titleCards.map((card) => card.height))).toEqual(new Set([152]))
+  expect(new Set(titleCards.map((card) => card.height))).toEqual(new Set([184]))
   expect(new Set(titleCards.map((card) => card.stageOffset))).toEqual(new Set([12]))
   expect(titleCards).toHaveLength(8)
+
+  const rowMargins = await page.locator('[aria-label="Session grid"] ul').first().evaluate((grid) => {
+    const bounds = grid.getBoundingClientRect()
+    const cards = [...grid.querySelectorAll<HTMLElement>('[data-card-id]')]
+      .map((card) => card.getBoundingClientRect())
+    const rows = new Map<number, DOMRect[]>()
+    for (const card of cards) {
+      const top = Math.round(card.top)
+      rows.set(top, [...(rows.get(top) ?? []), card])
+    }
+    return [...rows.values()].map((row) => ({
+      left: row[0]!.left - bounds.left,
+      right: bounds.right - row.at(-1)!.right,
+    }))
+  })
+  expect(rowMargins.every((row) => Math.abs(row.left - row.right) <= 1)).toBe(true)
 
   await page.getByRole('button', { name: 'Details' }).click()
   const detailHeights = await page.locator('[data-card-id]').evaluateAll((nodes) =>

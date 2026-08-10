@@ -48,15 +48,16 @@
 }
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 260px);
+  display: flex;
+  flex-wrap: wrap;
   align-items: start;
-  justify-content: start;
+  justify-content: center;
   gap: var(--space-4);
 }
 
 .grid > li {
-  height: 152px;
+  flex: 0 0 260px;
+  height: 184px;
 }
 
 .grid > li > article,
@@ -73,13 +74,6 @@
 
 .grid[data-detail='details'] > li {
   height: 252px;
-}
-
-.grid h3 {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
 }
 
 .empty {

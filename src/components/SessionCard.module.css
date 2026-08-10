@@ -17,22 +17,35 @@
 .hit {
   display: block;
   width: 100%;
+  overflow: hidden;
   padding: var(--space-3) var(--space-4) var(--space-4);
   border-radius: var(--radius-lg);
   text-align: left;
 }
 
-.stage {
+.identity {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   margin-bottom: var(--space-2);
   color: var(--ink-secondary);
   font-size: var(--text-meta);
   font-weight: var(--weight-medium);
 }
 
+.identity > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   font-size: var(--text-title);
   font-weight: var(--weight-medium);
   letter-spacing: -0.01em;
@@ -40,9 +53,8 @@
   margin-bottom: 2px;
 }
 
-.project {
-  font-size: var(--text-meta);
-  color: var(--ink-muted);
+.card[data-detail='titles'] .title {
+  -webkit-line-clamp: 2;
 }
 
 .idle {
@@ -55,6 +67,18 @@
   margin-top: var(--space-2);
   color: var(--ink);
   font-size: var(--text-meta);
+  font-weight: var(--weight-medium);
+}
+
+.compactMeta,
+.compactNeeds {
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-meta);
+}
+
+.compactNeeds {
+  color: var(--ink);
   font-weight: var(--weight-medium);
 }
 

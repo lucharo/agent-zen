@@ -143,10 +143,9 @@ describe('the board', () => {
 
     expect(within(column('Planning')).getByText('Index local Codex threads')).toBeInTheDocument()
     expect(within(column('Running')).getByText('Revise calm control plane')).toBeInTheDocument()
-    expect(
-      within(column('Running')).getByText(/Generate three new mockups/),
-    ).toBeInTheDocument()
+    expect(within(column('Running')).queryByText(/Generate three new mockups/)).toBeNull()
     expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
+    expect(within(column('Running')).getByText('3 / 5')).toBeInTheDocument()
     expect(
       within(column('Running')).queryByRole('button', {
         name: /Sweep board fixtures into tests/,
@@ -285,18 +284,25 @@ describe('navigation', () => {
     expect(screen.getAllByRole('list')[0]).toHaveAttribute('data-layout', 'list')
   })
 
-  it('groups sessions by project and switches cards to title-only', async () => {
+  it('keeps time and progress while card details hide only the description', async () => {
     const { user } = mount()
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
-    expect(within(column('Running')).getByText('agent-zen')).toBeInTheDocument()
-
     expect(screen.queryByRole('combobox', { name: 'Session card detail' })).toBeNull()
+    expect(within(column('Running')).getByText('agent-zen')).toBeInTheDocument()
+    expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
+    expect(within(column('Running')).getByText('3 / 5')).toBeInTheDocument()
+    expect(within(column('Running')).queryByText('Generate three new mockups')).toBeNull()
+
+    await user.click(within(screen.getByRole('group', { name: 'Card detail' })).getByRole('button', {
+      name: 'Details',
+    }))
+    expect(within(column('Running')).getByText('Generate three new mockups')).toBeInTheDocument()
+
     await user.click(within(screen.getByRole('group', { name: 'Card detail' })).getByRole('button', {
       name: 'Titles only',
     }))
-    expect(within(column('Running')).queryByText('42m total · 7m current turn')).toBeNull()
-    expect(within(column('Running')).getByText('Revise calm control plane')).toBeInTheDocument()
+    expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
+    expect(within(column('Running')).queryByText('Generate three new mockups')).toBeNull()
   })
 
   it('switches Sessions between Kanban and a stage-labelled grid', async () => {
@@ -318,18 +324,17 @@ describe('navigation', () => {
 
     const grid = screen.getByRole('region', { name: 'Session grid' })
     expect(within(grid).getByText('Revise calm control plane')).toBeInTheDocument()
+    expect(within(grid).getByText('Running · agent-zen')).toBeInTheDocument()
     expect(within(grid).queryByRole('button', { name: /Sweep board fixtures into tests/ })).toBeNull()
     expect(within(grid).getByText('1 subagent')).toBeInTheDocument()
-    expect(within(grid).getAllByText('Running').length).toBeGreaterThan(0)
+    expect(within(grid).getAllByText(/Running ·/).length).toBeGreaterThan(0)
     expect(screen.queryByRole('region', { name: 'Planning' })).toBeNull()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
     expect(within(grid).getByRole('heading', { name: 'agent-zen' })).toBeInTheDocument()
 
-    await user.click(within(screen.getByRole('group', { name: 'Card detail' })).getByRole('button', {
-      name: 'Titles only',
-    }))
-    expect(within(grid).queryByText('42m total · 7m current turn')).toBeNull()
+    expect(within(grid).getByText('42m total · 7m current turn')).toBeInTheDocument()
+    expect(within(grid).getByText('3 / 5')).toBeInTheDocument()
   })
 })
 

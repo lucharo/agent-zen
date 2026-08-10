@@ -56,6 +56,13 @@ interface TurnStartResult {
   readonly turn: { readonly id: string; readonly startedAt?: number | null }
 }
 
+interface ThreadReadResult {
+  readonly thread?: {
+    readonly id?: string
+    readonly name?: string | null
+  }
+}
+
 export interface BridgeServiceDependencies {
   readonly settings: BridgeSettings
   readonly observer: BridgeObserver
@@ -205,15 +212,38 @@ export class AgentZenBridgeService {
 
   private async sessions(): Promise<AgentSession[]> {
     const observed = await this.dependencies.observer.snapshot()
+    const catalogNames = await this.catalogNames(observed.map((session) => session.id))
     const ids = new Set(observed.map((session) => session.id))
     for (const id of ids) this.transientSessions.delete(id)
-    const merged = observed.map((session) => this.withRuntimeOwnership(this.mergeOverlay(session)))
+    const merged = observed.map((session) => this.withRuntimeOwnership(this.mergeOverlay({
+      ...session,
+      title: catalogNames.get(session.id) ?? session.title,
+    })))
     for (const transient of this.transientSessions.values()) {
       if (!ids.has(transient.id)) merged.push(this.withRuntimeOwnership(this.mergeOverlay(transient)))
     }
     return merged
       .filter((session) => session.endedAt === null)
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  }
+
+  private async catalogNames(threadIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    const entries = await Promise.all(threadIds.map(async (threadId): Promise<[string, string] | null> => {
+      try {
+        const result = await this.dependencies.client.request<ThreadReadResult>('thread/read', {
+          threadId,
+          includeTurns: false,
+        })
+        const name = typeof result.thread?.name === 'string'
+          ? compactTitle(result.thread.name)
+          : ''
+        return name ? [threadId, name] : null
+      } catch {
+        // One unreadable catalog entry must not hide the rest of the live board.
+        return null
+      }
+    }))
+    return new Map(entries.filter((entry): entry is [string, string] => entry !== null))
   }
 
   private async launchWithCodex(request: LaunchRequest): Promise<LaunchSessionResponse> {
@@ -448,6 +478,11 @@ function isSubstantiveItem(type: unknown): boolean {
     type === 'webSearch' ||
     type === 'imageView' ||
     type === 'imageGeneration'
+}
+
+function compactTitle(value: string): string {
+  const singleLine = value.trim().replace(/\s+/g, ' ')
+  return singleLine.length > 84 ? `${singleLine.slice(0, 81).trimEnd()}…` : singleLine
 }
 
 export { FocusLimitReachedError }

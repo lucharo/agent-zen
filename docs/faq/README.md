@@ -85,6 +85,8 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 Each snapshot first inventories rollout files held open by live Codex processes, then queries those exact thread ids from SQLite and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for lifecycle, plan, stage-marker, substantive-activity, and unresolved-input anchors so state does not disappear merely because it fell outside the tail window.
 
+Display names come from a lightweight supported `thread/read(includeTurns=false)` lookup for each observed live thread id. This is where Codex Desktop exposes sidebar renames in current builds; SQLite may still have `name = NULL`. If the catalog has no explicit name, Agent Zen falls back to the persisted title or preview. Resuming the same thread therefore keeps its renamed card title.
+
 This is polling, not a hook. The maximum ordinary visible lag is therefore about one second plus local parsing time.
 
 Snapshots also carry a protocol version. If the dashboard and bridge are from different builds, the UI stops and asks for a restart instead of mixing old data with new rendering rules.
@@ -157,7 +159,7 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 **Short answer:** They live only in browser localStorage under `agent-zen.state.v1`. The visible mock ideas were mistakenly shipped as production defaults; production now starts empty and migrates known prototype records away.
 
-The current persisted schema is version 2 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Registered projects, focus settings, and Agent Zen-owned thread identity instead live in `~/.agent-zen/settings.json`.
+The current persisted schema is version 3 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Version 3 also moves existing installs to Titles once, after which a deliberate Details choice persists normally. Registered projects, focus settings, and Agent Zen-owned thread identity instead live in `~/.agent-zen/settings.json`.
 
 Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross-machine sync is not implemented.
 
@@ -187,7 +189,7 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 **Short answer:** Sessions switches between Kanban and Grid. Every Kanban stage header shows its visible count; columns scroll independently and show a bottom “Scroll for more” affordance. Grid gives every session its own equal-size, stage-labelled card. Both layouts can display full details or titles only.
 
-Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner. Grid title cards are `260 × 152px`; detail cards are `260 × 252px`, top-aligned without stretching to fill sparse rows. Cards reveal repository, branch, worktree, model, effort, Codex version, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card.
+Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner. Grid rows wrap and centre independently, so a short final row does not cling to the left edge. Title cards are `260 × 184px`; detail cards are `260 × 252px`, top-aligned without stretching to fill sparse rows. Titles is the default and keeps stage, project, attention state, subagent count, labelled timing, and native plan position; it hides only the current step description and review or wrap-up summary. Cards reveal repository, branch, worktree, model, effort, Codex version, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card.
 
 ### Sources
 
