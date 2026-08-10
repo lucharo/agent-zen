@@ -64,15 +64,59 @@ export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions)
         )
       }
 
-      const control = url.pathname.match(/^\/api\/v4\/sessions\/([^/]+)\/(interrupt|steer)$/)
+      const control = url.pathname.match(/^\/api\/v4\/sessions\/([^/]+)\/(interrupt|steer|respond)$/)
       if (control && request.method === 'POST') {
         const threadId = decodeURIComponent(control[1] ?? '')
         if (control[2] === 'interrupt') {
           await options.service.interrupt(threadId)
-        } else {
+        } else if (control[2] === 'steer') {
           const body = await bodyObject(request)
           if (typeof body.prompt !== 'string') throw new RequestError('prompt is required.')
           await options.service.steer(threadId, body.prompt)
+        } else {
+          const body = await bodyObject(request)
+          if (typeof body.requestId !== 'string' && typeof body.requestId !== 'number') {
+            throw new RequestError('requestId is required.')
+          }
+          if (body.kind === 'user-input') {
+            if (!body.answers || typeof body.answers !== 'object' || Array.isArray(body.answers)) {
+              throw new RequestError('answers are required.')
+            }
+            const answers = Object.fromEntries(
+              Object.entries(body.answers).map(([id, value]) => [
+                id,
+                Array.isArray(value)
+                  ? value.filter((answer): answer is string => typeof answer === 'string')
+                  : [],
+              ]),
+            )
+            await options.service.respond(threadId, {
+              requestId: body.requestId,
+              kind: 'user-input',
+              answers,
+            })
+          } else if (
+            body.kind === 'approval' &&
+            (body.decision === 'accept' || body.decision === 'acceptForSession' ||
+              body.decision === 'decline' || body.decision === 'cancel')
+          ) {
+            await options.service.respond(threadId, {
+              requestId: body.requestId,
+              kind: 'approval',
+              decision: body.decision,
+            })
+          } else if (
+            body.kind === 'permissions' &&
+            (body.scope === 'turn' || body.scope === 'session')
+          ) {
+            await options.service.respond(threadId, {
+              requestId: body.requestId,
+              kind: 'permissions',
+              scope: body.scope,
+            })
+          } else {
+            throw new RequestError('A supported response is required.')
+          }
         }
         return json({ ok: true }, 200, headers)
       }

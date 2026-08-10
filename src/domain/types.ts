@@ -86,6 +86,51 @@ export interface WrapupSignals {
   readonly checksTotal: number | null
 }
 
+export type SessionRequestId = number | string
+
+export interface SessionRequestQuestion {
+  readonly id: string
+  readonly header: string
+  readonly question: string
+  readonly isOther: boolean
+  readonly isSecret: boolean
+  readonly options: readonly {
+    readonly label: string
+    readonly description: string
+  }[] | null
+}
+
+export type SessionApprovalDecision = 'accept' | 'acceptForSession' | 'decline' | 'cancel'
+
+export type PendingSessionRequest =
+  | {
+      readonly kind: 'user-input'
+      readonly requestId: SessionRequestId
+      readonly questions: readonly SessionRequestQuestion[]
+    }
+  | {
+      readonly kind: 'approval'
+      readonly requestId: SessionRequestId
+      readonly approval: 'command' | 'file' | 'legacy-command' | 'legacy-file'
+      readonly title: string
+      readonly detail: string | null
+      readonly reason: string | null
+      readonly availableDecisions: readonly SessionApprovalDecision[]
+    }
+  | {
+      readonly kind: 'permissions'
+      readonly requestId: SessionRequestId
+      readonly title: string
+      readonly reason: string | null
+      readonly requestedPermissions: Readonly<Record<string, unknown>>
+    }
+  | {
+      readonly kind: 'unsupported'
+      readonly requestId: SessionRequestId
+      readonly title: string
+      readonly detail: string | null
+    }
+
 export interface AgentSession {
   readonly id: string
   /** Codex `session_meta.id`, i.e. the rollout thread id. */
@@ -118,6 +163,8 @@ export interface AgentSession {
   readonly planHistory: readonly PlanRevision[]
   readonly review: ReviewSignals | null
   readonly wrapup: WrapupSignals | null
+  /** Present only for an Agent Zen-owned app-server request awaiting a human response. */
+  readonly pendingRequest?: PendingSessionRequest | null
   /** Set once the owning Codex process is gone; ended sessions leave the focus board. */
   readonly endedAt: string | null
 }

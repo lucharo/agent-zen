@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  canReuseHealthyDaemon,
   DAEMON_LABEL,
   defaultDaemonPaths,
   hasManagedDaemonStopped,
+  isLaunchAtLoginConfigured,
   parseDaemonHealth,
   parseLaunchAtLoginEnabled,
   parseLogLineCount,
@@ -130,5 +132,32 @@ describe('Agent Zen daemon contract', () => {
   test('reads the launchd disabled override format', () => {
     expect(parseLaunchAtLoginEnabled('"io.lucharo.agent-zen" => enabled', DAEMON_LABEL)).toBe(true)
     expect(parseLaunchAtLoginEnabled('"io.lucharo.agent-zen" => disabled', DAEMON_LABEL)).toBe(false)
+  })
+
+  test('repairs persistence for a healthy loaded daemon when its plist is missing or override is disabled', () => {
+    const launchd = { loaded: true, state: 'running', pid: 4217 }
+    const health = { reachable: true, pid: 4217, version: '0.1.0', codexConnected: true }
+    const missingPlist = { plistExists: false, overrideEnabled: true }
+    const disabledOverride = { plistExists: true, overrideEnabled: false }
+    const configured = { plistExists: true, overrideEnabled: true }
+
+    expect({
+      missingPlist: {
+        reusable: canReuseHealthyDaemon(launchd, health, missingPlist),
+        launchAtLogin: isLaunchAtLoginConfigured(missingPlist),
+      },
+      disabledOverride: {
+        reusable: canReuseHealthyDaemon(launchd, health, disabledOverride),
+        launchAtLogin: isLaunchAtLoginConfigured(disabledOverride),
+      },
+      configured: {
+        reusable: canReuseHealthyDaemon(launchd, health, configured),
+        launchAtLogin: isLaunchAtLoginConfigured(configured),
+      },
+    }).toEqual({
+      missingPlist: { reusable: false, launchAtLogin: false },
+      disabledOverride: { reusable: false, launchAtLogin: false },
+      configured: { reusable: true, launchAtLogin: true },
+    })
   })
 })

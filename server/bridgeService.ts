@@ -1,9 +1,17 @@
 import { activeSessionCount, deriveStage, launchAvailability } from '../src/domain/stage'
-import type { AgentSession, Plan, PlanRevision, PlanStep } from '../src/domain/types'
+import type {
+  AgentSession,
+  PendingSessionRequest,
+  Plan,
+  PlanRevision,
+  PlanStep,
+  SessionApprovalDecision,
+} from '../src/domain/types'
 import type {
   BridgeSnapshot,
   LaunchSessionPayload,
   LaunchSessionResponse,
+  SessionRequestResponse,
 } from '../src/bridge/types'
 import { BRIDGE_PROTOCOL_VERSION } from '../src/bridge/types'
 import type { UiPreferences } from '../src/domain/preferences'
@@ -25,7 +33,7 @@ type BridgeObserver = Pick<CodexStateObserver, 'snapshot'>
 
 type BridgeClient = Pick<
   CodexAppServerClient,
-  'connect' | 'request' | 'subscribe' | 'close' | 'isConnected' | 'connectionGeneration'
+  'connect' | 'request' | 'respond' | 'subscribe' | 'close' | 'isConnected' | 'connectionGeneration'
 >
 
 interface SessionOverlay {
@@ -36,7 +44,7 @@ interface SessionOverlay {
   readonly endedAt?: string | null
   readonly plan?: Plan | null
   readonly planHistory?: readonly PlanRevision[]
-  readonly pendingRequestId?: number | string | null
+  readonly pendingRequest?: PendingSessionRequest | null
 }
 
 interface ThreadStartResult {
@@ -213,6 +221,21 @@ export class AgentZenBridgeService {
     })
   }
 
+  async respond(threadId: string, response: SessionRequestResponse): Promise<void> {
+    await this.controllableSession(threadId)
+    const previous = this.overlays.get(threadId) ?? {}
+    const pending = previous.pendingRequest
+    if (!pending || pending.requestId !== response.requestId) {
+      throw new Error('This Codex request is no longer pending.')
+    }
+    await this.dependencies.client.respond(response.requestId, nativeResponse(pending, response))
+    this.overlays.set(threadId, {
+      ...previous,
+      activity: 'working',
+      pendingRequest: null,
+    })
+  }
+
   close(): Promise<void> {
     return this.dependencies.client.close()
   }
@@ -308,7 +331,11 @@ export class AgentZenBridgeService {
   private onNotification(notification: AppServerNotification): void {
     if (!notification.params || typeof notification.params !== 'object') return
     const params = notification.params as Record<string, unknown>
-    const threadId = typeof params.threadId === 'string' ? params.threadId : null
+    const threadId = typeof params.threadId === 'string'
+      ? params.threadId
+      : typeof params.conversationId === 'string'
+        ? params.conversationId
+        : null
     if (!threadId) return
     // The bundled app-server may report lifecycle events for threads created by
     // another Codex process. Those threads belong to the read-only observer;
@@ -317,22 +344,23 @@ export class AgentZenBridgeService {
     if (!this.ownsThreadInCurrentConnection(threadId)) return
     const previous = this.overlays.get(threadId) ?? {}
 
-    if (isBlockingUserRequest(notification)) {
+    const pendingRequest = pendingSessionRequest(notification)
+    if (pendingRequest) {
       this.overlays.set(threadId, {
         ...previous,
         activity: 'awaiting-input',
         hasSubstantiveActivity: true,
-        pendingRequestId: notification.id ?? null,
+        pendingRequest,
       })
       return
     }
     if (notification.method === 'serverRequest/resolved') {
       const requestId = params.requestId
-      if (previous.pendingRequestId !== null && previous.pendingRequestId === requestId) {
+      if (previous.pendingRequest && previous.pendingRequest.requestId === requestId) {
         this.overlays.set(threadId, {
           ...previous,
           activity: 'working',
-          pendingRequestId: null,
+          pendingRequest: null,
         })
       }
       return
@@ -361,7 +389,7 @@ export class AgentZenBridgeService {
         endedAt: null,
         plan: null,
         planHistory: [],
-        pendingRequestId: null,
+        pendingRequest: null,
       })
       return
     }
@@ -394,7 +422,7 @@ export class AgentZenBridgeService {
         ...previous,
         activity: 'idle',
         endedAt: null,
-        pendingRequestId: null,
+        pendingRequest: null,
       })
     }
   }
@@ -467,12 +495,168 @@ function stringValue(value: unknown): string | null {
 function isBlockingUserRequest(notification: AppServerNotification): boolean {
   if (!notification.method.endsWith('/requestApproval') &&
     notification.method !== 'item/tool/requestUserInput' &&
-    notification.method !== 'mcpServer/elicitation/request') {
+    notification.method !== 'mcpServer/elicitation/request' &&
+    notification.method !== 'execCommandApproval' &&
+    notification.method !== 'applyPatchApproval') {
     return false
   }
   if (!notification.params || typeof notification.params !== 'object') return true
   const params = notification.params as Record<string, unknown>
   return params.isBlocking !== false
+}
+
+function pendingSessionRequest(notification: AppServerNotification): PendingSessionRequest | null {
+  if (notification.id === undefined || !isBlockingUserRequest(notification)) return null
+  const params = isObject(notification.params) ? notification.params : {}
+  if (notification.method === 'item/tool/requestUserInput') {
+    const questions = Array.isArray(params.questions)
+      ? params.questions.flatMap((entry) => {
+          if (!isObject(entry) || typeof entry.id !== 'string' || typeof entry.question !== 'string') {
+            return []
+          }
+          const options = Array.isArray(entry.options)
+            ? entry.options.flatMap((option) => (
+                isObject(option) && typeof option.label === 'string'
+                  ? [{
+                      label: option.label,
+                      description: typeof option.description === 'string' ? option.description : '',
+                    }]
+                  : []
+              ))
+            : null
+          return [{
+            id: entry.id,
+            header: typeof entry.header === 'string' ? entry.header : 'Question',
+            question: entry.question,
+            isOther: entry.isOther === true,
+            isSecret: entry.isSecret === true,
+            options,
+          }]
+        })
+      : []
+    return { kind: 'user-input', requestId: notification.id, questions }
+  }
+  if (notification.method === 'item/commandExecution/requestApproval') {
+    return {
+      kind: 'approval',
+      requestId: notification.id,
+      approval: 'command',
+      title: 'Approve command?',
+      detail: typeof params.command === 'string' ? params.command : null,
+      reason: typeof params.reason === 'string' ? params.reason : null,
+      availableDecisions: approvalDecisions(params.availableDecisions),
+    }
+  }
+  if (notification.method === 'item/fileChange/requestApproval') {
+    return {
+      kind: 'approval',
+      requestId: notification.id,
+      approval: 'file',
+      title: 'Approve file changes?',
+      detail: typeof params.grantRoot === 'string' ? params.grantRoot : null,
+      reason: typeof params.reason === 'string' ? params.reason : null,
+      availableDecisions: BASIC_APPROVAL_DECISIONS,
+    }
+  }
+  if (notification.method === 'item/permissions/requestApproval') {
+    return {
+      kind: 'permissions',
+      requestId: notification.id,
+      title: 'Grant additional permissions?',
+      reason: typeof params.reason === 'string' ? params.reason : null,
+      requestedPermissions: isObject(params.permissions) ? params.permissions : {},
+    }
+  }
+  if (notification.method === 'execCommandApproval') {
+    const command = Array.isArray(params.command)
+      ? params.command.filter((part): part is string => typeof part === 'string').join(' ')
+      : null
+    return {
+      kind: 'approval',
+      requestId: notification.id,
+      approval: 'legacy-command',
+      title: 'Approve command?',
+      detail: command,
+      reason: typeof params.reason === 'string' ? params.reason : null,
+      availableDecisions: BASIC_APPROVAL_DECISIONS,
+    }
+  }
+  if (notification.method === 'applyPatchApproval') {
+    return {
+      kind: 'approval',
+      requestId: notification.id,
+      approval: 'legacy-file',
+      title: 'Approve file changes?',
+      detail: typeof params.grantRoot === 'string' ? params.grantRoot : null,
+      reason: typeof params.reason === 'string' ? params.reason : null,
+      availableDecisions: BASIC_APPROVAL_DECISIONS,
+    }
+  }
+  return {
+    kind: 'unsupported',
+    requestId: notification.id,
+    title: 'Codex needs input in its native client',
+    detail: notification.method,
+  }
+}
+
+const BASIC_APPROVAL_DECISIONS: readonly SessionApprovalDecision[] = [
+  'accept',
+  'acceptForSession',
+  'decline',
+  'cancel',
+]
+
+function approvalDecisions(value: unknown): readonly SessionApprovalDecision[] {
+  if (!Array.isArray(value)) return BASIC_APPROVAL_DECISIONS
+  const decisions = value.filter((entry): entry is SessionApprovalDecision => (
+    entry === 'accept' || entry === 'acceptForSession' || entry === 'decline' || entry === 'cancel'
+  ))
+  return decisions.length > 0 ? decisions : BASIC_APPROVAL_DECISIONS
+}
+
+function nativeResponse(
+  pending: PendingSessionRequest,
+  response: SessionRequestResponse,
+): unknown {
+  if (pending.kind === 'user-input' && response.kind === 'user-input') {
+    return {
+      answers: Object.fromEntries(
+        Object.entries(response.answers).map(([id, answers]) => [id, { answers: [...answers] }]),
+      ),
+    }
+  }
+  if (pending.kind === 'approval' && response.kind === 'approval') {
+    if (!pending.availableDecisions.includes(response.decision)) {
+      throw new Error('That approval decision is not available for this request.')
+    }
+    if (pending.approval === 'legacy-command' || pending.approval === 'legacy-file') {
+      return { decision: legacyApprovalDecision(response.decision) }
+    }
+    return { decision: response.decision }
+  }
+  if (pending.kind === 'permissions' && response.kind === 'permissions') {
+    return {
+      permissions: grantedPermissionProfile(pending.requestedPermissions),
+      scope: response.scope,
+    }
+  }
+  throw new Error('The response does not match the pending Codex request.')
+}
+
+function grantedPermissionProfile(
+  requested: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return Object.fromEntries(
+    ['network', 'fileSystem'].flatMap((key) => requested[key] == null ? [] : [[key, requested[key]]]),
+  )
+}
+
+function legacyApprovalDecision(decision: SessionApprovalDecision): unknown {
+  if (decision === 'accept') return 'approved'
+  if (decision === 'acceptForSession') return 'approved_for_session'
+  if (decision === 'decline') return { denied: { rejection: 'Declined in Agent Zen.' } }
+  return 'abort'
 }
 
 function isSubstantiveItem(type: unknown): boolean {

@@ -17,6 +17,11 @@ describe('CodexAppServerClient', () => {
     expect(notifications).toContain('turn/plan/updated')
     expect(notifications).toContain('item/tool/requestUserInput')
 
+    await client.respond(7, { answers: { scope: { answers: ['Current session'] } } })
+    expect(await client.request<Record<string, unknown>>('test/last-client-response', {})).toEqual({
+      answers: { scope: { answers: ['Current session'] } },
+    })
+
     await client.close()
   })
 

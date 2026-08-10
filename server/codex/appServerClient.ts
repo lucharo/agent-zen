@@ -71,6 +71,11 @@ export class CodexAppServerClient {
     return this.sendRequest<T>(method, params)
   }
 
+  async respond(id: number | string, result: unknown): Promise<void> {
+    await this.connect()
+    this.write({ id, result })
+  }
+
   async close(): Promise<void> {
     const process = this.process
     this.process = null

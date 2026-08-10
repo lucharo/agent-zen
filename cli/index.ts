@@ -6,10 +6,13 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import packageJson from '../package.json'
 import {
+  canReuseHealthyDaemon,
   DAEMON_LABEL,
   DAEMON_STOP_TIMEOUT_MS,
   defaultDaemonPaths,
   hasManagedDaemonStopped,
+  isLaunchAtLoginConfigured,
+  isOwnedHealthy,
   parseDaemonHealth,
   parseLaunchAtLoginEnabled,
   parseLogLineCount,
@@ -18,6 +21,7 @@ import {
   waitUntil,
   type DaemonPaths,
   type DaemonHealth,
+  type LaunchAtLoginState,
   type LaunchctlState,
 } from './daemon'
 
@@ -146,9 +150,12 @@ async function runtime(): Promise<Runtime> {
 async function startDaemon(report: boolean): Promise<void> {
   const current = await runtime()
   await assertInstalledAssets(current)
-  const launchd = await launchctlState(current)
-  const health = await daemonHealth(current)
-  if (isOwnedHealthy(launchd, health)) {
+  const [launchd, health, launchAtLogin] = await Promise.all([
+    launchctlState(current),
+    daemonHealth(current),
+    launchAtLoginState(current),
+  ])
+  if (canReuseHealthyDaemon(launchd, health, launchAtLogin)) {
     if (report) printRunning(current, launchd.pid, 'already running')
     return
   }
@@ -230,8 +237,11 @@ async function restartDaemon(): Promise<void> {
 
 async function printStatus(asJson: boolean): Promise<void> {
   const current = await runtime()
-  const launchd = await launchctlState(current)
-  const health = await daemonHealth(current)
+  const [launchd, health, launchAtLogin] = await Promise.all([
+    launchctlState(current),
+    daemonHealth(current),
+    launchAtLoginState(current),
+  ])
   const healthy = isOwnedHealthy(launchd, health)
   const status: DaemonStatus = {
     ...launchd,
@@ -241,7 +251,7 @@ async function printStatus(asJson: boolean): Promise<void> {
     version: health.version,
     codexConnected: health.codexConnected,
     url: current.url,
-    launchAtLogin: launchd.loaded || await launchAtLoginEnabled(current),
+    launchAtLogin: isLaunchAtLoginConfigured(launchAtLogin),
     plistPath: current.paths.plistPath,
     logPath: current.paths.logPath,
   }
@@ -346,11 +356,14 @@ async function launchctlState(current: Runtime): Promise<LaunchctlState> {
   return parseLaunchctlPrint(result.stdout, result.code === 0)
 }
 
-async function launchAtLoginEnabled(current: Runtime): Promise<boolean> {
-  if (!(await exists(current.paths.plistPath))) return false
+async function launchAtLoginState(current: Runtime): Promise<LaunchAtLoginState> {
+  const plistExists = await exists(current.paths.plistPath)
+  if (!plistExists) return { plistExists: false, overrideEnabled: false }
   const result = await run(['/bin/launchctl', 'print-disabled', current.domain])
-  if (result.code !== 0) return false
-  return parseLaunchAtLoginEnabled(result.stdout, DAEMON_LABEL)
+  return {
+    plistExists: true,
+    overrideEnabled: result.code === 0 && parseLaunchAtLoginEnabled(result.stdout, DAEMON_LABEL),
+  }
 }
 
 async function daemonHealth(current: Runtime): Promise<DaemonHealth> {
@@ -361,15 +374,6 @@ async function daemonHealth(current: Runtime): Promise<DaemonHealth> {
   } catch {
     return parseDaemonHealth(null)
   }
-}
-
-function isOwnedHealthy(launchd: LaunchctlState, health: DaemonHealth): boolean {
-  return Boolean(
-    launchd.loaded
-    && launchd.pid
-    && health.reachable
-    && health.pid === launchd.pid,
-  )
 }
 
 function assertNoUnmanagedServer(

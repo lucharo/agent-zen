@@ -359,6 +359,52 @@
   padding: var(--space-3);
 }
 
+.requestForm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.requestQuestion {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.requestQuestion > span,
+.approvalCopy strong {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.requestQuestion small {
+  color: var(--ink-muted);
+}
+
+.requestQuestion input,
+.requestQuestion select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 var(--space-3);
+}
+
+.approvalCopy {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.approvalCopy code,
+.requestForm > code {
+  overflow-wrap: anywhere;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  padding: var(--space-3);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
 .controlActions {
   display: flex;
   justify-content: flex-end;

@@ -1,9 +1,14 @@
 import type { ProjectCandidate } from '@/adapters/ProjectDiscoverySource'
 import type { UiPreferences } from '@/domain/preferences'
 import type { LaunchAvailability } from '@/domain/stage'
-import type { AgentSession, Project } from '@/domain/types'
+import type {
+  AgentSession,
+  Project,
+  SessionApprovalDecision,
+  SessionRequestId,
+} from '@/domain/types'
 
-export const BRIDGE_PROTOCOL_VERSION = 4
+export const BRIDGE_PROTOCOL_VERSION = 5
 
 export interface BridgeConnectionStatus {
   readonly connected: boolean
@@ -41,3 +46,20 @@ export interface LaunchSessionResponse {
   readonly threadId: string
   readonly turnId: string
 }
+
+export type SessionRequestResponse =
+  | {
+      readonly requestId: SessionRequestId
+      readonly kind: 'user-input'
+      readonly answers: Readonly<Record<string, readonly string[]>>
+    }
+  | {
+      readonly requestId: SessionRequestId
+      readonly kind: 'approval'
+      readonly decision: SessionApprovalDecision
+    }
+  | {
+      readonly requestId: SessionRequestId
+      readonly kind: 'permissions'
+      readonly scope: 'turn' | 'session'
+    }

@@ -31,6 +31,11 @@ export interface DaemonHealth {
   readonly codexConnected: boolean
 }
 
+export interface LaunchAtLoginState {
+  readonly plistExists: boolean
+  readonly overrideEnabled: boolean
+}
+
 export interface WaitUntilOptions {
   readonly timeoutMs: number
   readonly intervalMs?: number
@@ -158,6 +163,27 @@ export function parseLogLineCount(args: readonly string[]): number {
 export function parseLaunchAtLoginEnabled(output: string, label: string): boolean {
   const match = output.match(new RegExp(`"${escapeRegex(label)}"\\s*=>\\s*(enabled|disabled)`))
   return match?.[1] !== 'disabled'
+}
+
+export function isLaunchAtLoginConfigured(state: LaunchAtLoginState): boolean {
+  return state.plistExists && state.overrideEnabled
+}
+
+export function isOwnedHealthy(launchd: LaunchctlState, health: DaemonHealth): boolean {
+  return Boolean(
+    launchd.loaded
+    && launchd.pid
+    && health.reachable
+    && health.pid === launchd.pid,
+  )
+}
+
+export function canReuseHealthyDaemon(
+  launchd: LaunchctlState,
+  health: DaemonHealth,
+  launchAtLogin: LaunchAtLoginState,
+): boolean {
+  return isOwnedHealthy(launchd, health) && isLaunchAtLoginConfigured(launchAtLogin)
 }
 
 export async function waitUntil(

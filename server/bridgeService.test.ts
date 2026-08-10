@@ -17,6 +17,7 @@ class FakeClient {
   failTurn = false
   threadNames = new Map<string, string>()
   readonly requests: string[] = []
+  readonly responses: Array<{ id: number | string; result: unknown }> = []
   private readonly listeners = new Set<(notification: AppServerNotification) => void>()
 
   async connect(): Promise<Record<string, unknown>> {
@@ -56,6 +57,10 @@ class FakeClient {
       } as T
     }
     return {} as T
+  }
+
+  async respond(id: number | string, result: unknown): Promise<void> {
+    this.responses.push({ id, result })
   }
 
   async close(): Promise<void> {
@@ -201,21 +206,96 @@ describe('AgentZenBridgeService ownership', () => {
     client.notify({
       id: 41,
       method: 'item/tool/requestUserInput',
-      params: { threadId: 'thread-owned', turnId: 'turn-owned', itemId: 'item-2', isBlocking: true },
+      params: {
+        threadId: 'thread-owned',
+        turnId: 'turn-owned',
+        itemId: 'item-2',
+        isBlocking: true,
+        questions: [{
+          id: 'scope',
+          header: 'Scope',
+          question: 'Where should this apply?',
+          isOther: false,
+          isSecret: false,
+          options: [{ label: 'Current session', description: 'Only this session.' }],
+        }],
+      },
     })
-    expect((await service.snapshot()).sessions[0]?.activity).toBe('awaiting-input')
+    expect((await service.snapshot()).sessions[0]).toMatchObject({
+      activity: 'awaiting-input',
+      pendingRequest: {
+        kind: 'user-input',
+        requestId: 41,
+        questions: [{ id: 'scope', question: 'Where should this apply?' }],
+      },
+    })
+
+    await service.respond('thread-owned', {
+      requestId: 41,
+      kind: 'user-input',
+      answers: { scope: ['Current session'] },
+    })
+    expect(client.responses).toEqual([{
+      id: 41,
+      result: { answers: { scope: { answers: ['Current session'] } } },
+    }])
+    expect((await service.snapshot()).sessions[0]).toMatchObject({
+      activity: 'working',
+      pendingRequest: null,
+    })
 
     client.notify({
       method: 'serverRequest/resolved',
       params: { threadId: 'thread-owned', requestId: 99 },
     })
-    expect((await service.snapshot()).sessions[0]?.activity).toBe('awaiting-input')
+    expect((await service.snapshot()).sessions[0]?.activity).toBe('working')
 
     client.notify({
       method: 'serverRequest/resolved',
       params: { threadId: 'thread-owned', requestId: 41 },
     })
     expect((await service.snapshot()).sessions[0]?.activity).toBe('working')
+  })
+
+  test('grants the exact native permission request for one turn', async () => {
+    const client = new FakeClient()
+    const service = new AgentZenBridgeService(dependencies(client))
+    await service.start()
+    await service.launch({ projectId: project.id, prompt: 'Do the work' })
+
+    client.notify({
+      id: 42,
+      method: 'item/permissions/requestApproval',
+      params: {
+        threadId: 'thread-owned',
+        turnId: 'turn-owned',
+        itemId: 'item-permissions',
+        cwd: '/repo',
+        reason: 'Write the generated file.',
+        permissions: {
+          network: null,
+          fileSystem: { read: null, write: ['/repo/generated'], entries: null },
+        },
+      },
+    })
+    expect((await service.snapshot()).sessions[0]?.pendingRequest).toMatchObject({
+      kind: 'permissions',
+      requestId: 42,
+    })
+
+    await service.respond('thread-owned', {
+      requestId: 42,
+      kind: 'permissions',
+      scope: 'turn',
+    })
+
+    expect(client.responses).toEqual([{
+      id: 42,
+      result: {
+        permissions: { fileSystem: { read: null, write: ['/repo/generated'], entries: null } },
+        scope: 'turn',
+      },
+    }])
   })
 
   test('ignores a stale completion for an older owned turn', async () => {

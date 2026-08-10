@@ -1,9 +1,14 @@
 import { createInterface } from 'node:readline'
 
 const input = createInterface({ input: process.stdin })
+let lastClientResponse: unknown = null
 
 input.on('line', (raw) => {
-  const message = JSON.parse(raw) as { id?: number; method: string }
+  const message = JSON.parse(raw) as { id?: number; method?: string; result?: unknown }
+  if (!message.method && message.id === 7) {
+    lastClientResponse = message.result
+    return
+  }
   if (message.method === 'initialize') {
     respond(message.id, { userAgent: 'fake-codex/1.0', codexHome: '/tmp/codex', platformFamily: 'unix', platformOs: 'macos' })
     notify('turn/plan/updated', {
@@ -19,6 +24,8 @@ input.on('line', (raw) => {
     respond(message.id, { data: [], nextCursor: null, backwardsCursor: null })
   } else if (message.method === 'thread/read') {
     respond(message.id, { thread: { id: 'thread-owned', turns: [] } })
+  } else if (message.method === 'test/last-client-response') {
+    respond(message.id, lastClientResponse)
   }
 })
 

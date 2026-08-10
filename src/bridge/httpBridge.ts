@@ -3,6 +3,7 @@ import {
   type BridgeSnapshot,
   type LaunchSessionPayload,
   type LaunchSessionResponse,
+  type SessionRequestResponse,
 } from './types'
 import type { UiPreferences } from '@/domain/preferences'
 
@@ -17,6 +18,7 @@ export interface AgentZenBridge {
   launch(payload: LaunchSessionPayload): Promise<LaunchSessionResponse>
   interrupt(threadId: string): Promise<void>
   steer(threadId: string, prompt: string): Promise<void>
+  respond(threadId: string, response: SessionRequestResponse): Promise<void>
 }
 
 const EMPTY: BridgeSnapshot = {
@@ -165,6 +167,13 @@ export function createHttpBridge(
       await request(`/api/v4/sessions/${encodeURIComponent(threadId)}/steer`, {
         method: 'POST',
         body: JSON.stringify({ prompt }),
+      })
+      await refresh()
+    },
+    respond: async (threadId, response) => {
+      await request(`/api/v4/sessions/${encodeURIComponent(threadId)}/respond`, {
+        method: 'POST',
+        body: JSON.stringify(response),
       })
       await refresh()
     },

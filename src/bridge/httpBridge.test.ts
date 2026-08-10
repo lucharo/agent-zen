@@ -65,7 +65,7 @@ describe('bridge compatibility', () => {
 
   it('persists UI preferences through the local settings endpoint', async () => {
     const snapshot: BridgeSnapshot = {
-      protocolVersion: 4,
+      protocolVersion: 5,
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
       sessions: [],
@@ -91,6 +91,43 @@ describe('bridge compatibility', () => {
         method: 'PUT',
         body: JSON.stringify(preferences),
         cache: 'no-store',
+      }),
+    )
+  })
+
+  it('answers an owned Codex request through the local bridge', async () => {
+    const snapshot: BridgeSnapshot = {
+      protocolVersion: 5,
+      generatedAt: new Date().toISOString(),
+      connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
+      sessions: [],
+      focus: {
+        enabled: false,
+        limit: 3,
+        activeCount: 0,
+        availability: { allowed: true, reason: 'limit-disabled' },
+      },
+      preferences,
+      projects: [],
+      projectCandidates: [],
+    }
+    const fetch = vi.fn(async (input: RequestInfo | URL) => (
+      Response.json(String(input).endsWith('/api/snapshot') ? snapshot : { ok: true })
+    ))
+    vi.stubGlobal('fetch', fetch)
+    const bridge = createHttpBridge('http://127.0.0.1:9999')
+
+    await bridge.respond('thread-owned', {
+      requestId: 41,
+      kind: 'approval',
+      decision: 'accept',
+    })
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:9999/api/v4/sessions/thread-owned/respond',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ requestId: 41, kind: 'approval', decision: 'accept' }),
       }),
     )
   })

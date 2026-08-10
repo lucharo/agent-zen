@@ -46,7 +46,7 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 4,
+  protocolVersion: 5,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
   sessions: [],
@@ -78,6 +78,7 @@ function disconnectedBridge(): AgentZenBridge {
     },
     interrupt: async () => undefined,
     steer: async () => undefined,
+    respond: async () => undefined,
   }
 }
 
@@ -590,6 +591,63 @@ describe('session detail', () => {
     expect(within(logbook).getAllByRole('listitem')).toHaveLength(before + 1)
     expect(within(logbook).getByText('Column widths feel right.')).toBeInTheDocument()
     expect(storage.getItem(STORAGE_KEY)).toContain('"author":"human"')
+  })
+
+  it('answers a native request and keeps interrupt available while Codex waits', async () => {
+    const base = createFixtureSessionSource({ now: NOW, tickMs: 0 }).snapshot()
+    const owned = {
+      ...base.find((session) => session.title === 'Revise calm control plane')!,
+      source: 'owned' as const,
+      activity: 'awaiting-input' as const,
+      pendingRequest: {
+        kind: 'user-input' as const,
+        requestId: 41,
+        questions: [{
+          id: 'scope',
+          header: 'Scope',
+          question: 'Where should this apply?',
+          isOther: false,
+          isSecret: false,
+          options: [{ label: 'Current session', description: 'Only this session.' }],
+        }],
+      },
+    }
+    const responses: unknown[] = []
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
+      sessions: [owned],
+      preferences: selectUiPreferences(createInitialState(NOW)),
+      projects: SEED_PROJECTS,
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+      respond: async (_threadId, response) => { responses.push(response) },
+    }
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await user.click(screen.getByText('Revise calm control plane'))
+    const sheet = screen.getByRole('dialog')
+    expect(within(sheet).getByRole('button', { name: 'Interrupt' })).toBeInTheDocument()
+    await user.selectOptions(within(sheet).getByLabelText('Scope'), 'Current session')
+    await user.click(within(sheet).getByRole('button', { name: 'Send answer' }))
+
+    await waitFor(() => expect(responses).toEqual([{
+      requestId: 41,
+      kind: 'user-input',
+      answers: { scope: ['Current session'] },
+    }]))
   })
 })
 

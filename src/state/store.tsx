@@ -17,7 +17,11 @@ import type {
 } from '@/adapters/ProjectDiscoverySource'
 import { createFixtureProjectDiscoverySource } from '@/adapters/fixtureProjectSource'
 import type { AgentZenBridge } from '@/bridge/httpBridge'
-import type { BridgeSnapshot, LaunchSessionResponse } from '@/bridge/types'
+import type {
+  BridgeSnapshot,
+  LaunchSessionResponse,
+  SessionRequestResponse,
+} from '@/bridge/types'
 import { selectUiPreferences } from '@/domain/preferences'
 import { activeSessionCount, deriveStage, launchAvailability } from '@/domain/stage'
 import type { AgentSession, LogbookNote, Project, Stage } from '@/domain/types'
@@ -69,6 +73,7 @@ export interface AgentZenValue {
   ) => Promise<LaunchSessionResponse>
   readonly interruptSession: (threadId: string) => Promise<void>
   readonly steerSession: (threadId: string, prompt: string) => Promise<void>
+  readonly respondToSession: (threadId: string, response: SessionRequestResponse) => Promise<void>
 }
 
 const AgentZenContext = createContext<AgentZenValue | null>(null)
@@ -353,6 +358,10 @@ export function AgentZenProvider({
       steerSession: async (threadId, prompt) => {
         if (!bridge) throw new Error('The fixture source cannot control Codex.')
         await bridge.steer(threadId, prompt)
+      },
+      respondToSession: async (threadId, response) => {
+        if (!bridge) throw new Error('The fixture source cannot control Codex.')
+        await bridge.respond(threadId, response)
       },
     }
   }, [state, sessions, sessionSource, discoverySource, bridge, bridgeSnapshot, bridgeReady, resolvedTheme, clock])
