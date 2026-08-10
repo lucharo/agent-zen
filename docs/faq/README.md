@@ -10,7 +10,7 @@ _Conceptual visual generated from the verified contracts below. The code and tes
 
 **Short answer:** The local bridge combines supported Codex App Server control for sessions it launches with read-only process, SQLite, and rollout observation for sessions running elsewhere. ACP and hooks are not required.
 
-On macOS, the observer asks `lsof` which rollout JSONL files are currently held open by live `codex` processes. Those thread ids define the active shelf. It then reads metadata from `~/.codex/state_5.sqlite` and lifecycle, message, plan, and completion records from the matching rollout files. It never writes to those stores. Agent Zen-owned launches use a bundled `codex app-server --stdio` child; externally launched sessions remain visible but read-only. Ownership is connection-scoped: restarting the Agent Zen daemon preserves visibility but turns previously owned sessions into external, observation-only sessions.
+On macOS, the observer asks `lsof` which rollout JSONL files are currently held open by live `codex` processes. Those thread ids define the active shelf. It then reads metadata from `~/.codex/state_5.sqlite` and lifecycle, message, plan, and completion records from the matching rollout files. It never writes to those stores. Agent Zen-owned launches use a bundled `codex app-server --stdio` child; externally launched sessions remain visible but read-only. A new thread is registered as owned before its first turn begins so early plan, lifecycle, and approval events are retained. If that first turn fails, Agent Zen best-effort archives the newly created native thread instead of leaving an orphan. Ownership is connection-scoped: restarting the Agent Zen daemon preserves visibility but turns previously owned sessions into external, observation-only sessions.
 
 ![Codex connection architecture](2026-08-06-agent-zen-codex-connection.png)
 
@@ -43,7 +43,7 @@ _Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/ver
 
 **Short answer:** The daemon, settings, registered projects, Ideas, Logbook notes, and observed Codex sessions return. Control ownership of previously launched sessions does not.
 
-`agent-zen daemon start` validates installed assets, repairs a missing LaunchAgent plist or disabled login override, and waits for the authenticated health endpoint. Preferences, focus policy, project roots, and registered project directories remain in `~/.agent-zen/settings.json`. Ideas, Logbook notes, and their project cache remain in browser storage.
+`agent-zen daemon start` validates installed assets, repairs a missing LaunchAgent plist or disabled login override, and waits up to 20 seconds for the authenticated health endpoint. That window deliberately exceeds Codex App Server's 15-second initialization timeout. Preferences, focus policy, project roots, and registered project directories remain in `~/.agent-zen/settings.json`. Ideas, Logbook notes, and their project cache remain in browser storage.
 
 The App Server connection and its owned-thread map are intentionally in memory. After restart, the same Codex sessions are rediscovered through their live process, SQLite, and rollout records, but they appear as external read-only sessions. Agent Zen will not claim control of a thread created by an earlier process.
 
@@ -122,13 +122,13 @@ Each snapshot first inventories rollout files held open by live Codex processes,
 
 Display names come from a lightweight supported `thread/read(includeTurns=false)` lookup for each observed live thread id. This is where Codex Desktop exposes sidebar renames in current builds; SQLite may still have `name = NULL`. If the catalog has no explicit name, Agent Zen falls back to the persisted title or preview. Resuming the same thread therefore keeps its renamed card title.
 
-This is polling, not a hook. App Server state can be current inside the bridge before the browser sees it; the maximum ordinary visible lag is about one second plus local parsing time.
+This is polling, not a hook. App Server state can be current inside the bridge before the browser sees it; the maximum ordinary visible lag is about one second plus local parsing time. Read-only and idempotent browser requests have a 12-second client timeout. A session launch deliberately does not: aborting a non-idempotent HTTP request cannot prove the server stopped creating the Codex thread, and retrying could create a duplicate.
 
 Snapshots also carry a protocol version. If the dashboard and bridge are from different builds, the UI retains its previous snapshot, marks the bridge unavailable, and keeps polling until both builds agree.
 
 ### Sources
 
-- [HTTP bridge client](https://github.com/lucharo/agent-zen/blob/main/src/bridge/httpBridge.ts) — 1-second polling and request timeout.
+- [HTTP bridge client](https://github.com/lucharo/agent-zen/blob/main/src/bridge/httpBridge.ts) — 1-second polling, bounded idempotent requests, and non-aborted launches.
 - [Codex observer](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — cache, bounded tail, and anchor recovery.
 - [App state provider](https://github.com/lucharo/agent-zen/blob/main/src/state/store.tsx) — 1-second display clock.
 
@@ -138,7 +138,7 @@ _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 **Short answer:** Yes. The bridge discovers Git checkouts under configured roots. A session first matches the deepest project directory containing its cwd; an external worktree then falls back to the normalized GitHub remote.
 
-Active session repositories register automatically only after they match a discovered candidate, so the project filter and Settings registry describe the same live world. The default root is `~/Projects/github.com`, scanned two directory levels below that root. Observation and identity matching use all discovered candidates, and GitHub worktrees fall back to normalized remote identity, so every worktree does not become a separate project. Manual registration adds inactive repositories as launch targets. Both Sessions layouts can group cards by project; that changes presentation only.
+Active session repositories register automatically only after they match a discovered candidate, so the project filter and Settings registry describe the same live world. The default root is `~/Projects/github.com`, scanned two directory levels below that root. Observation and identity matching use all discovered candidates, and GitHub worktrees fall back to normalized remote identity, so every worktree does not become a separate project. Reconciliation uses the normalized repository or exact directory, never the display name alone: two repositories named `tools` must not steal each other's Ideas or filter selection. Manual registration adds inactive repositories as launch targets. Both Sessions layouts can group cards by project; that changes presentation only.
 
 ### Sources
 
@@ -148,7 +148,7 @@ Active session repositories register automatically only after they match a disco
 - [Kanban grouping](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.tsx) — project sections inside each stage.
 - [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — the same project grouping without stage columns.
 
-_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 ## Why is my repository or worktree missing?
 
@@ -198,7 +198,7 @@ _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 **Short answer:** When enabled, it refuses only a new root-session launch after every slot is occupied. It never kills, pauses, or moves existing work.
 
-Planning / Idle and Running root sessions consume slots while their Codex process remains open. Child agents share their parent's slot. Reviewing and Wrapping up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot.
+Planning / Idle and Running root sessions consume slots while their Codex process remains open. Child agents share their parent's slot. Reviewing and Wrapping up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot. Once admitted, the launch remains one server operation; the browser does not time it out and offer a duplicate retry.
 
 ### Sources
 
@@ -206,7 +206,7 @@ Planning / Idle and Running root sessions consume slots while their Codex proces
 - [Stage domain](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — active-slot counting rules.
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — serialized enforcement before launch.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 ## Where do Ideas and Logbook notes live, and why were mock ideas visible?
 
