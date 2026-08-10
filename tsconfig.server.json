@@ -4,5 +4,5 @@
     "types": ["bun"],
     "noEmit": true
   },
-  "include": ["server", "src/domain", "src/adapters/ProjectDiscoverySource.ts", "src/bridge"]
+  "include": ["server", "cli", "src/domain", "src/adapters/ProjectDiscoverySource.ts", "src/bridge"]
 }

@@ -9,6 +9,7 @@ export interface BridgeRequestHandlerOptions {
   readonly port: number
   readonly distDirectory: string
   readonly allowedOrigins?: readonly string[]
+  readonly runtime?: { readonly pid: number; readonly version: string }
 }
 
 export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions) {
@@ -21,7 +22,7 @@ export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions)
     const url = new URL(request.url)
     try {
       if (url.pathname === '/api/health' && request.method === 'GET') {
-        return json(options.service.health(), 200, headers)
+        return json({ ...options.service.health(), runtime: options.runtime }, 200, headers)
       }
       if (url.pathname === '/api/snapshot' && request.method === 'GET') {
         return json(await options.service.snapshot(), 200, headers)

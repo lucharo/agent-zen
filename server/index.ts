@@ -5,6 +5,7 @@ import { CodexAppServerClient } from './codex/appServerClient'
 import { CodexStateObserver } from './codex/stateObserver'
 import { createBridgeRequestHandler } from './http'
 import { AgentZenSettingsStore } from './settings'
+import packageJson from '../package.json'
 
 const port = Number(process.env.AGENT_ZEN_PORT ?? 5274)
 const repositoryRoot = resolve(import.meta.dir, '..')
@@ -46,14 +47,25 @@ const server = Bun.serve({
     port,
     distDirectory: process.env.AGENT_ZEN_DIST_DIR ?? join(repositoryRoot, 'dist'),
     allowedOrigins,
+    runtime: { pid: process.pid, version: packageJson.version },
   }),
 })
 
 console.log(`Agent Zen bridge listening on ${server.url}`)
 
-const shutdown = async () => {
-  server.stop(false)
-  await service.close()
+let shutdownPromise: Promise<void> | null = null
+const shutdown = (): Promise<void> => {
+  shutdownPromise ??= (async () => {
+    await server.stop(false)
+    await service.close()
+  })()
+  return shutdownPromise
 }
-process.once('SIGINT', () => void shutdown())
-process.once('SIGTERM', () => void shutdown())
+const requestShutdown = () => {
+  void shutdown().catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}
+process.once('SIGINT', requestShutdown)
+process.once('SIGTERM', requestShutdown)

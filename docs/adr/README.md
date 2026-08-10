@@ -7,3 +7,4 @@
 - [ADR-0005: Read-only board and quiet settings](0005-read-only-board-and-quiet-settings.md)
 - [ADR-0006: Browser keyboard and accessibility contract](0006-browser-keyboard-and-accessibility.md)
 - [ADR-0007: Native shell and distribution ladder](0007-native-shell-and-distribution.md)
+- [ADR-0008: CLI-managed local daemon](0008-cli-managed-local-daemon.md)
