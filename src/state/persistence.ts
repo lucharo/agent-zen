@@ -1,15 +1,5 @@
-import type {
-  Idea,
-  IdeaGroupBy,
-  IdeaLayout,
-  KanbanCardDetail,
-  KanbanGroupBy,
-  LogbookNote,
-  Project,
-  SessionLayout,
-  ThemeChoice,
-  View,
-} from '@/domain/types'
+import { DEFAULT_UI_PREFERENCES, type UiPreferences } from '@/domain/preferences'
+import type { Idea, LogbookNote, Project, ThemeChoice } from '@/domain/types'
 
 const PROTOTYPE_PROJECT_IDS = new Set(['agent-zen', 'data-pipeline', 'acm'])
 const PROTOTYPE_IDEA_IDS = new Set([
@@ -47,39 +37,22 @@ export const THEME_KEY = 'agent-zen.theme'
  * Everything Agent Zen owns. Nothing agent-derived is stored here — a wiped
  * store loses ideas and Logbook notes, never session state.
  */
-export interface PersistedState {
-  readonly version: 3
+export interface PersistedState extends UiPreferences {
+  readonly version: 4
   readonly projects: readonly Project[]
   readonly ideas: readonly Idea[]
   readonly logbook: readonly LogbookNote[]
-  readonly theme: ThemeChoice
-  readonly view: View
-  readonly projectFilter: string | null
-  readonly ideaGroupBy: IdeaGroupBy
-  readonly ideaLayout: IdeaLayout
-  readonly sessionLayout: SessionLayout
-  readonly kanbanGroupBy: KanbanGroupBy
-  readonly kanbanCardDetail: KanbanCardDetail
-  readonly ideasFolded: boolean
   readonly activeLimitEnabled: boolean
   readonly activeLimit: number
 }
 
 export function createInitialState(_now: number): PersistedState {
   return {
-    version: 3,
+    version: 4,
     projects: [],
     ideas: [],
     logbook: [],
-    theme: 'system',
-    view: 'kanban',
-    projectFilter: null,
-    ideaGroupBy: 'created',
-    ideaLayout: 'grid',
-    sessionLayout: 'kanban',
-    kanbanGroupBy: 'none',
-    kanbanCardDetail: 'titles',
-    ideasFolded: false,
+    ...DEFAULT_UI_PREFERENCES,
     activeLimitEnabled: false,
     activeLimit: 3,
   }
@@ -103,13 +76,14 @@ export function loadState(storage: Storage | undefined, now: number): PersistedS
     const parsed = JSON.parse(raw) as Omit<Partial<PersistedState>, 'version'> & {
       version?: number
     }
-    if (parsed?.version !== 1 && parsed?.version !== 2 && parsed?.version !== 3) return fallback
-    const migratingPrototype = parsed.version === 1
-    const migratingCompactCards = parsed.version < 3
+    const version = parsed?.version
+    if (![1, 2, 3, 4].includes(version ?? 0)) return fallback
+    const migratingPrototype = version === 1
+    const migratingCompactCards = (version ?? 0) < 3
     return {
       ...fallback,
       ...parsed,
-      version: 3,
+      version: 4,
       projects: migratingPrototype
         ? (parsed.projects ?? []).filter((project) => !PROTOTYPE_PROJECT_IDS.has(project.id))
         : parsed.projects ?? [],
@@ -132,6 +106,26 @@ export function saveState(storage: Storage | undefined, state: PersistedState): 
   if (!storage) return
   try {
     storage.setItem(STORAGE_KEY, JSON.stringify(state))
+    storage.setItem(THEME_KEY, state.theme)
+  } catch {
+    // A full or blocked store must not take the app down.
+  }
+}
+
+/**
+ * Live mode keeps human-authored data in the browser, but the local bridge is
+ * authoritative for UI preferences. The theme key is only a pre-React paint
+ * cache and is corrected from bridge settings as soon as the app connects.
+ */
+export function saveHumanState(storage: Storage | undefined, state: PersistedState): void {
+  if (!storage) return
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 4,
+      projects: state.projects,
+      ideas: state.ideas,
+      logbook: state.logbook,
+    }))
     storage.setItem(THEME_KEY, state.theme)
   } catch {
     // A full or blocked store must not take the app down.

@@ -52,7 +52,7 @@ describe('localRequestPolicy', () => {
   })
 
   test('rejects a browser request from an unrelated origin', () => {
-    const request = new Request('http://127.0.0.1:5274/api/settings/focus', {
+    const request = new Request('http://127.0.0.1:5274/api/v4/settings/focus', {
       method: 'PUT',
       headers: { host: '127.0.0.1:5274', origin: 'https://evil.example' },
     })

@@ -1,6 +1,7 @@
 import { extname, join, normalize, resolve } from 'node:path'
 import type { AgentZenBridgeService } from './bridgeService'
 import { FocusLimitReachedError } from './bridgeService'
+import { normaliseUiPreferences } from '../src/domain/preferences'
 import { localRequestPolicy } from './security'
 
 export interface BridgeRequestHandlerOptions {
@@ -25,7 +26,7 @@ export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions)
       if (url.pathname === '/api/snapshot' && request.method === 'GET') {
         return json(await options.service.snapshot(), 200, headers)
       }
-      if (url.pathname === '/api/settings/focus' && request.method === 'PUT') {
+      if (url.pathname === '/api/v4/settings/focus' && request.method === 'PUT') {
         const body = await bodyObject(request)
         return json(
           await options.service.setFocus(body.enabled === true, numberValue(body.limit, 3)),
@@ -33,14 +34,19 @@ export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions)
           headers,
         )
       }
-      if (url.pathname === '/api/projects/register' && request.method === 'POST') {
+      if (url.pathname === '/api/v4/settings/preferences' && request.method === 'PUT') {
+        const preferences = normaliseUiPreferences(await bodyObject(request))
+        if (!preferences) throw new RequestError('UI preferences are required.')
+        return json(await options.service.setPreferences(preferences), 200, headers)
+      }
+      if (url.pathname === '/api/v4/projects/register' && request.method === 'POST') {
         const body = await bodyObject(request)
         const candidateIds = Array.isArray(body.candidateIds)
           ? body.candidateIds.filter((value): value is string => typeof value === 'string')
           : []
         return json(await options.service.registerProjects(candidateIds), 200, headers)
       }
-      if (url.pathname === '/api/sessions/launch' && request.method === 'POST') {
+      if (url.pathname === '/api/v4/sessions/launch' && request.method === 'POST') {
         const body = await bodyObject(request)
         if (typeof body.projectId !== 'string' || typeof body.prompt !== 'string') {
           throw new RequestError('projectId and prompt are required.')
@@ -57,7 +63,7 @@ export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions)
         )
       }
 
-      const control = url.pathname.match(/^\/api\/sessions\/([^/]+)\/(interrupt|steer)$/)
+      const control = url.pathname.match(/^\/api\/v4\/sessions\/([^/]+)\/(interrupt|steer)$/)
       if (control && request.method === 'POST') {
         const threadId = decodeURIComponent(control[1] ?? '')
         if (control[2] === 'interrupt') {
@@ -128,7 +134,10 @@ function json(
   status: number,
   headers: Readonly<Record<string, string>> = {},
 ): Response {
-  return Response.json(value, { status, headers })
+  return Response.json(value, {
+    status,
+    headers: { 'Cache-Control': 'no-store', ...headers },
+  })
 }
 
 function numberValue(value: unknown, fallback: number): number {

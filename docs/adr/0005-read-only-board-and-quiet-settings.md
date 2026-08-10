@@ -20,6 +20,7 @@ The Sessions views remain an agent-authored projection. Human configuration move
 
 - Add `⌘,` for Settings and expose Settings through the command palette and focus-limit control.
 - Replace three theme targets with one `System → Light → Dark` cycling control.
+- Persist theme, current view, layout, grouping, card detail, Ideas folding, project filter, and focus policy in the local bridge settings file at `~/.agent-zen/settings.json`.
 - Collapse Ideas horizontally into a narrow left rail.
 - Give Planning, Running, Reviewing, and Wrapping up distinct stage symbols in their column headings.
 - Keep project discovery behind its own source interface; the live bridge scans configured local roots and reads Git remotes and branches.
@@ -31,3 +32,4 @@ The Sessions views remain an agent-authored projection. Human configuration move
 - The launch controller consults the same focus-limit function used by the UI before calling `thread/start` or `turn/start`, and serializes competing launch requests so two callers cannot claim the final slot.
 - Project discovery remains local and Git-based. An active repository becomes visible, filterable, and launch-authorised without a separate onboarding step.
 - Stage correction happens by correcting the Codex adapter’s observations, not by dragging a card.
+- Existing browser preferences migrate into the bridge once. Browser storage remains only for human Ideas and Logbook data plus a theme paint cache; it is not the live settings authority.

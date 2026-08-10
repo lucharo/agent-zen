@@ -1,12 +1,24 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { ProjectCandidate } from '../src/adapters/ProjectDiscoverySource'
+import {
+  normaliseUiPreferences,
+  type UiPreferences,
+} from '../src/domain/preferences'
 import type { Project } from '../src/domain/types'
 import type { FocusSettings } from './domain/focusPolicy'
 import { discoverProjects } from './projects'
 
-interface SettingsFile {
+export interface SettingsFile {
+  readonly version: 2
+  readonly focus: FocusSettings
+  readonly preferences: UiPreferences | null
+  readonly projectRoots: readonly string[]
+  readonly registeredProjectDirectories: readonly string[]
+}
+
+interface LegacySettingsFile {
   readonly version: 1
   readonly focus: FocusSettings
   readonly projectRoots: readonly string[]
@@ -20,21 +32,28 @@ export interface AgentZenSettingsStoreOptions {
 }
 
 export class AgentZenSettingsStore {
-  private state: SettingsFile | null = null
   private writeQueue: Promise<void> = Promise.resolve()
   private discoveryCache: { readonly expiresAt: number; readonly value: Promise<ProjectCandidate[]> } | null = null
 
   constructor(private readonly options: AgentZenSettingsStoreOptions) {}
 
   async read(): Promise<SettingsFile> {
-    if (this.state) return this.state
+    return this.readFromDisk()
+  }
+
+  private async readFromDisk(): Promise<SettingsFile> {
     const fallback = this.defaults()
     try {
-      const parsed = JSON.parse(await readFile(this.options.settingsPath, 'utf8')) as Partial<SettingsFile>
-      if (parsed.version !== 1) return (this.state = fallback)
-      this.state = {
-        version: 1,
+      const parsed = JSON.parse(await readFile(this.options.settingsPath, 'utf8')) as
+        | Partial<SettingsFile>
+        | Partial<LegacySettingsFile>
+      if (parsed.version !== 1 && parsed.version !== 2) return fallback
+      return {
+        version: 2,
         focus: normaliseFocus(parsed.focus),
+        preferences: parsed.version === 2
+          ? normaliseUiPreferences(parsed.preferences)
+          : null,
         projectRoots: strings(parsed.projectRoots, fallback.projectRoots),
         registeredProjectDirectories: strings(
           parsed.registeredProjectDirectories,
@@ -42,13 +61,18 @@ export class AgentZenSettingsStore {
         ),
       }
     } catch {
-      this.state = fallback
+      return fallback
     }
-    return this.state
   }
 
   async setFocus(focus: FocusSettings): Promise<SettingsFile> {
     return this.mutate((current) => ({ ...current, focus: normaliseFocus(focus) }))
+  }
+
+  async setPreferences(preferences: UiPreferences): Promise<SettingsFile> {
+    const normalised = normaliseUiPreferences(preferences)
+    if (!normalised) throw new Error('UI preferences are required.')
+    return this.mutate((current) => ({ ...current, preferences: normalised }))
   }
 
   async discoverProjects(): Promise<ProjectCandidate[]> {
@@ -94,8 +118,9 @@ export class AgentZenSettingsStore {
 
   private defaults(): SettingsFile {
     return {
-      version: 1,
+      version: 2,
       focus: { enabled: false, limit: 3 },
+      preferences: null,
       projectRoots: [...this.options.defaultProjectRoots],
       registeredProjectDirectories: this.options.initialProjectDirectory
         ? [this.options.initialProjectDirectory]
@@ -104,15 +129,45 @@ export class AgentZenSettingsStore {
   }
 
   private async mutate(update: (current: SettingsFile) => SettingsFile): Promise<SettingsFile> {
-    let result: SettingsFile | null = null
-    this.writeQueue = this.writeQueue.then(async () => {
-      result = update(await this.read())
-      this.state = result
-      await this.persist(result)
-    })
-    await this.writeQueue
-    if (!result) throw new Error('Settings update did not run.')
-    return result
+    const operation = this.writeQueue
+      .catch(() => undefined)
+      .then(() => this.withSettingsLock(async () => {
+        const result = update(await this.readFromDisk())
+        await this.persist(result)
+        return result
+      }))
+    this.writeQueue = operation.then(() => undefined, () => undefined)
+    return operation
+  }
+
+  private async withSettingsLock<T>(operation: () => Promise<T>): Promise<T> {
+    await mkdir(dirname(this.options.settingsPath), { recursive: true })
+    const lockPath = `${this.options.settingsPath}.lock`
+    const deadline = Date.now() + 10_000
+    while (true) {
+      try {
+        await mkdir(lockPath)
+        break
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+        try {
+          const lock = await stat(lockPath)
+          if (Date.now() - lock.mtimeMs > 30_000) {
+            await rm(lockPath, { recursive: true, force: true })
+            continue
+          }
+        } catch {
+          continue
+        }
+        if (Date.now() >= deadline) throw new Error('Timed out waiting for the Agent Zen settings lock.')
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+    }
+    try {
+      return await operation()
+    } finally {
+      await rm(lockPath, { recursive: true, force: true })
+    }
   }
 
   private async persist(settings: SettingsFile): Promise<void> {

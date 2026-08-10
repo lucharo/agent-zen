@@ -157,19 +157,22 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## Where do Ideas and Logbook notes live, and why were mock ideas visible?
 
-**Short answer:** They live only in browser localStorage under `agent-zen.state.v1`. The visible mock ideas were mistakenly shipped as production defaults; production now starts empty and migrates known prototype records away.
+**Short answer:** Ideas and Logbook notes live only in browser localStorage under `agent-zen.state.v1`. Interface preferences and focus settings live in `~/.agent-zen/settings.json`, so they survive browser sessions and are shared by Agent Zen windows.
 
-The current persisted schema is version 3 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Version 3 also moves existing installs to Titles once, after which a deliberate Details choice persists normally. Registered projects, focus settings, and Agent Zen-owned thread identity instead live in `~/.agent-zen/settings.json`.
+The browser data schema is version 4 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Older browser-owned choices are copied once into the bridge, then browser storage is reduced to projects needed by local Ideas, Ideas themselves, and Logbook notes. A separate theme key remains only to avoid a light-theme flash before React connects; bridge settings correct it on startup.
+
+The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, Titles or Details, Ideas folding, focus enablement and focus limit. Registered projects and Agent Zen-owned thread identity also remain local bridge state.
 
 Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross-machine sync is not implemented.
 
 ### Sources
 
 - [Local persistence](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/state/persistence.ts) — empty defaults, schema migration, and exact prototype IDs.
+- [UI preference contract](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/preferences.ts) — bridge-owned preference fields and safe defaults.
 - [Persistence tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/domain/derivation.test.ts) — prototype removal and user-data preservation.
 - [Settings store](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/settings.ts) — bridge-owned durable settings.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/version: local schema v2_
+_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: browser schema v4, settings schema v2_
 
 ## Where did “113 finished sessions in history” come from?
 

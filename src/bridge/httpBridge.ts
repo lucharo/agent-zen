@@ -4,6 +4,7 @@ import {
   type LaunchSessionPayload,
   type LaunchSessionResponse,
 } from './types'
+import type { UiPreferences } from '@/domain/preferences'
 
 export interface AgentZenBridge {
   readonly mode: 'live'
@@ -11,6 +12,7 @@ export interface AgentZenBridge {
   subscribe(listener: (snapshot: BridgeSnapshot) => void): () => void
   refresh(): Promise<BridgeSnapshot>
   setFocus(enabled: boolean, limit: number): Promise<BridgeSnapshot>
+  setPreferences(preferences: UiPreferences): Promise<BridgeSnapshot>
   registerProjects(candidateIds: readonly string[]): Promise<BridgeSnapshot>
   launch(payload: LaunchSessionPayload): Promise<LaunchSessionResponse>
   interrupt(threadId: string): Promise<void>
@@ -33,6 +35,7 @@ const EMPTY: BridgeSnapshot = {
     activeCount: 0,
     availability: { allowed: true, reason: 'limit-disabled' },
   },
+  preferences: null,
   projects: [],
   projectCandidates: [],
 }
@@ -62,6 +65,7 @@ export function createHttpBridge(
     try {
       const response = await fetch(`${baseUrl}${pathname}`, {
         ...init,
+        cache: 'no-store',
         signal: controller.signal,
         headers: {
           ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
@@ -83,16 +87,20 @@ export function createHttpBridge(
     }
   }
 
+  const acceptSnapshot = (snapshot: BridgeSnapshot) => {
+    if (snapshot.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+      throw new Error('Restart Agent Zen: the dashboard and local bridge are from different builds.')
+    }
+    emit(snapshot)
+    return snapshot
+  }
+
   const refresh = async () => {
     if (polling) return current
     polling = true
     try {
       const snapshot = await request<BridgeSnapshot>('/api/snapshot')
-      if (snapshot.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
-        throw new Error('Restart Agent Zen: the dashboard and local bridge are from different builds.')
-      }
-      emit(snapshot)
-      return snapshot
+      return acceptSnapshot(snapshot)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const snapshot: BridgeSnapshot = {
@@ -114,11 +122,10 @@ export function createHttpBridge(
 
   const updateSnapshot = async (pathname: string, body: unknown) => {
     const snapshot = await request<BridgeSnapshot>(pathname, {
-      method: pathname.includes('/focus') ? 'PUT' : 'POST',
+      method: pathname.includes('/settings/') ? 'PUT' : 'POST',
       body: JSON.stringify(body),
     })
-    emit(snapshot)
-    return snapshot
+    return acceptSnapshot(snapshot)
   }
 
   return {
@@ -140,20 +147,22 @@ export function createHttpBridge(
       }
     },
     refresh,
-    setFocus: (enabled, limit) => updateSnapshot('/api/settings/focus', { enabled, limit }),
+    setFocus: (enabled, limit) => updateSnapshot('/api/v4/settings/focus', { enabled, limit }),
+    setPreferences: (preferences) =>
+      updateSnapshot('/api/v4/settings/preferences', preferences),
     registerProjects: (candidateIds) =>
-      updateSnapshot('/api/projects/register', { candidateIds }),
+      updateSnapshot('/api/v4/projects/register', { candidateIds }),
     launch: (payload) =>
-      request<LaunchSessionResponse>('/api/sessions/launch', {
+      request<LaunchSessionResponse>('/api/v4/sessions/launch', {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
     interrupt: async (threadId) => {
-      await request(`/api/sessions/${encodeURIComponent(threadId)}/interrupt`, { method: 'POST' })
+      await request(`/api/v4/sessions/${encodeURIComponent(threadId)}/interrupt`, { method: 'POST' })
       await refresh()
     },
     steer: async (threadId, prompt) => {
-      await request(`/api/sessions/${encodeURIComponent(threadId)}/steer`, {
+      await request(`/api/v4/sessions/${encodeURIComponent(threadId)}/steer`, {
         method: 'POST',
         body: JSON.stringify({ prompt }),
       })

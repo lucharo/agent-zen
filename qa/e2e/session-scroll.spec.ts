@@ -1,5 +1,6 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import type { BridgeSnapshot } from '../../src/bridge/types'
+import { DEFAULT_UI_PREFERENCES } from '../../src/domain/preferences'
 import type { AgentSession } from '../../src/domain/types'
 
 const project = {
@@ -46,7 +47,7 @@ const session = (index: number): AgentSession => ({
 })
 
 const snapshot: BridgeSnapshot = {
-  protocolVersion: 3,
+  protocolVersion: 4,
   generatedAt: '2026-08-07T10:00:00.000Z',
   connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
   sessions: [
@@ -65,13 +66,27 @@ const snapshot: BridgeSnapshot = {
     activeCount: 8,
     availability: { allowed: true, reason: 'limit-disabled' },
   },
+  preferences: DEFAULT_UI_PREFERENCES,
   projects: [project],
   projectCandidates: [{ ...project, defaultBranch: 'main' }],
 }
 
+async function routeSnapshot(page: Page, initial: BridgeSnapshot) {
+  let current = structuredClone(initial)
+  await page.route('**/api/v4/settings/preferences', async (route) => {
+    current = {
+      ...current,
+      preferences: route.request().postDataJSON(),
+      generatedAt: new Date().toISOString(),
+    }
+    await route.fulfill({ json: current })
+  })
+  await page.route('**/api/snapshot', (route) => route.fulfill({ json: current }))
+}
+
 test('the board owns horizontal scrolling while columns own vertical scrolling', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 })
-  await page.route('**/api/snapshot', (route) => route.fulfill({ json: snapshot }))
+  await routeSnapshot(page, snapshot)
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'Running session 1' })).toBeVisible()
   await expect(page.getByText('1 subagent')).toBeVisible()
@@ -103,7 +118,7 @@ test('the board owns horizontal scrolling while columns own vertical scrolling',
 
 test('the session grid uses one compact card size with content anchored at the top', async ({ page }) => {
   await page.setViewportSize({ width: 1150, height: 760 })
-  await page.route('**/api/snapshot', (route) => route.fulfill({ json: snapshot }))
+  await routeSnapshot(page, snapshot)
   await page.goto('/')
   await page.getByRole('button', { name: 'Grid' }).first().click()
   await expect(page.getByRole('button', { name: 'Titles only' })).toHaveAttribute('aria-pressed', 'true')
@@ -155,7 +170,7 @@ test('the session grid uses one compact card size with content anchored at the t
 
 test('the wide toolbar stays bounded and shortcut hints remain contextual', async ({ page }) => {
   await page.setViewportSize({ width: 2048, height: 900 })
-  await page.route('**/api/snapshot', (route) => route.fulfill({ json: snapshot }))
+  await routeSnapshot(page, snapshot)
   await page.goto('/')
 
   const toolbar = page.getByRole('banner', { name: 'Agent Zen toolbar' })
@@ -172,7 +187,7 @@ test('the wide toolbar stays bounded and shortcut hints remain contextual', asyn
 })
 
 test('quick capture stays on the selected field while live state refreshes', async ({ page }) => {
-  await page.route('**/api/snapshot', (route) => route.fulfill({ json: snapshot }))
+  await routeSnapshot(page, snapshot)
   await page.goto('/')
   await page.keyboard.press('c')
 

@@ -99,16 +99,25 @@ function activeExternalSession(id = 'thread-external'): AgentSession {
 function dependencies(client: FakeClient): BridgeServiceDependencies {
   const settings: BridgeServiceDependencies['settings'] = {
     read: async () => ({
-      version: 1,
+      version: 2,
       focus: { enabled: false, limit: 3 },
+      preferences: null,
       projectRoots: ['/repo'],
       registeredProjectDirectories: ['/repo'],
     }),
     registeredProjects: async () => [project],
     discoverProjects: async () => [] as ProjectCandidate[],
     setFocus: async (focus) => ({
-      version: 1,
+      version: 2,
       focus,
+      preferences: null,
+      projectRoots: ['/repo'],
+      registeredProjectDirectories: ['/repo'],
+    }),
+    setPreferences: async (preferences) => ({
+      version: 2,
+      focus: { enabled: false, limit: 3 },
+      preferences,
       projectRoots: ['/repo'],
       registeredProjectDirectories: ['/repo'],
     }),

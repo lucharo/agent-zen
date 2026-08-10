@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '@/App'
 import { createFixtureSessionSource } from '@/adapters/fixtureSource'
 import type { AgentZenBridge } from '@/bridge/httpBridge'
 import type { BridgeSnapshot } from '@/bridge/types'
+import { selectUiPreferences, type UiPreferences } from '@/domain/preferences'
 import { STORAGE_KEY, createInitialState } from '@/state/persistence'
 import { SEED_PROJECTS, seedIdeas, seedLogbook } from '@/state/seed'
 import { AgentZenProvider } from '@/state/store'
@@ -45,7 +46,7 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 3,
+  protocolVersion: 4,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
   sessions: [],
@@ -55,6 +56,7 @@ const disconnectedSnapshot: BridgeSnapshot = {
     activeCount: 0,
     availability: { allowed: true, reason: 'limit-disabled' },
   },
+  preferences: null,
   projects: [],
   projectCandidates: [],
 }
@@ -69,6 +71,7 @@ function disconnectedBridge(): AgentZenBridge {
     },
     refresh: async () => disconnectedSnapshot,
     setFocus: async () => disconnectedSnapshot,
+    setPreferences: async () => disconnectedSnapshot,
     registerProjects: async () => disconnectedSnapshot,
     launch: async () => {
       throw new Error('offline')
@@ -82,6 +85,53 @@ function pendingBridge(): AgentZenBridge {
   return {
     ...disconnectedBridge(),
     subscribe: () => () => undefined,
+  }
+}
+
+function preferenceBridge(preferences: UiPreferences, connected = true) {
+  const writes: UiPreferences[] = []
+  const listeners = new Set<(snapshot: BridgeSnapshot) => void>()
+  let writeFailures = 0
+  let snapshot: BridgeSnapshot = {
+    ...disconnectedSnapshot,
+    connection: connected
+      ? { connected: true, label: 'Live Codex', userAgent: 'test', error: null }
+      : disconnectedSnapshot.connection,
+    preferences: selectUiPreferences(preferences),
+  }
+  const bridge: AgentZenBridge = {
+    ...disconnectedBridge(),
+    snapshot: () => snapshot,
+    subscribe: (listener) => {
+      listeners.add(listener)
+      listener(snapshot)
+      return () => listeners.delete(listener)
+    },
+    refresh: async () => snapshot,
+    setPreferences: async (next) => {
+      writes.push(next)
+      if (writeFailures > 0) {
+        writeFailures -= 1
+        throw new Error('temporary settings failure')
+      }
+      snapshot = { ...snapshot, preferences: next }
+      return snapshot
+    },
+  }
+  return {
+    bridge,
+    writes,
+    emit(next: UiPreferences) {
+      snapshot = {
+        ...snapshot,
+        preferences: selectUiPreferences(next),
+        generatedAt: new Date().toISOString(),
+      }
+      for (const listener of listeners) listener(snapshot)
+    },
+    failNextWrite() {
+      writeFailures += 1
+    },
   }
 }
 
@@ -183,6 +233,140 @@ describe('the board', () => {
 })
 
 describe('navigation', () => {
+  it('loads UI preferences from the bridge and writes changes back without browser-owned settings', async () => {
+    const storage = createMemoryStorage()
+    const { bridge, writes } = preferenceBridge({
+      theme: 'dark',
+      view: 'ideas',
+      projectFilter: null,
+      ideaGroupBy: 'project',
+      ideaLayout: 'list',
+      sessionLayout: 'grid',
+      kanbanGroupBy: 'project',
+      kanbanCardDetail: 'details',
+      ideasFolded: true,
+    })
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={storage}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Ideas' })).toHaveAttribute('aria-selected', 'true')
+      expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    })
+
+    await user.click(screen.getByRole('button', { name: /Theme: Dark/ }))
+    await waitFor(() => expect(writes.at(-1)?.theme).toBe('system'))
+
+    const browserState = JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}') as Record<string, unknown>
+    expect(browserState.theme).toBeUndefined()
+    expect(browserState.view).toBeUndefined()
+  })
+
+  it('migrates existing browser preferences into bridge settings once', async () => {
+    const storage = createMemoryStorage()
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      ...createInitialState(NOW),
+      theme: 'dark',
+      view: 'ideas',
+      sessionLayout: 'grid',
+      kanbanCardDetail: 'details',
+    }))
+    const { bridge, writes } = preferenceBridge({
+      ...createInitialState(NOW),
+      projectFilter: null,
+    })
+    const emptySnapshot = { ...bridge.snapshot(), preferences: null }
+    const migratingBridge: AgentZenBridge = {
+      ...bridge,
+      snapshot: () => emptySnapshot,
+      subscribe: (listener) => {
+        listener(emptySnapshot)
+        return () => undefined
+      },
+    }
+
+    render(
+      <AgentZenProvider bridge={migratingBridge} now={NOW} storage={storage}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await waitFor(() => expect(writes).toHaveLength(1))
+    expect(writes[0]).toMatchObject({
+      theme: 'dark',
+      view: 'ideas',
+      sessionLayout: 'grid',
+      kanbanCardDetail: 'details',
+    })
+  })
+
+  it('hydrates preferences even while Codex itself is disconnected', async () => {
+    const { bridge } = preferenceBridge({
+      ...createInitialState(NOW),
+      theme: 'dark',
+      view: 'ideas',
+      projectFilter: null,
+    }, false)
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Ideas' })).toHaveAttribute('aria-selected', 'true')
+      expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    })
+  })
+
+  it('accepts preference changes from another Agent Zen window without writing them back', async () => {
+    const initial = {
+      ...createInitialState(NOW),
+      projectFilter: null,
+    }
+    const { bridge, emit, writes } = preferenceBridge(initial)
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Sessions' })).toHaveAttribute('aria-selected', 'true'))
+
+    act(() => emit({ ...initial, theme: 'dark', view: 'ideas', sessionLayout: 'grid' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Ideas' })).toHaveAttribute('aria-selected', 'true')
+      expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    })
+    expect(writes).toEqual([])
+  })
+
+  it('retries a transient preference write without losing the visible choice', async () => {
+    const initial = {
+      ...createInitialState(NOW),
+      projectFilter: null,
+    }
+    const { bridge, writes, failNextWrite } = preferenceBridge(initial)
+    failNextWrite()
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: /Theme: System/ })).toBeVisible())
+
+    await user.click(screen.getByRole('button', { name: /Theme: System/ }))
+
+    expect(screen.getByRole('button', { name: /Theme: Light/ })).toBeVisible()
+    await waitFor(() => expect(writes).toHaveLength(2), { timeout: 2_500 })
+    expect(writes.at(-1)?.theme).toBe('light')
+  })
+
   it('reveals contextual shortcut hints while Command is held', () => {
     mount()
 

@@ -2,6 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BridgeSnapshot } from './types'
 import { createHttpBridge, resolveBridgeBaseUrl, SNAPSHOT_POLL_INTERVAL_MS } from './httpBridge'
 
+const preferences = {
+  theme: 'dark',
+  view: 'ideas',
+  projectFilter: null,
+  ideaGroupBy: 'project',
+  ideaLayout: 'list',
+  sessionLayout: 'grid',
+  kanbanGroupBy: 'project',
+  kanbanCardDetail: 'details',
+  ideasFolded: true,
+} as const
+
 afterEach(() => vi.unstubAllGlobals())
 
 describe('resolveBridgeBaseUrl', () => {
@@ -49,5 +61,62 @@ describe('bridge compatibility', () => {
       expect(seen.at(-1)?.sessions).toEqual([])
     })
     unsubscribe()
+  })
+
+  it('persists UI preferences through the local settings endpoint', async () => {
+    const snapshot: BridgeSnapshot = {
+      protocolVersion: 4,
+      generatedAt: new Date().toISOString(),
+      connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
+      sessions: [],
+      focus: {
+        enabled: false,
+        limit: 3,
+        activeCount: 0,
+        availability: { allowed: true, reason: 'limit-disabled' },
+      },
+      preferences,
+      projects: [],
+      projectCandidates: [],
+    }
+    const fetch = vi.fn(async () => Response.json(snapshot))
+    vi.stubGlobal('fetch', fetch)
+    const bridge = createHttpBridge('http://127.0.0.1:9999')
+
+    await bridge.setPreferences(preferences)
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:9999/api/v4/settings/preferences',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify(preferences),
+        cache: 'no-store',
+      }),
+    )
+  })
+
+  it('refuses stale bridge mutation responses', async () => {
+    const fetch = vi.fn(async () => Response.json({
+      protocolVersion: 3,
+      generatedAt: new Date().toISOString(),
+      connection: { connected: true, label: 'Old bridge', userAgent: null, error: null },
+      sessions: [],
+      focus: {
+        enabled: false,
+        limit: 3,
+        activeCount: 0,
+        availability: { allowed: true, reason: 'limit-disabled' },
+      },
+      projects: [],
+      projectCandidates: [],
+    }))
+    vi.stubGlobal('fetch', fetch)
+    const bridge = createHttpBridge('http://127.0.0.1:9999')
+
+    await expect(bridge.setFocus(true, 2)).rejects.toThrow(/different builds/i)
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:9999/api/v4/settings/focus',
+      expect.objectContaining({ method: 'PUT' }),
+    )
   })
 })

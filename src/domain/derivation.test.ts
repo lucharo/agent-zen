@@ -256,7 +256,7 @@ describe('persistence', () => {
     )
 
     const migrated = loadState(storage, NOW)
-    expect(migrated.version).toBe(3)
+    expect(migrated.version).toBe(4)
     expect(migrated.kanbanCardDetail).toBe('titles')
 
     saveState(storage, { ...migrated, kanbanCardDetail: 'details' })

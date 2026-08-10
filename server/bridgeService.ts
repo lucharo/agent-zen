@@ -6,6 +6,7 @@ import type {
   LaunchSessionResponse,
 } from '../src/bridge/types'
 import { BRIDGE_PROTOCOL_VERSION } from '../src/bridge/types'
+import type { UiPreferences } from '../src/domain/preferences'
 import type { AppServerNotification, CodexAppServerClient } from './codex/appServerClient'
 import type { CodexStateObserver } from './codex/stateObserver'
 import {
@@ -17,7 +18,7 @@ import type { AgentZenSettingsStore } from './settings'
 
 type BridgeSettings = Pick<
   AgentZenSettingsStore,
-  'read' | 'registeredProjects' | 'discoverProjects' | 'setFocus' | 'registerProjects'
+  'read' | 'registeredProjects' | 'discoverProjects' | 'setFocus' | 'setPreferences' | 'registerProjects'
 >
 
 type BridgeObserver = Pick<CodexStateObserver, 'snapshot'>
@@ -149,6 +150,7 @@ export class AgentZenBridgeService {
         activeCount,
         availability: launchAvailability(activeCount, settings.focus.enabled, settings.focus.limit),
       },
+      preferences: settings.preferences,
       projects,
       projectCandidates,
     }
@@ -163,6 +165,11 @@ export class AgentZenBridgeService {
 
   async setFocus(enabled: boolean, limit: number): Promise<BridgeSnapshot> {
     await this.dependencies.settings.setFocus({ enabled, limit })
+    return this.snapshot()
+  }
+
+  async setPreferences(preferences: UiPreferences): Promise<BridgeSnapshot> {
+    await this.dependencies.settings.setPreferences(preferences)
     return this.snapshot()
   }
 

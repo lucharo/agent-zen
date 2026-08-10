@@ -43,7 +43,7 @@ Do not require the agent to maintain another task ledger. Each native plan updat
 
 The local HTTP bridge binds only to `127.0.0.1`, validates loopback `Host` and allowed `Origin` values on every route, and never exposes an arbitrary cwd launch. Launch requests must reference a registered project. Existing external sessions remain read-only; steering and interruption require a thread launched by the current Agent Zen app-server connection. Control ownership is process-scoped and is not restored after a bridge restart.
 
-Every snapshot carries a bridge protocol version. A newer dashboard refuses a stale bridge response and asks for a restart instead of rendering structurally valid but misleading old data.
+Every snapshot carries a bridge protocol version. A newer dashboard refuses a stale bridge response and asks for a restart instead of rendering structurally valid but misleading old data. Mutating routes include the protocol version in their URL, so an older bridge rejects an unfamiliar write before changing local state.
 
 The rollout observer keeps the latest lifecycle and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. It does not infer a second plan or ask the agent to republish one.
 

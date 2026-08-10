@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -17,9 +18,16 @@ import type {
 import { createFixtureProjectDiscoverySource } from '@/adapters/fixtureProjectSource'
 import type { AgentZenBridge } from '@/bridge/httpBridge'
 import type { BridgeSnapshot, LaunchSessionResponse } from '@/bridge/types'
+import { selectUiPreferences } from '@/domain/preferences'
 import { activeSessionCount, deriveStage, launchAvailability } from '@/domain/stage'
 import type { AgentSession, LogbookNote, Project, Stage } from '@/domain/types'
-import { loadState, resolveTheme, saveState, type PersistedState } from './persistence'
+import {
+  loadState,
+  resolveTheme,
+  saveHumanState,
+  saveState,
+  type PersistedState,
+} from './persistence'
 import { reducer, type Action } from './reducer'
 
 export interface BoardSession {
@@ -91,6 +99,8 @@ export function AgentZenProvider({
   const discoverySource = useRef(projectSource ?? createFixtureProjectDiscoverySource()).current
 
   const [state, dispatch] = useReducer(reducer, undefined, () => loadState(store, bootNow))
+  const stateRef = useRef(state)
+  stateRef.current = state
   const [sessions, setSessions] = useState<readonly AgentSession[]>(() =>
     bridge ? [] : sessionSource.snapshot(),
   )
@@ -98,6 +108,16 @@ export function AgentZenProvider({
     bridge ? bridge.snapshot() : null,
   )
   const [bridgeReady, setBridgeReady] = useState(!bridge)
+  const [preferenceBridgeReady, setPreferenceBridgeReady] = useState(!bridge)
+  const preferencesHydrated = useRef(!bridge)
+  const preferenceMigrationStarted = useRef(false)
+  const serverPreferencesSignature = useRef<string | null>(null)
+  const localPreferencesDirty = useRef(false)
+  const pendingPreferenceWrites = useRef(0)
+  const lastQueuedPreferences = useRef<string | null>(null)
+  const preferenceWriteQueue = useRef<Promise<void>>(Promise.resolve())
+  const preferenceRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [preferenceRetryVersion, setPreferenceRetryVersion] = useState(0)
   const [clock, setClock] = useState(bootNow)
   const [prefersDark, setPrefersDark] = useState(() =>
     typeof window === 'undefined'
@@ -105,11 +125,82 @@ export function AgentZenProvider({
       : (window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false),
   )
 
+  const enqueuePreferences = useCallback((preferences: ReturnType<typeof selectUiPreferences>) => {
+    if (!bridge) return Promise.resolve()
+    const signature = JSON.stringify(preferences)
+    if (signature === lastQueuedPreferences.current) return preferenceWriteQueue.current
+    lastQueuedPreferences.current = signature
+    pendingPreferenceWrites.current += 1
+    const operation = preferenceWriteQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        const snapshot = await bridge.setPreferences(preferences)
+        setBridgeSnapshot(snapshot)
+        const persisted = snapshot.preferences ?? preferences
+        serverPreferencesSignature.current = JSON.stringify(persisted)
+        if (JSON.stringify(selectUiPreferences(stateRef.current)) === signature) {
+          localPreferencesDirty.current = false
+        }
+      })
+      .catch((error) => {
+        localPreferencesDirty.current = true
+        if (!preferenceRetryTimer.current) {
+          preferenceRetryTimer.current = setTimeout(() => {
+            preferenceRetryTimer.current = null
+            setPreferenceRetryVersion((version) => version + 1)
+          }, 1_000)
+        }
+        throw error
+      })
+      .finally(() => {
+        pendingPreferenceWrites.current -= 1
+        if (lastQueuedPreferences.current === signature) lastQueuedPreferences.current = null
+      })
+    preferenceWriteQueue.current = operation.then(() => undefined, () => undefined)
+    return operation
+  }, [bridge])
+
   useEffect(() => {
     if (bridge) {
       return bridge.subscribe((snapshot) => {
         setBridgeSnapshot(snapshot)
         setBridgeReady(true)
+        dispatch({ type: 'set-active-limit-enabled', enabled: snapshot.focus.enabled })
+        dispatch({ type: 'set-active-limit', limit: snapshot.focus.limit })
+
+        if (snapshot.preferences !== null) {
+          const previousServerSignature = serverPreferencesSignature.current
+          const currentSignature = JSON.stringify(selectUiPreferences(stateRef.current))
+          const hasUnpersistedLocalChange =
+            localPreferencesDirty.current ||
+            pendingPreferenceWrites.current > 0 ||
+            (preferencesHydrated.current &&
+              previousServerSignature !== null &&
+              currentSignature !== previousServerSignature)
+          const incomingSignature = JSON.stringify(snapshot.preferences)
+          serverPreferencesSignature.current = incomingSignature
+          if (!preferencesHydrated.current || !hasUnpersistedLocalChange) {
+            dispatch({ type: 'sync-ui-preferences', preferences: snapshot.preferences })
+            localPreferencesDirty.current = false
+          }
+          preferencesHydrated.current = true
+          setPreferenceBridgeReady(true)
+        } else if (
+          !preferencesHydrated.current &&
+          !preferenceMigrationStarted.current
+        ) {
+          preferenceMigrationStarted.current = true
+          const preferences = selectUiPreferences(stateRef.current)
+          localPreferencesDirty.current = true
+          void enqueuePreferences(preferences).then(() => {
+            preferencesHydrated.current = true
+            preferenceMigrationStarted.current = false
+            setPreferenceBridgeReady(true)
+          }).catch(() => {
+            preferenceMigrationStarted.current = false
+          })
+        }
+
         if (
           !snapshot.connection.connected &&
           snapshot.sessions.length === 0 &&
@@ -128,7 +219,11 @@ export function AgentZenProvider({
       })
     }
     return sessionSource.subscribe(setSessions)
-  }, [bridge, sessionSource])
+  }, [bridge, enqueuePreferences, sessionSource])
+
+  useEffect(() => () => {
+    if (preferenceRetryTimer.current) clearTimeout(preferenceRetryTimer.current)
+  }, [])
 
   useEffect(() => {
     if (now !== undefined) return
@@ -137,8 +232,22 @@ export function AgentZenProvider({
   }, [now])
 
   useEffect(() => {
-    saveState(store, state)
-  }, [store, state])
+    if (bridge && !preferenceBridgeReady) return
+    if (bridge) saveHumanState(store, state)
+    else saveState(store, state)
+  }, [bridge, preferenceBridgeReady, store, state])
+
+  useEffect(() => {
+    if (!bridge || !preferenceBridgeReady) return
+    const preferences = selectUiPreferences(state)
+    const signature = JSON.stringify(preferences)
+    if (signature === serverPreferencesSignature.current) {
+      localPreferencesDirty.current = false
+      return
+    }
+    localPreferencesDirty.current = true
+    void enqueuePreferences(preferences).catch(() => undefined)
+  }, [bridge, enqueuePreferences, preferenceBridgeReady, preferenceRetryVersion, state])
 
   const resolvedTheme = resolveTheme(state.theme, prefersDark)
 

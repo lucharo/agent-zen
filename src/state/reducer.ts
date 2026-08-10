@@ -9,6 +9,7 @@ import type {
   ThemeChoice,
   View,
 } from '@/domain/types'
+import type { UiPreferences } from '@/domain/preferences'
 import { newId, type PersistedState } from './persistence'
 
 export interface CaptureDraft {
@@ -31,6 +32,7 @@ export type Action =
   | { type: 'toggle-ideas-fold' }
   | { type: 'set-active-limit-enabled'; enabled: boolean }
   | { type: 'set-active-limit'; limit: number }
+  | { type: 'sync-ui-preferences'; preferences: UiPreferences }
   | {
       type: 'sync-bridge-settings'
       projects: readonly Project[]
@@ -77,6 +79,9 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
 
     case 'set-active-limit':
       return { ...state, activeLimit: Math.min(9, Math.max(1, action.limit)) }
+
+    case 'sync-ui-preferences':
+      return { ...state, ...action.preferences }
 
     case 'sync-bridge-settings': {
       const remap = new Map<string, string>()

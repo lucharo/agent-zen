@@ -1,5 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
+import type { BridgeSnapshot } from '../../src/bridge/types'
+import { DEFAULT_UI_PREFERENCES } from '../../src/domain/preferences'
 
 async function expectAccessible(page: Page, surface: string) {
   const results = await new AxeBuilder({ page })
@@ -9,6 +11,24 @@ async function expectAccessible(page: Page, surface: string) {
 }
 
 test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
+  let preferences = DEFAULT_UI_PREFERENCES
+  let latestSnapshot: BridgeSnapshot | null = null
+  await page.route('**/api/v4/settings/preferences', async (route) => {
+    preferences = route.request().postDataJSON()
+    if (!latestSnapshot) throw new Error('Preference mutation arrived before the first snapshot.')
+    latestSnapshot = {
+      ...latestSnapshot,
+      generatedAt: new Date().toISOString(),
+      preferences,
+    }
+    await route.fulfill({ json: latestSnapshot })
+  })
+  await page.route('**/api/snapshot', async (route) => {
+    const response = await route.fetch()
+    const snapshot = await response.json()
+    latestSnapshot = { ...snapshot, preferences }
+    await route.fulfill({ response, json: latestSnapshot })
+  })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Running' })).toBeVisible()
   await expect(page.getByRole('button', { name: /Quick capture/ })).toBeVisible()
