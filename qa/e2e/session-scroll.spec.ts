@@ -168,6 +168,38 @@ test('the session grid uses one compact card size with content anchored at the t
   expect(new Set(detailHeights)).toEqual(new Set([252]))
 })
 
+test('the session grid keeps narrow rows centred instead of clinging left', async ({ page }) => {
+  await page.setViewportSize({ width: 655, height: 1_222 })
+  await routeSnapshot(page, snapshot)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Grid' }).first().click()
+
+  const layout = await page.locator('[aria-label="Session grid"] ul').first().evaluate((grid) => {
+    const bounds = grid.getBoundingClientRect()
+    const cards = [...grid.querySelectorAll<HTMLElement>('[data-card-id]')]
+      .map((card) => card.getBoundingClientRect())
+    const rows = new Map<number, DOMRect[]>()
+    for (const card of cards) {
+      const top = Math.round(card.top)
+      rows.set(top, [...(rows.get(top) ?? []), card])
+    }
+    return {
+      gridWidth: bounds.width,
+      cardWidths: cards.map((card) => card.width),
+      rowMargins: [...rows.values()].map((row) => ({
+        left: row[0]!.left - bounds.left,
+        right: bounds.right - row.at(-1)!.right,
+      })),
+    }
+  })
+
+  expect(layout.gridWidth).toBe(623)
+  expect(new Set(layout.cardWidths)).toEqual(new Set([260]))
+  expect(layout.rowMargins).toHaveLength(4)
+  expect(layout.rowMargins.every((row) => Math.abs(row.left - row.right) <= 1)).toBe(true)
+  expect(layout.rowMargins.every((row) => row.left > 40)).toBe(true)
+})
+
 test('the wide toolbar stays bounded and shortcut hints remain contextual', async ({ page }) => {
   await page.setViewportSize({ width: 2048, height: 900 })
   await routeSnapshot(page, snapshot)
