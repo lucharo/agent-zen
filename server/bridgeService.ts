@@ -258,6 +258,7 @@ export class AgentZenBridgeService {
   }
 
   private async catalogNames(threadIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    if (!this.connection.connected) return new Map()
     const entries = await Promise.all(threadIds.map(async (threadId): Promise<[string, string] | null> => {
       try {
         const result = await this.dependencies.client.request<ThreadReadResult>('thread/read', {
@@ -289,14 +290,14 @@ export class AgentZenBridgeService {
       })
       threadId = thread.thread.id
       const startedAt = new Date(this.now()).toISOString()
+      this.ownedThreads.set(threadId, this.dependencies.client.connectionGeneration)
+      this.transientSessions.set(threadId, transientSession(thread, request, startedAt))
       const turn = await this.dependencies.client.request<TurnStartResult>('turn/start', {
         threadId,
         input: [{ type: 'text', text: request.prompt, text_elements: [] }],
         model: request.model ?? undefined,
         effort: request.effort ?? undefined,
       })
-      this.ownedThreads.set(threadId, this.dependencies.client.connectionGeneration)
-      this.transientSessions.set(threadId, transientSession(thread, request, startedAt))
       const previous = this.overlays.get(threadId) ?? {}
       this.overlays.set(threadId, {
         ...previous,

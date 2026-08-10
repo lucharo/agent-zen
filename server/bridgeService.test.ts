@@ -15,6 +15,7 @@ class FakeClient {
   isConnected = true
   connectionGeneration = 1
   failTurn = false
+  failConnects = 0
   threadNames = new Map<string, string>()
   readonly requests: string[] = []
   readonly requestCalls: Array<{ method: string; params: unknown }> = []
@@ -22,6 +23,11 @@ class FakeClient {
   private readonly listeners = new Set<(notification: AppServerNotification) => void>()
 
   async connect(): Promise<Record<string, unknown>> {
+    if (this.failConnects > 0) {
+      this.failConnects -= 1
+      this.isConnected = false
+      throw new Error('connect failed')
+    }
     this.isConnected = true
     return { userAgent: 'fake-app-server' }
   }
@@ -172,6 +178,52 @@ describe('AgentZenBridgeService ownership', () => {
     await expect(service.interrupt('thread-owned')).rejects.toThrow(
       'controlled by another Codex process',
     )
+  })
+
+  test('retries a failed connection through start instead of reconnecting during name lookup', async () => {
+    const client = new FakeClient()
+    client.isConnected = false
+    client.failConnects = 1
+    client.threadNames.set('thread-external', 'Renamed after reconnect')
+    const deps = dependencies(client)
+    const service = new AgentZenBridgeService({
+      ...deps,
+      observer: { snapshot: async () => [activeExternalSession()] },
+    })
+
+    const first = await service.snapshot()
+    expect(first.connection.connected).toBe(false)
+    expect(first.sessions[0]?.title).toBe('External live work')
+    expect(client.requests).not.toContain('thread/read')
+
+    const second = await service.snapshot()
+    expect(second.connection.connected).toBe(true)
+    expect(second.sessions[0]?.title).toBe('Renamed after reconnect')
+  })
+
+  test('owns a new thread before turn/start emits lifecycle notifications', async () => {
+    const client = new FakeClient()
+    const originalRequest = client.request.bind(client)
+    client.request = async <T>(method: string, params?: unknown): Promise<T> => {
+      if (method === 'turn/start') {
+        client.notify({
+          method: 'turn/plan/updated',
+          params: {
+            threadId: 'thread-owned',
+            plan: [{ step: 'Retain the early plan', status: 'inProgress' }],
+          },
+        })
+      }
+      return originalRequest<T>(method, params)
+    }
+    const service = new AgentZenBridgeService(dependencies(client))
+    await service.start()
+
+    await service.launch({ projectId: project.id, prompt: 'Do the work' })
+
+    expect((await service.snapshot()).sessions[0]?.plan?.steps).toEqual([
+      { step: 'Retain the early plan', status: 'in_progress' },
+    ])
   })
 
   test('keeps an owned session visible and idle after its current turn completes', async () => {
@@ -375,6 +427,7 @@ describe('AgentZenBridgeService ownership', () => {
       ...base,
       observer: { snapshot: async () => [activeExternalSession()] },
     })
+    await service.start()
 
     const snapshot = await service.snapshot()
 

@@ -319,6 +319,48 @@ describe('persistence', () => {
   })
 })
 
+describe('project reconciliation', () => {
+  it('does not remap an idea to an unrelated repository with the same directory name', () => {
+    const previous = {
+      id: 'old-tools',
+      name: 'tools',
+      directory: '/Users/test/Projects/github.com/first/tools',
+      repository: 'first/tools',
+    }
+    const unrelated = {
+      id: 'new-tools',
+      name: 'tools',
+      directory: '/Users/test/Projects/github.com/second/tools',
+      repository: 'second/tools',
+    }
+    const state = {
+      ...createInitialState(NOW),
+      projects: [previous],
+      projectFilter: previous.id,
+      ideas: [{
+        id: 'idea',
+        title: 'Keep its identity',
+        notes: '',
+        projectId: previous.id,
+        repository: previous.repository,
+        action: 'keep-idea' as const,
+        createdAt: new Date(NOW).toISOString(),
+      }],
+    }
+
+    const reconciled = reducer(state, {
+      type: 'sync-bridge-settings',
+      projects: [unrelated],
+      knownProjectIds: [unrelated.id],
+      activeLimitEnabled: false,
+      activeLimit: 3,
+    })
+
+    expect(reconciled.ideas[0]?.projectId).toBeNull()
+    expect(reconciled.projectFilter).toBeNull()
+  })
+})
+
 describe('logbook ownership', () => {
   it('stamps every note as human-authored and only ever appends', () => {
     const at = createInitialState(NOW)

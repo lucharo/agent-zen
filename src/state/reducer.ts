@@ -89,8 +89,7 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
         const replacement = action.projects.find(
           (project) =>
             (previous.repository && project.repository === previous.repository) ||
-            project.directory === previous.directory ||
-            project.name === previous.name,
+            project.directory === previous.directory,
         )
         if (replacement) remap.set(previous.id, replacement.id)
       }

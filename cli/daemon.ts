@@ -1,6 +1,7 @@
 import { dirname, join, resolve } from 'node:path'
 
 export const DAEMON_LABEL = 'io.lucharo.agent-zen'
+export const DAEMON_START_TIMEOUT_MS = 20_000
 export const DAEMON_STOP_TIMEOUT_MS = 15_000
 
 export interface DaemonPaths {

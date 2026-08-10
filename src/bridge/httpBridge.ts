@@ -61,14 +61,18 @@ export function createHttpBridge(
     for (const listener of listeners) listener(snapshot)
   }
 
-  const request = async <T>(pathname: string, init?: RequestInit): Promise<T> => {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 12_000)
+  const request = async <T>(
+    pathname: string,
+    init?: RequestInit,
+    timeoutMs: number | null = 12_000,
+  ): Promise<T> => {
+    const controller = timeoutMs === null ? null : new AbortController()
+    const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs ?? 0) : null
     try {
       const response = await fetch(`${baseUrl}${pathname}`, {
         ...init,
         cache: 'no-store',
-        signal: controller.signal,
+        ...(controller ? { signal: controller.signal } : {}),
         headers: {
           ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
           ...init?.headers,
@@ -85,7 +89,7 @@ export function createHttpBridge(
       }
       return body as T
     } finally {
-      clearTimeout(timeout)
+      if (timeout) clearTimeout(timeout)
     }
   }
 
@@ -158,7 +162,7 @@ export function createHttpBridge(
       request<LaunchSessionResponse>('/api/v4/sessions/launch', {
         method: 'POST',
         body: JSON.stringify(payload),
-      }),
+      }, null),
     interrupt: async (threadId) => {
       await request(`/api/v4/sessions/${encodeURIComponent(threadId)}/interrupt`, { method: 'POST' })
       await refresh()

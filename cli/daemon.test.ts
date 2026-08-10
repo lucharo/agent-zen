@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   canReuseHealthyDaemon,
   DAEMON_LABEL,
+  DAEMON_START_TIMEOUT_MS,
   defaultDaemonPaths,
   hasManagedDaemonStopped,
   isLaunchAtLoginConfigured,
@@ -14,6 +15,10 @@ import {
 } from './daemon'
 
 describe('Agent Zen daemon contract', () => {
+  test('allows Codex initialization to finish before declaring startup failed', () => {
+    expect(DAEMON_START_TIMEOUT_MS).toBeGreaterThan(15_000)
+  })
+
   test('places installed assets beneath the CLI prefix and state beneath home', () => {
     expect(defaultDaemonPaths({
       home: '/Users/tester',

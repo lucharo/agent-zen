@@ -8,6 +8,7 @@ import packageJson from '../package.json'
 import {
   canReuseHealthyDaemon,
   DAEMON_LABEL,
+  DAEMON_START_TIMEOUT_MS,
   DAEMON_STOP_TIMEOUT_MS,
   defaultDaemonPaths,
   hasManagedDaemonStopped,
@@ -186,7 +187,7 @@ async function startDaemon(report: boolean): Promise<void> {
         ])
         return isOwnedHealthy(nextLaunchd, nextHealth)
       },
-      { timeoutMs: 10_000, message: 'Agent Zen did not become healthy' },
+      { timeoutMs: DAEMON_START_TIMEOUT_MS, message: 'Agent Zen did not become healthy' },
     )
   } catch (error) {
     await run(['/bin/launchctl', 'bootout', current.target])

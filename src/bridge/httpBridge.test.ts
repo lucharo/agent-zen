@@ -132,6 +132,20 @@ describe('bridge compatibility', () => {
     )
   })
 
+  it('does not client-abort a non-idempotent session launch', async () => {
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.signal).toBeUndefined()
+      return Response.json({ threadId: 'thread-owned', turnId: 'turn-owned' })
+    })
+    vi.stubGlobal('fetch', fetch)
+    const bridge = createHttpBridge('http://127.0.0.1:9999')
+
+    await expect(bridge.launch({ projectId: 'project', prompt: 'Do the work' })).resolves.toEqual({
+      threadId: 'thread-owned',
+      turnId: 'turn-owned',
+    })
+  })
+
   it('refuses stale bridge mutation responses', async () => {
     const fetch = vi.fn(async () => Response.json({
       protocolVersion: 3,
