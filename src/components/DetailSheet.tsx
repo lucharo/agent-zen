@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { deriveStage } from '@/domain/stage'
+import { stageReasonLabel, type ClassifiedAgentSession } from '@/domain/stage'
 import { elapsedSince, formatCaptureTime, formatDuration } from '@/domain/time'
 import {
   STAGE_LABELS,
-  type AgentSession,
   type SessionApprovalDecision,
 } from '@/domain/types'
 import { useAgentZen } from '@/state/store'
@@ -65,9 +64,9 @@ function SessionDetail({
   onClose,
   onOpenSession,
 }: {
-  session: AgentSession
-  parent?: AgentSession
-  children: readonly AgentSession[]
+  session: ClassifiedAgentSession
+  parent?: ClassifiedAgentSession
+  children: readonly ClassifiedAgentSession[]
   onClose: () => void
   onOpenSession: (sessionId: string) => void
 }) {
@@ -77,7 +76,7 @@ function SessionDetail({
   const [controlStatus, setControlStatus] = useState<string | null>(null)
   const [controlling, setControlling] = useState(false)
   const [requestAnswers, setRequestAnswers] = useState<Record<string, string>>({})
-  const stage = deriveStage(session)
+  const stage = session.classification.stage
   const project = projectById(session.projectId)
   const age = elapsedSince(session.createdAt, now)
   const turn = session.activity === 'working' || session.activity === 'awaiting-input'
@@ -175,6 +174,8 @@ function SessionDetail({
           <dl className={styles.meta}>
             <dt>Activity</dt>
             <dd>{activityLabel(session)}</dd>
+            <dt>Stage reason</dt>
+            <dd>{stageReasonLabel(session.classification.reason)}</dd>
             <dt>Model</dt>
             <dd>{session.model}{session.reasoningEffort ? ` · ${session.reasoningEffort}` : ''}</dd>
             <dt>Control</dt>
@@ -562,14 +563,14 @@ function permissionSummary(requested: Readonly<Record<string, unknown>>): string
   return parts.join('\n') || 'Additional Codex permissions'
 }
 
-function attentionSuffix(session: AgentSession): string {
+function attentionSuffix(session: ClassifiedAgentSession): string {
   if (session.activity === 'working') return ' · Working'
   if (session.activity === 'awaiting-input') return ' · Needs you'
   if (session.activity === 'idle') return ' · Idle'
   return ''
 }
 
-function activityLabel(session: AgentSession): string {
+function activityLabel(session: ClassifiedAgentSession): string {
   if (session.activity === 'working') return 'Working on current turn'
   if (session.activity === 'awaiting-input') return 'Needs your input'
   if (session.activity === 'idle') return 'Between turns'

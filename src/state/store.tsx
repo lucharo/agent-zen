@@ -23,8 +23,13 @@ import type {
   SessionRequestResponse,
 } from '@/bridge/types'
 import { selectUiPreferences } from '@/domain/preferences'
-import { activeSessionCount, deriveStage, launchAvailability } from '@/domain/stage'
-import type { AgentSession, LogbookNote, Project, Stage } from '@/domain/types'
+import {
+  activeSessionCount,
+  classifyAgentSession,
+  launchAvailability,
+  type ClassifiedAgentSession,
+} from '@/domain/stage'
+import type { LogbookNote, Project, Stage } from '@/domain/types'
 import {
   loadState,
   resolveTheme,
@@ -35,16 +40,16 @@ import {
 import { reducer, type Action } from './reducer'
 
 export interface BoardSession {
-  readonly session: AgentSession
+  readonly session: ClassifiedAgentSession
   readonly stage: Stage
   readonly project: Project | null
-  readonly children: readonly AgentSession[]
+  readonly children: readonly ClassifiedAgentSession[]
 }
 
 export interface AgentZenValue {
   readonly state: PersistedState
   readonly dispatch: (action: Action) => void
-  readonly sessions: readonly AgentSession[]
+  readonly sessions: readonly ClassifiedAgentSession[]
   readonly board: readonly BoardSession[]
   readonly activeCount: number
   readonly launchAvailability: ReturnType<typeof launchAvailability>
@@ -106,8 +111,8 @@ export function AgentZenProvider({
   const [state, dispatch] = useReducer(reducer, undefined, () => loadState(store, bootNow))
   const stateRef = useRef(state)
   stateRef.current = state
-  const [sessions, setSessions] = useState<readonly AgentSession[]>(() =>
-    bridge ? [] : sessionSource.snapshot(),
+  const [sessions, setSessions] = useState<readonly ClassifiedAgentSession[]>(() =>
+    bridge ? [] : sessionSource.snapshot().map(classifyAgentSession),
   )
   const [bridgeSnapshot, setBridgeSnapshot] = useState<BridgeSnapshot | null>(() =>
     bridge ? bridge.snapshot() : null,
@@ -223,7 +228,7 @@ export function AgentZenProvider({
         })
       })
     }
-    return sessionSource.subscribe(setSessions)
+    return sessionSource.subscribe((next) => setSessions(next.map(classifyAgentSession)))
   }, [bridge, enqueuePreferences, sessionSource])
 
   useEffect(() => () => {
@@ -277,7 +282,7 @@ export function AgentZenProvider({
     for (const project of state.projects) projectCatalog.set(project.id, project)
     const projectById = (id: string | null) => (id ? projectCatalog.get(id) ?? null : null)
 
-    const stageOf = (session: AgentSession) => deriveStage(session)
+    const stageOf = (session: ClassifiedAgentSession) => session.classification.stage
 
     const live = sessions.filter((s) => stageOf(s) !== null)
     const board: BoardSession[] = live

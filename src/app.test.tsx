@@ -46,7 +46,7 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 5,
+  protocolVersion: 6,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
   sessions: [],
@@ -658,6 +658,7 @@ describe('session detail', () => {
           options: [{ label: 'Current session', description: 'Only this session.' }],
         }],
       },
+      classification: { stage: 'planning', reason: 'awaiting-input' } as const,
     }
     const responses: unknown[] = []
     const snapshot: BridgeSnapshot = {
@@ -695,6 +696,42 @@ describe('session detail', () => {
       kind: 'user-input',
       answers: { scope: ['Current session'] },
     }]))
+  })
+
+  it('renders the canonical daemon classification instead of reclassifying the session in the UI', () => {
+    const base = createFixtureSessionSource({ now: NOW, tickMs: 0 }).snapshot()
+    const running = base.find((session) => session.title === 'Revise calm control plane')!
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
+      sessions: [{
+        ...running,
+        classification: {
+          stage: 'wrapping-up',
+          reason: 'explicit-wrapup-invocation',
+        },
+      }],
+      preferences: selectUiPreferences(createInitialState(NOW)),
+      projects: SEED_PROJECTS,
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    expect(within(column('Wrapping up')).getByText('Revise calm control plane')).toBeInTheDocument()
+    expect(within(column('Running')).queryByText('Revise calm control plane')).toBeNull()
   })
 })
 

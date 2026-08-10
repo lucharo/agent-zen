@@ -132,7 +132,7 @@ describe('parseRolloutLines', () => {
     expect(snapshot.pendingInputCallIds).toEqual([])
   })
 
-  test('keeps an explicit review skill marker for the rest of the active turn', () => {
+  test('does not promote a broader implementation turn merely because it reads a review skill', () => {
     const result = parseRolloutLines([
       line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
       line({ timestamp: '2026-08-06T12:00:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Please run the visual review before handoff.' } }),
@@ -148,7 +148,7 @@ describe('parseRolloutLines', () => {
       line({ timestamp: '2026-08-06T12:00:02.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Also check the mobile layout.' } }),
     ])
 
-    expect(result.stageHint).toBe('reviewing')
+    expect(result.stageHint).toBeNull()
   })
 
   test('does not confuse an unrelated workflow helper with review stage', () => {
@@ -228,7 +228,7 @@ describe('parseRolloutLines', () => {
     expect(snapshot.stageHint).toBeNull()
   })
 
-  test('moves to wrapping up when the agent actually loads the wrapup skill', () => {
+  test('does not promote natural-language wrap-up discussion plus a skill read', () => {
     const snapshot = parseRolloutLines([
       line({ timestamp: '2026-08-06T10:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-5' } }),
       line({ timestamp: '2026-08-06T10:01:00.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Okay, we are done, wrap up.' } }),
@@ -239,6 +239,127 @@ describe('parseRolloutLines', () => {
           type: 'custom_tool_call',
           name: 'exec',
           input: 'sed -n \'1,220p\' /Users/me/.refined/skills/engineering/wrapup/SKILL.md',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('recognises an explicit wrapup skill link inside the app request envelope', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-10T16:57:00.382Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-taskflow' } }),
+      line({
+        timestamp: '2026-08-10T16:57:06.345Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: [
+            '# In app browser:',
+            '- Current URL: file:///Users/me/review.html',
+            '',
+            '## My request for Codex:',
+            '',
+            'cool [$wrapup](/Users/me/.refined/skills/engineering/wrapup/SKILL.md)',
+          ].join('\n'),
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBe('wrapping-up')
+  })
+
+  test('ignores workflow skill paths mentioned inside diagnostic tool input', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-10T17:10:10.228Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-diagnosis' } }),
+      line({ timestamp: '2026-08-10T17:10:11.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Investigate why classification is wrong.' } }),
+      line({
+        timestamp: '2026-08-10T17:11:00.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          input: 'Explain why /wrapup/SKILL.md in a diagnostic command must not change stage.',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('requires an explicit skill link label to match its target skill directory', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-10T17:10:10.228Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-link' } }),
+      line({
+        timestamp: '2026-08-10T17:10:11.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: '[$visual-review](/Users/me/.refined/skills/engineering/wrapup/SKILL.md)',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('does not invoke a workflow link quoted as inline code', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-10T17:10:10.228Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-code' } }),
+      line({
+        timestamp: '2026-08-10T17:10:11.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'The `[$wrapup](/Users/me/.refined/skills/engineering/wrapup/SKILL.md)` marker is being misclassified.',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('does not invoke a workflow link negated in the user request', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-10T17:10:10.228Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-negated' } }),
+      line({
+        timestamp: '2026-08-10T17:10:11.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'Do not invoke [$wrapup](/Users/me/.refined/skills/engineering/wrapup/SKILL.md)',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('does not invoke a workflow link used as the subject of a question', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-10T17:10:10.228Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-question' } }),
+      line({
+        timestamp: '2026-08-10T17:10:11.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'Why does [$wrapup](/Users/me/.refined/skills/engineering/wrapup/SKILL.md) change classification?',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('recognises an explicit wrapup skill link after natural acknowledgement', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-10T17:02:29.939Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-demo-project' } }),
+      line({
+        timestamp: '2026-08-10T17:02:30.040Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'right, very cool, i think i am happy after having seen that, more confident that most things have been implemented! [$wrapup](/Users/me/.refined/skills/engineering/wrapup/SKILL.md)',
         },
       }),
     ])

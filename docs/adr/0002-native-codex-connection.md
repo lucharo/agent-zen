@@ -28,10 +28,10 @@ Derive the board stage locally:
 - `Ideas`: Agent Zen-owned idea; no session.
 - `Planning / Idle`: a turn has started without visible work, the process is open between turns, or ordinary work is blocked on native input.
 - `Running`: the current turn is working and visible assistant/tool work has begun, or a native plan exists. A plan is optional.
-- `Reviewing`: the latest turn contains an explicit review command or an observed allow-listed review-skill load.
-- `Wrapping up`: the latest turn contains an explicit wrap-up command or an observed wrap-up skill load.
+- `Reviewing`: the current turn's user request explicitly invokes an allow-listed review command or exact skill link.
+- `Wrapping up`: the current turn's user request explicitly invokes the wrap-up command or exact skill link.
 
-A prose mention is not an invocation. User-message markers are read only from the first non-empty command line; loaded skill paths use an explicit allow-list, so a helper such as `acm-review` cannot accidentally classify ordinary work as Reviewing. A marker persists for the current turn, and wrap-up has precedence over review. The next native `task_started` event resets the current plan and semantic stage marker.
+A prose mention is not an invocation. Neither is a skill path found inside an agent's tool input: searches, diagnostics and helper reads cannot promote the workflow stage. Bare commands are read only from the first non-empty user-request line; exact Markdown skill links are accepted on that line after a recognised app context envelope. A marker persists for the current turn, and wrap-up has precedence over review. The next native `task_started` event resets the current plan and semantic stage marker.
 
 Attention remains explicit on cards. `working`, `idle`, and `awaiting-input` render as Working, Idle, and Needs you. Reviewing and Wrapping up retain their semantic workflow columns while idle or blocked. Ordinary idle or input-blocked work returns to Planning / Idle so Running means the turn is progressing. Native `request_user_input` call ids are correlated with their outputs. Agent Zen-owned sessions answer supported App Server user-input, command, file-change, and exact permission requests directly; unknown request types stay visible and interruptible but fall back to the native Codex client.
 
@@ -43,7 +43,7 @@ Do not require the agent to maintain another task ledger. Each native plan updat
 
 The local HTTP bridge binds only to `127.0.0.1`, validates loopback `Host` and allowed `Origin` values on every route, and never exposes an arbitrary cwd launch. Launch requests must reference a registered project. Existing external sessions remain read-only; steering and interruption require a thread launched by the current Agent Zen app-server connection. Control ownership is process-scoped and is not restored after a bridge restart.
 
-Every snapshot carries a bridge protocol version. A newer dashboard refuses a stale bridge response and asks for a restart instead of rendering structurally valid but misleading old data. Mutating routes include the protocol version in their URL, so an older bridge rejects an unfamiliar write before changing local state.
+Every snapshot carries a bridge protocol version and one canonical `{ stage, reason }` decision per session. The UI and CLI consume that decision rather than classifying independently. A newer dashboard refuses a stale bridge response and asks for a restart instead of rendering structurally valid but misleading old data. Mutating routes include the protocol version in their URL, so an older bridge rejects an unfamiliar write before changing local state.
 
 The rollout observer keeps the latest lifecycle and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. It does not infer a second plan or ask the agent to republish one.
 

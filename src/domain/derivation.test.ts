@@ -3,6 +3,7 @@ import { advancePlan, fixtureSessions } from '@/adapters/fixtureSource'
 import { filterIdeas, groupIdeas } from '@/domain/ideas'
 import {
   activeSessionCount,
+  classifySession,
   currentPlanStep,
   deriveStage,
   launchAvailability,
@@ -27,6 +28,29 @@ const byId = (id: string): AgentSession => {
 }
 
 describe('deriveStage', () => {
+  it('explains every stage with the same decision used for placement', () => {
+    expect(classifySession(byId('sess-tool-update-docs'))).toEqual({
+      stage: null,
+      reason: 'session-ended',
+    })
+    expect(classifySession(byId('sess-index-threads'))).toEqual({
+      stage: 'planning',
+      reason: 'turn-starting',
+    })
+    expect(classifySession(byId('sess-control-plane'))).toEqual({
+      stage: 'running',
+      reason: 'active-plan',
+    })
+    expect(classifySession(byId('sess-harbor-canary'))).toEqual({
+      stage: 'reviewing',
+      reason: 'explicit-review-invocation',
+    })
+    expect(classifySession(byId('sess-retire-dask'))).toEqual({
+      stage: 'wrapping-up',
+      reason: 'explicit-wrapup-invocation',
+    })
+  })
+
   it('drops an ended session off the board rather than into a Done column', () => {
     expect(deriveStage(byId('sess-tool-update-docs'))).toBeNull()
   })

@@ -65,7 +65,7 @@ describe('bridge compatibility', () => {
 
   it('persists UI preferences through the local settings endpoint', async () => {
     const snapshot: BridgeSnapshot = {
-      protocolVersion: 5,
+      protocolVersion: 6,
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
       sessions: [],
@@ -97,7 +97,7 @@ describe('bridge compatibility', () => {
 
   it('answers an owned Codex request through the local bridge', async () => {
     const snapshot: BridgeSnapshot = {
-      protocolVersion: 5,
+      protocolVersion: 6,
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
       sessions: [],

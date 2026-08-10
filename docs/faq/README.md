@@ -65,13 +65,13 @@ _Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10_
 | Ideas | A human-created Agent Zen idea; no Codex session exists yet. |
 | Planning / Idle | A live turn has just started without substantive work, the session is between turns, or ordinary work is blocked on native input. |
 | Running | The latest turn is actively working and has visible assistant/tool activity or a native plan. A plan is optional. |
-| Reviewing | The latest turn begins an allow-listed review action. This is either an explicit command line such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`, or the agent actually loading the matching review skill. |
-| Wrapping up | The latest turn begins wrap-up. This is either an explicit `$wrapup` or `/wrapup` command line, or the agent actually loading the wrap-up skill. It overrides Reviewing and plan-derived placement. |
+| Reviewing | The current turn's user request explicitly invokes an allow-listed review command or skill link such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`. |
+| Wrapping up | The current turn's user request explicitly invokes `$wrapup` or `/wrapup`, either as a command or the exact skill link. It overrides Reviewing and plan-derived placement. |
 | Finished | The owning Codex process closes or unloads the rollout, or the thread is archived. The session then leaves the focus board. There is intentionally no Done column or approximate history counter. |
 
 Attention remains visible on the card: **Working** means the current turn is progressing, **Idle** means the process remains open between turns, and **Needs you** means a native blocking input or approval request is unresolved. Reviewing and Wrapping up retain their workflow columns when idle or blocked; ordinary work returns to Planning / Idle so the Running column contains only progressing turns.
 
-Mentioning a skill in prose does not move the card. User-message markers count only when the first non-empty line is the command. A natural-language request such as “we are done, wrap up” moves only when the agent starts the wrap-up skill. Loaded review skills use an explicit allow-list: `acm-review` no longer misclassifies an ordinary ACM restart as Reviewing. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
+Mentioning a skill in prose does not move the card. Neither does reading, searching, or discussing a `SKILL.md` path inside an agent tool call. A bare command must be the first non-empty line of the user request. The exact Markdown skill link may appear on that first request line, including after the app's context envelope. Natural-language requests and plan prose remain plan/activity-derived until the user explicitly invokes the workflow. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
 
 Agent Zen never turns a bare marker into invented evidence. If no PR, visual result, note count, or wrap-up check count was observed, the card says only “Review in progress” or “Wrapup in progress”.
 
@@ -83,6 +83,21 @@ Agent Zen never turns a bare marker into invented evidence. If no PR, visual res
 - [Stage tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.test.ts) — marker persistence and precedence.
 
 _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
+
+## How can I check why a session is in a column?
+
+**Short answer:** `agent-zen explain <session-id-or-title-prefix>` reports the same stage and stable reason that the daemon sent to the UI. `agent-zen sessions --json` lists that decision for every root session.
+
+The daemon classifies each session once and includes `{ stage, reason }` in the snapshot. The browser renders that decision instead of deriving another one locally; the CLI reads the same snapshot rather than parsing rollout files itself. The centred session detail also shows the human-readable stage reason. A protocol mismatch is rejected so an old daemon and new UI or CLI cannot display apparently comparable but structurally different state.
+
+### Sources
+
+- [Canonical classification](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — one stage-and-reason decision.
+- [Daemon snapshot](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — classified session projection.
+- [CLI session commands](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.ts) — list and explanation output.
+- [UI state](https://github.com/lucharo/agent-zen/blob/main/src/state/store.tsx) — consumes the daemon classification.
+
+_Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 ## Which Codex sessions count as active, and why did idle ones disappear?
 

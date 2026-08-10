@@ -84,8 +84,6 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
       activity = 'working'
     }
 
-    currentStageHint = mergeStageHint(currentStageHint, stageHintFromAgentAction(record))
-
     const update = planUpdateFromRecord(record, timestamp, (plan?.revision ?? 0) + 1)
     if (update) {
       if (plan) planHistory.push(plan)
@@ -188,32 +186,47 @@ function normalisePlanStatus(status: string): PlanStep['status'] | null {
 
 export function stageHintFromMessage(message: string | null): RolloutSnapshot['stageHint'] {
   if (!message) return null
-  const line = message.split('\n').map((candidate) => candidate.trim()).find(Boolean) ?? ''
-  if (/^[\/$]wrapup(?:\s|$)/i.test(line)) return 'wrapping-up'
+  const request = requestBody(message)
+  const line = request.split('\n').map((candidate) => candidate.trim()).find(Boolean) ?? ''
+  const semanticLine = line.startsWith('>') ? '' : line.replace(/`[^`]*`/g, '')
+  const linked = stageHintFromSkillLink(semanticLine)
+  if (linked) return linked
+  if (/^[\/$]wrapup(?:\s|$)/i.test(semanticLine)) return 'wrapping-up'
   if (
-    /^[\/$](?:[a-z0-9]+-)*review(?:-[a-z0-9]+)*(?:\s|$)/i.test(line) ||
-    /^[\/$]webapp-agent-demo(?:\s|$)/i.test(line)
+    /^[\/$](?:[a-z0-9]+-)*review(?:-[a-z0-9]+)*(?:\s|$)/i.test(semanticLine) ||
+    /^[\/$]webapp-agent-demo(?:\s|$)/i.test(semanticLine)
   ) {
     return 'reviewing'
   }
   return null
 }
 
-function stageHintFromAgentAction(record: RolloutRecord): RolloutSnapshot['stageHint'] {
-  const payload = record.payload
-  if (
-    record.type !== 'response_item' ||
-    payload?.type !== 'custom_tool_call' ||
-    typeof payload.input !== 'string'
-  ) {
-    return null
-  }
-  const input = payload.input.replaceAll('\\', '/')
-  if (/\/wrapup\/SKILL\.md\b/i.test(input)) return 'wrapping-up'
-  if (/\/(?:visual-review|webapp-agent-demo|roborev-review(?:-branch)?|roborev-design-review(?:-branch)?)\/SKILL\.md\b/i.test(input)) {
-    return 'reviewing'
+function stageHintFromSkillLink(line: string): RolloutSnapshot['stageHint'] {
+  const links = /\[\s*\$([a-z0-9-]+)\s*\]\(([^)\n]+)\)/gi
+  for (const match of line.matchAll(links)) {
+    const command = match[1]?.toLowerCase()
+    const target = match[2]?.replaceAll('\\', '/').replace(/[?#].*$/, '')
+    if (!command || !target || !target.toLowerCase().endsWith(`/${command}/skill.md`)) continue
+    const before = line.slice(0, match.index).trim()
+    const after = line.slice((match.index ?? 0) + match[0].length).trim()
+    if (!/^[.!?,;:)]*$/.test(after) || linkIsDiscussedRatherThanInvoked(before)) continue
+    if (command === 'wrapup') return 'wrapping-up'
+    if (command === 'webapp-agent-demo' || /(?:^|-)review(?:-|$)/.test(command)) return 'reviewing'
   }
   return null
+}
+
+function linkIsDiscussedRatherThanInvoked(before: string): boolean {
+  return /\b(?:do not|don't|dont)\s+(?:invoke|run|use|start)\b/i.test(before) ||
+    /\b(?:not invoking|not running|not using|not starting|never invoke|never run|avoid invoking|avoid running)\b/i.test(before) ||
+    /^\s*(?:why|how)\s+(?:does|is|can|could|would)\b/i.test(before) ||
+    /\b(?:example|quoted?|literal|classification|misclassif(?:y|ied|ication)?|marker)\b/i.test(before)
+}
+
+function requestBody(message: string): string {
+  const lines = message.split('\n')
+  const marker = lines.findIndex((line) => /^## My request for Codex:\s*$/i.test(line.trim()))
+  return marker === -1 ? message : lines.slice(marker + 1).join('\n')
 }
 
 function isSubstantiveAgentRecord(record: RolloutRecord): boolean {

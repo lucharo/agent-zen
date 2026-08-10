@@ -35,12 +35,17 @@ The installer puts the CLI in `~/.local/bin/agent-zen`. If that directory is not
 ```sh
 agent-zen daemon status
 agent-zen daemon status --json
+agent-zen sessions
+agent-zen sessions --json
+agent-zen explain <session-id-or-title-prefix>
 agent-zen daemon logs --follow
 agent-zen daemon restart
 agent-zen daemon stop
 ```
 
 `daemon start` and `daemon stop` are idempotent. Start installs and enables `io.lucharo.agent-zen`; stop unloads and disables it. The service binds only to loopback. Its LaunchAgent lives at `~/Library/LaunchAgents/io.lucharo.agent-zen.plist`, with logs and settings under `~/.agent-zen/`.
+
+`sessions` and `explain` read the same classified daemon snapshot as the board. `explain` reports the stable stage reason, so a CLI check and the visible column cannot silently use different classifiers.
 
 After updating the repository, run `bun run install:cli` again followed by `agent-zen daemon restart`.
 

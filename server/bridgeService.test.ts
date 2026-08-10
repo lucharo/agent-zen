@@ -145,6 +145,20 @@ function dependencies(client: FakeClient): BridgeServiceDependencies {
 }
 
 describe('AgentZenBridgeService ownership', () => {
+  test('publishes the canonical stage decision in every session snapshot', async () => {
+    const client = new FakeClient()
+    const deps = dependencies(client)
+    const service = new AgentZenBridgeService({
+      ...deps,
+      observer: { snapshot: async () => [activeExternalSession()] },
+    })
+
+    expect((await service.snapshot()).sessions[0]?.classification).toEqual({
+      stage: 'running',
+      reason: 'substantive-activity',
+    })
+  })
+
   test('cleans a partial launch when turn/start fails', async () => {
     const client = new FakeClient()
     client.failTurn = true

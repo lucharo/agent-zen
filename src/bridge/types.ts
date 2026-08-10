@@ -1,14 +1,13 @@
 import type { ProjectCandidate } from '@/adapters/ProjectDiscoverySource'
 import type { UiPreferences } from '@/domain/preferences'
-import type { LaunchAvailability } from '@/domain/stage'
+import type { ClassifiedAgentSession, LaunchAvailability } from '@/domain/stage'
 import type {
-  AgentSession,
   Project,
   SessionApprovalDecision,
   SessionRequestId,
 } from '@/domain/types'
 
-export const BRIDGE_PROTOCOL_VERSION = 5
+export const BRIDGE_PROTOCOL_VERSION = 6
 
 export interface BridgeConnectionStatus {
   readonly connected: boolean
@@ -28,7 +27,7 @@ export interface BridgeSnapshot {
   readonly protocolVersion: number
   readonly generatedAt: string
   readonly connection: BridgeConnectionStatus
-  readonly sessions: readonly AgentSession[]
+  readonly sessions: readonly ClassifiedAgentSession[]
   readonly focus: BridgeFocusState
   readonly preferences: UiPreferences | null
   readonly projects: readonly Project[]

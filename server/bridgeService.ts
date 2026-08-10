@@ -1,4 +1,9 @@
-import { activeSessionCount, deriveStage, launchAvailability } from '../src/domain/stage'
+import {
+  activeSessionCount,
+  classifyAgentSession,
+  deriveStage,
+  launchAvailability,
+} from '../src/domain/stage'
 import type {
   AgentSession,
   PendingSessionRequest,
@@ -148,11 +153,12 @@ export class AgentZenBridgeService {
       projects = await this.dependencies.settings.registerProjects(newlyObservedIds)
     }
     const activeCount = activeSessionCount(sessions, deriveStage)
+    const classifiedSessions = sessions.map(classifyAgentSession)
     return {
       protocolVersion: BRIDGE_PROTOCOL_VERSION,
       generatedAt: new Date(this.now()).toISOString(),
       connection: this.connection,
-      sessions,
+      sessions: classifiedSessions,
       focus: {
         ...settings.focus,
         activeCount,

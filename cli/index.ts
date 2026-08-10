@@ -5,6 +5,7 @@ import { constants } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import packageJson from '../package.json'
+import { BRIDGE_PROTOCOL_VERSION, type BridgeSnapshot } from '../src/bridge/types'
 import {
   canReuseHealthyDaemon,
   DAEMON_LABEL,
@@ -25,14 +26,17 @@ import {
   type LaunchAtLoginState,
   type LaunchctlState,
 } from './daemon'
+import { runExplainCommand, runSessionsCommand } from './sessionCommands'
 
 const DEFAULT_PORT = 5274
+const SNAPSHOT_TIMEOUT_MS = 12_000
 
 interface Runtime {
   readonly paths: DaemonPaths
   readonly port: number
   readonly url: string
   readonly healthUrl: string
+  readonly snapshotUrl: string
   readonly domain: string
   readonly target: string
   readonly codexPath: string
@@ -69,6 +73,14 @@ async function main(args: readonly string[]): Promise<void> {
   }
   if (command === 'open') {
     await openApp()
+    return
+  }
+  if (command === 'sessions') {
+    await runSessionsCommand(rest, { snapshot: liveSnapshot, write: console.log })
+    return
+  }
+  if (command === 'explain') {
+    await runExplainCommand(rest, { snapshot: liveSnapshot, write: console.log })
     return
   }
   if (command !== 'daemon') throw new Error(`Unknown command: ${command}`)
@@ -141,6 +153,7 @@ async function runtime(): Promise<Runtime> {
     port,
     url: `http://localhost:${port}/`,
     healthUrl: `http://127.0.0.1:${port}/api/health`,
+    snapshotUrl: `http://127.0.0.1:${port}/api/snapshot`,
     domain,
     target: `${domain}/${DAEMON_LABEL}`,
     codexPath,
@@ -377,6 +390,22 @@ async function daemonHealth(current: Runtime): Promise<DaemonHealth> {
   }
 }
 
+async function liveSnapshot(): Promise<BridgeSnapshot> {
+  const current = await runtime()
+  let response: Response
+  try {
+    response = await fetch(current.snapshotUrl, { signal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS) })
+  } catch {
+    throw new Error('Agent Zen daemon is unavailable. Run agent-zen daemon start.')
+  }
+  if (!response.ok) throw new Error(`Agent Zen snapshot failed: HTTP ${response.status}`)
+  const snapshot = await response.json() as BridgeSnapshot
+  if (snapshot.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+    throw new Error('Agent Zen CLI and daemon are from different builds. Reinstall and restart Agent Zen.')
+  }
+  return snapshot
+}
+
 function assertNoUnmanagedServer(
   current: Runtime,
   launchd: LaunchctlState,
@@ -485,6 +514,8 @@ Usage:
 
 Commands:
   open       Start the daemon if needed and open Agent Zen
+  sessions   List live root sessions (--json for JSON)
+  explain    Explain one session's stage and reason
   daemon     Manage the background service
   version    Print version information
   help       Show this help`)

@@ -1,5 +1,41 @@
 import type { AgentSession, Stage } from './types'
 
+export type SessionStage = Exclude<Stage, 'ideas'>
+
+export type SessionStageReason =
+  | 'session-ended'
+  | 'explicit-wrapup-invocation'
+  | 'explicit-review-invocation'
+  | 'awaiting-input'
+  | 'between-turns'
+  | 'active-plan'
+  | 'substantive-activity'
+  | 'turn-starting'
+
+export interface SessionClassification {
+  readonly stage: SessionStage | null
+  readonly reason: SessionStageReason
+}
+
+const STAGE_REASON_LABELS: Record<SessionStageReason, string> = {
+  'session-ended': 'Session ended',
+  'explicit-wrapup-invocation': 'Explicit wrap-up invocation',
+  'explicit-review-invocation': 'Explicit review invocation',
+  'awaiting-input': 'Waiting for your input',
+  'between-turns': 'Between turns',
+  'active-plan': 'Active Codex plan',
+  'substantive-activity': 'Visible assistant or tool activity',
+  'turn-starting': 'Turn just started',
+}
+
+export function stageReasonLabel(reason: SessionStageReason): string {
+  return STAGE_REASON_LABELS[reason]
+}
+
+export interface ClassifiedAgentSession extends AgentSession {
+  readonly classification: SessionClassification
+}
+
 /**
  * Where a session sits on the board, or `null` once it has left the focus surface.
  *
@@ -11,20 +47,23 @@ import type { AgentSession, Stage } from './types'
  * session that produced it.
  */
 export function deriveStage(session: AgentSession): Stage | null {
-  if (session.endedAt) return null
-  return nativeStage(session)
+  return classifySession(session).stage
 }
 
-/** Stage implied purely by agent-reported state. */
-export function nativeStage(session: AgentSession): Stage {
-  if (session.wrapup) return 'wrapping-up'
-  if (session.review) return 'reviewing'
-  return planStage(session)
+/** The single stage decision shared by the daemon snapshot, CLI and UI. */
+export function classifySession(session: AgentSession): SessionClassification {
+  if (session.endedAt) return { stage: null, reason: 'session-ended' }
+  if (session.wrapup) return { stage: 'wrapping-up', reason: 'explicit-wrapup-invocation' }
+  if (session.review) return { stage: 'reviewing', reason: 'explicit-review-invocation' }
+  if (session.activity === 'awaiting-input') return { stage: 'planning', reason: 'awaiting-input' }
+  if (session.activity !== 'working') return { stage: 'planning', reason: 'between-turns' }
+  if (session.plan?.steps.length) return { stage: 'running', reason: 'active-plan' }
+  if (session.hasSubstantiveActivity) return { stage: 'running', reason: 'substantive-activity' }
+  return { stage: 'planning', reason: 'turn-starting' }
 }
 
-function planStage(session: AgentSession): Stage {
-  if (session.activity !== 'working') return 'planning'
-  return session.plan?.steps.length || session.hasSubstantiveActivity ? 'running' : 'planning'
+export function classifyAgentSession(session: AgentSession): ClassifiedAgentSession {
+  return { ...session, classification: classifySession(session) }
 }
 
 /** The plan step the agent is on right now, or `null` while planning. */
@@ -56,9 +95,9 @@ export function planProgress(session: AgentSession): PlanProgress | null {
  * are waiting on a human, so neither consumes one. That is why a board showing
  * four session cards can honestly read `Active 2 / 3`.
  */
-export function activeSessionCount(
-  sessions: readonly AgentSession[],
-  stageOf: (session: AgentSession) => Stage | null,
+export function activeSessionCount<T extends AgentSession>(
+  sessions: readonly T[],
+  stageOf: (session: T) => Stage | null,
 ): number {
   return sessions.filter((s) => {
     if (s.parentSessionId) return false
