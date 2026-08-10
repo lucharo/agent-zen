@@ -42,7 +42,6 @@ export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
                     detail={state.kanbanCardDetail}
                     showProject={state.kanbanGroupBy !== 'project'}
                     showStage
-                    showChildren={false}
                   />
                 ))}
               </ul>

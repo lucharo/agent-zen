@@ -42,6 +42,12 @@ describe('deriveStage', () => {
   it('does not expose a local override path for agent-authored placement', () => {
     expect(deriveStage(byId('sess-control-plane'))).toBe('running')
   })
+
+  it('moves planless sessions to Running once native agent work begins', () => {
+    const planning = byId('sess-index-threads')
+    expect(deriveStage({ ...planning, hasSubstantiveActivity: false })).toBe('planning')
+    expect(deriveStage({ ...planning, hasSubstantiveActivity: true })).toBe('running')
+  })
 })
 
 describe('activeSessionCount', () => {

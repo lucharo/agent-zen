@@ -20,7 +20,7 @@ On macOS, the observer asks `lsof` which rollout JSONL files are currently held 
 - [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — SQLite and rollout observation.
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.ts) — observation and App Server control composition.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/version: Codex CLI 0.146-era local stores_
+_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: Codex CLI 0.147.0 local stores_
 
 ## What puts a session in each Sessions stage?
 
@@ -29,13 +29,17 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06 · Scope/ver
 | Stage | Exact qualifying condition |
 | --- | --- |
 | Ideas | A human-created Agent Zen idea; no Codex session exists yet. |
-| Planning | A live Codex process owns the session and its latest turn has no native plan steps. The card can be actively planning or idle between turns. |
-| Running | A live Codex process owns the session and its latest turn has one or more native plan steps. The card can be actively running or idle with its plan retained. |
-| Reviewing | The latest turn begins a review action. This is either an explicit command line such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`, or the agent actually loading a matching review skill. The marker remains while that Codex session stays open. |
+| Planning | A live turn has started, but Codex has not yet emitted visible assistant output, invoked a tool, or published a native plan. |
+| Running | The latest turn has visible assistant/tool activity or a native plan. A plan is optional. If that turn completes while the process remains open, the workflow remains Running and its attention becomes Idle. |
+| Reviewing | The latest turn begins an allow-listed review action. This is either an explicit command line such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`, or the agent actually loading the matching review skill. |
 | Wrapping up | The latest turn begins wrap-up. This is either an explicit `$wrapup` or `/wrapup` command line, or the agent actually loading the wrap-up skill. It overrides Reviewing and plan-derived placement. |
 | Finished | The owning Codex process closes or unloads the rollout, or the thread is archived. The session then leaves the focus board. There is intentionally no Done column or approximate history counter. |
 
-Mentioning a skill in prose does not move the card. For example, “I have not invoked `$wrapup`” remains plan-derived. A natural-language request such as “we are done, wrap up” moves only when the agent starts the wrap-up skill. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
+Attention is a second axis: **Working** means the current turn is progressing, **Idle** means the process remains open between turns, and **Needs you** means a native blocking input or approval request is unresolved. “Waiting for you” is not a separate state.
+
+Mentioning a skill in prose does not move the card. User-message markers count only when the first non-empty line is the command. A natural-language request such as “we are done, wrap up” moves only when the agent starts the wrap-up skill. Loaded review skills use an explicit allow-list: `acm-review` no longer misclassifies an ordinary ACM restart as Reviewing. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
+
+Agent Zen never turns a bare marker into invented evidence. If no PR, visual result, note count, or wrap-up check count was observed, the card says only “Review in progress” or “Wrapup in progress”.
 
 ### Sources
 
@@ -43,15 +47,15 @@ Mentioning a skill in prose does not move the card. For example, “I have not i
 - [Rollout parser](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/rollout.ts) — current-turn lifecycle, plan, review, and wrap-up extraction.
 - [Stage tests](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/rollout.test.ts) — marker persistence and precedence.
 
-_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 ## Which Codex sessions count as active, and why did idle ones disappear?
 
 **Short answer:** A session is active while a live `codex` process holds its rollout file open. Completing a turn makes that session idle; it does not remove the card.
 
-The earlier implementation treated the rollout's latest `task_complete` record as the end of the whole session. That collapsed two different lifecycles: a turn can finish while its terminal, Codex window, or cloud-worktree Codex process remains open for another turn. Agent Zen now inventories open rollout files from live Codex processes, then classifies the latest turn as `working` or `idle`.
+The earlier implementation treated the rollout's latest `task_complete` record as the end of the whole session. That collapsed two different lifecycles: a turn can finish while its terminal, Codex window, or cloud-worktree Codex process remains open for another turn. Agent Zen now inventories open rollout files from live Codex processes, then classifies attention as `working`, `awaiting-input`, or `idle` independently of workflow stage.
 
-This is why `data-pipeline-human-spec` remains visible after “HOLD ON FOR MORE!”: its latest turn completed, but its Codex process still owns the rollout. Child-agent rollouts are discovered by the same mechanism, but never become peer cards: Kanban nests them under their parent, Grid shows a compact subagent count, and the parent detail contains the full navigable list. Closing the owning process or archiving the thread removes it.
+This is why `data-pipeline-human-spec` remains visible after “HOLD ON FOR MORE!”: its latest turn completed, but its Codex process still owns the rollout. Child-agent rollouts are discovered by the same mechanism, but never become peer rows or cards: both Kanban and Grid show only a compact subagent count, and the parent detail contains the full navigable list. Closing the owning process or archiving the thread removes it.
 
 ### Sources
 
@@ -60,7 +64,7 @@ This is why `data-pipeline-human-spec` remains visible after “HOLD ON FOR MORE
 - [Bridge regression](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/bridgeService.test.ts) — Agent Zen-owned turn completion becomes idle rather than disappearing.
 - [Session grid](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/components/SessionGridView.tsx) — root-only peer projection.
 
-_Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-07 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 ## Why did automated RoboRev sessions appear in Planning, and how are they hidden?
 
@@ -77,9 +81,9 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## How and how often does the board refresh?
 
-**Short answer:** The UI requests a fresh snapshot every second. A separate 1-second UI clock updates elapsed-time labels.
+**Short answer:** The UI requests a fresh snapshot every second. Agent Zen-owned App Server events update plan, activity, and blocking requests immediately; a separate 1-second UI clock updates elapsed-time labels.
 
-Each snapshot first inventories rollout files held open by live Codex processes, then queries those exact thread ids from SQLite and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for the latest lifecycle, plan, and stage-marker anchors so state does not disappear merely because it fell outside the tail window.
+Each snapshot first inventories rollout files held open by live Codex processes, then queries those exact thread ids from SQLite and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for lifecycle, plan, stage-marker, substantive-activity, and unresolved-input anchors so state does not disappear merely because it fell outside the tail window.
 
 This is polling, not a hook. The maximum ordinary visible lag is therefore about one second plus local parsing time.
 
@@ -91,7 +95,7 @@ Snapshots also carry a protocol version. If the dashboard and bridge are from di
 - [Codex observer](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/server/codex/stateObserver.ts) — cache, bounded tail, and anchor recovery.
 - [App state provider](https://github.com/lucharo/agent-zen/blob/feat/codex-first-prototype/src/state/store.tsx) — 1-second display clock.
 
-_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 ## Are worktrees discovered and linked to their main project?
 

@@ -31,9 +31,11 @@ interface SessionOverlay {
   readonly turnId?: string | null
   readonly turnStartedAt?: string | null
   readonly activity?: AgentSession['activity']
+  readonly hasSubstantiveActivity?: boolean
   readonly endedAt?: string | null
   readonly plan?: Plan | null
   readonly planHistory?: readonly PlanRevision[]
+  readonly pendingRequestId?: number | string | null
 }
 
 interface ThreadStartResult {
@@ -243,6 +245,7 @@ export class AgentZenBridgeService {
           ? new Date(turn.turn.startedAt * 1000).toISOString()
           : startedAt,
         activity: 'working',
+        hasSubstantiveActivity: false,
         endedAt: null,
       })
       return { threadId, turnId: turn.turn.id }
@@ -277,6 +280,36 @@ export class AgentZenBridgeService {
     if (!this.ownsThreadInCurrentConnection(threadId)) return
     const previous = this.overlays.get(threadId) ?? {}
 
+    if (isBlockingUserRequest(notification)) {
+      this.overlays.set(threadId, {
+        ...previous,
+        activity: 'awaiting-input',
+        hasSubstantiveActivity: true,
+        pendingRequestId: notification.id ?? null,
+      })
+      return
+    }
+    if (notification.method === 'serverRequest/resolved') {
+      const requestId = params.requestId
+      if (previous.pendingRequestId !== null && previous.pendingRequestId === requestId) {
+        this.overlays.set(threadId, {
+          ...previous,
+          activity: 'working',
+          pendingRequestId: null,
+        })
+      }
+      return
+    }
+    if (notification.method === 'item/started' && isObject(params.item)) {
+      if (isSubstantiveItem(params.item.type)) {
+        this.overlays.set(threadId, {
+          ...previous,
+          hasSubstantiveActivity: true,
+        })
+      }
+      return
+    }
+
     if (notification.method === 'turn/started' && isObject(params.turn)) {
       const turn = params.turn
       this.overlays.set(threadId, {
@@ -287,9 +320,11 @@ export class AgentZenBridgeService {
             ? new Date(turn.startedAt * 1000).toISOString()
             : new Date(this.now()).toISOString(),
         activity: 'working',
+        hasSubstantiveActivity: false,
         endedAt: null,
         plan: null,
         planHistory: [],
+        pendingRequestId: null,
       })
       return
     }
@@ -310,6 +345,7 @@ export class AgentZenBridgeService {
       this.overlays.set(threadId, {
         ...previous,
         plan,
+        hasSubstantiveActivity: true,
         planHistory: current ? [...(previous.planHistory ?? []), current] : previous.planHistory ?? [],
       })
       return
@@ -321,6 +357,7 @@ export class AgentZenBridgeService {
         ...previous,
         activity: 'idle',
         endedAt: null,
+        pendingRequestId: null,
       })
     }
   }
@@ -367,6 +404,7 @@ function transientSession(
       : startedAt,
     turnStartedAt: startedAt,
     activity: 'working',
+    hasSubstantiveActivity: false,
     parentSessionId: null,
     cwd: result.thread.cwd,
     repository: null,
@@ -387,6 +425,29 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string | null {
   return typeof value === 'string' ? value : null
+}
+
+function isBlockingUserRequest(notification: AppServerNotification): boolean {
+  if (!notification.method.endsWith('/requestApproval') &&
+    notification.method !== 'item/tool/requestUserInput' &&
+    notification.method !== 'mcpServer/elicitation/request') {
+    return false
+  }
+  if (!notification.params || typeof notification.params !== 'object') return true
+  const params = notification.params as Record<string, unknown>
+  return params.isBlocking !== false
+}
+
+function isSubstantiveItem(type: unknown): boolean {
+  return type === 'agentMessage' ||
+    type === 'commandExecution' ||
+    type === 'fileChange' ||
+    type === 'mcpToolCall' ||
+    type === 'dynamicToolCall' ||
+    type === 'collabAgentToolCall' ||
+    type === 'webSearch' ||
+    type === 'imageView' ||
+    type === 'imageGeneration'
 }
 
 export { FocusLimitReachedError }

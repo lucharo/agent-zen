@@ -1,5 +1,5 @@
 import { currentPlanStep, planProgress } from '@/domain/stage'
-import { formatDuration, elapsedSince, formatSessionTiming } from '@/domain/time'
+import { formatSessionTiming } from '@/domain/time'
 import { STAGE_LABELS, type AgentSession, type KanbanCardDetail } from '@/domain/types'
 import type { BoardSession } from '@/state/store'
 import { StageIcon } from './primitives'
@@ -14,7 +14,6 @@ export interface SessionCardProps {
   detail: KanbanCardDetail
   showProject: boolean
   showStage?: boolean
-  showChildren?: boolean
 }
 
 export function SessionCard({
@@ -26,11 +25,11 @@ export function SessionCard({
   detail,
   showProject,
   showStage = false,
-  showChildren = true,
 }: SessionCardProps) {
   const { session, stage, project, children } = entry
   const progress = planProgress(session)
   const idle = session.activity === 'idle'
+  const needsUser = session.activity === 'awaiting-input'
 
   return (
     <li className={styles.slot}>
@@ -50,33 +49,44 @@ export function SessionCard({
             </span>
           ) : null}
           <h3 className={styles.title}>{session.title}</h3>
-          {detail === 'titles' && idle ? <p className={styles.idle}>Idle</p> : null}
+          {detail === 'titles' && (idle || needsUser) ? (
+            <p
+              className={needsUser ? styles.needs : styles.idle}
+              aria-live={needsUser ? 'polite' : undefined}
+            >
+              {needsUser ? '● Needs you' : 'Idle'}
+            </p>
+          ) : null}
           {detail === 'details' && showProject ? (
             <p className={styles.project}>{project?.name ?? 'Outside a Git project'}</p>
           ) : null}
-          {!showChildren && children.length > 0 ? (
+          {children.length > 0 ? (
             <p className={styles.childSummary}>
               {children.length} {children.length === 1 ? 'subagent' : 'subagents'}
             </p>
           ) : null}
 
           {detail === 'details' && stage === 'planning' ? (
-            <p className={styles.line}>{idle ? 'Idle · no current turn' : 'Starting · plan pending'}</p>
+            <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
+              {needsUser ? '● Needs you' : idle ? 'Idle · between turns' : 'Starting'}
+            </p>
           ) : null}
 
           {detail === 'details' && stage === 'running' ? (
-            <p className={styles.line}>
-              {idle ? 'Idle · plan retained' : currentPlanStep(session) ?? 'Between plan steps'}
+            <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
+              {runningSummary(session)}
             </p>
           ) : null}
 
           {detail === 'details' && stage === 'reviewing' && session.review ? (
-            <p className={styles.line}>{idle ? `Idle · ${reviewSummary(session)}` : reviewSummary(session)}</p>
+            <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
+              {attentionPrefix(session)}{reviewSummary(session)}
+            </p>
           ) : null}
 
           {detail === 'details' && stage === 'wrapping-up' && session.wrapup ? (
-            <p className={styles.line}>
-              {idle ? 'Idle · ' : ''}wrapup · checks {session.wrapup.checksPassed} / {session.wrapup.checksTotal}
+            <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
+              {attentionPrefix(session)}{wrapupSummary(session)}
             </p>
           ) : null}
 
@@ -84,7 +94,9 @@ export function SessionCard({
             <p className={styles.timing}>
               {formatSessionTiming(
                 session.createdAt,
-                session.activity === 'working' ? session.turnStartedAt : null,
+                session.activity === 'working' || session.activity === 'awaiting-input'
+                  ? session.turnStartedAt
+                  : null,
                 now,
               )}
             </p>
@@ -107,46 +119,50 @@ export function SessionCard({
 
         <MetaPopover session={session} />
       </article>
-
-      {showChildren && children.length > 0 ? (
-        <ul className={styles.children} aria-label={`Subagents of ${session.title}`}>
-          {children.map((child) => (
-            <li key={child.id}>
-              <button
-                type="button"
-                className={styles.child}
-                data-card-id={child.id}
-                data-column={columnIndex}
-                data-index={cardIndex}
-                onClick={() => onOpen(child.id)}
-              >
-                <span className={styles.childArrow} aria-hidden="true">
-                  ↳
-                </span>
-                <span className={styles.childTitle}>{child.title}</span>
-                <span className={styles.childTime}>
-                  {child.activity === 'working'
-                    ? formatDuration(elapsedSince(child.turnStartedAt ?? child.createdAt, now) ?? 0)
-                    : 'idle'}
-                </span>
-                <span className="visuallyHidden">Child agent</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </li>
   )
+}
+
+function runningSummary(session: AgentSession): string {
+  const step = currentPlanStep(session)
+  if (session.activity === 'awaiting-input') return `● Needs you · ${step ?? 'waiting on your reply'}`
+  if (session.activity === 'idle') return session.plan ? 'Idle · plan retained' : 'Idle · no plan'
+  return step ?? (session.plan ? 'Between plan steps' : 'Working · no plan')
+}
+
+function attentionPrefix(session: AgentSession): string {
+  if (session.activity === 'awaiting-input') return '● Needs you · '
+  if (session.activity === 'idle') return 'Idle · '
+  return ''
+}
+
+function statusLineClass(needsUser: boolean): string {
+  return needsUser ? `${styles.line} ${styles.needs}` : `${styles.line}`
 }
 
 function reviewSummary(session: AgentSession): string {
   const review = session.review
   if (!review) return ''
-  return [
-    review.visualChecked ? 'Visual checked' : 'Visual pending',
-    review.prReady ? 'PR ready' : 'PR draft',
-    `${review.openNotes} ${review.openNotes === 1 ? 'note' : 'notes'}`,
-  ].join(' · ')
+  const details = [
+    review.visualChecked === null
+      ? null
+      : review.visualChecked ? 'Visual checked' : 'Visual pending',
+    review.pullRequest && review.prReady !== null
+      ? (review.prReady ? 'PR ready' : 'PR draft')
+      : null,
+    review.openNotes === null
+      ? null
+      : `${review.openNotes} ${review.openNotes === 1 ? 'note' : 'notes'}`,
+  ].filter((detail): detail is string => Boolean(detail))
+  return details.length > 0 ? details.join(' · ') : 'Review in progress'
+}
+
+function wrapupSummary(session: AgentSession): string {
+  const wrapup = session.wrapup
+  if (!wrapup || wrapup.checksPassed === null || wrapup.checksTotal === null) {
+    return 'Wrapup in progress'
+  }
+  return `wrapup · checks ${wrapup.checksPassed} / ${wrapup.checksTotal}`
 }
 
 /**
@@ -191,7 +207,7 @@ function MetaPopover({ session }: { session: AgentSession }) {
 
 function activityLabel(session: AgentSession): string {
   if (session.activity === 'working') return 'Turn running'
-  if (session.activity === 'awaiting-input') return 'Awaiting input'
+  if (session.activity === 'awaiting-input') return 'Needs you'
   if (session.activity === 'idle') return 'Session open · between turns'
   return 'Ended'
 }

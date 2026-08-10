@@ -32,6 +32,8 @@ interface CachedRollout {
   readonly lifecycleLine: string | null
   readonly planLine: string | null
   readonly stageLine: string | null
+  readonly activityLine: string | null
+  readonly inputLines: readonly string[]
 }
 
 export interface CodexStateObserverOptions {
@@ -61,7 +63,7 @@ export class CodexStateObserver {
       rows.map((row) => this.toSession(row, projects, activeThreadIds !== null)),
     )
     return activeThreadIds === null
-      ? sessions.filter((session) => session.activity === 'working')
+      ? sessions.filter((session) => session.activity === 'working' || session.activity === 'awaiting-input')
       : sessions
   }
 
@@ -121,12 +123,12 @@ export class CodexStateObserver {
     const updatedMs = row.updated_at_ms ?? row.updated_at * 1000
     const repository = normaliseGitHubRepository(row.git_origin_url)
     const project = resolveProject(projects, row.cwd, repository)
-    const turnActive = rollout.activity === 'working'
+    const turnActive = rollout.activity === 'working' || rollout.activity === 'awaiting-input'
     const review = rollout.stageHint === 'reviewing'
-      ? { visualChecked: false, prReady: false, openNotes: 0, pullRequest: null }
+      ? { visualChecked: null, prReady: null, openNotes: null, pullRequest: null }
       : null
     const wrapup = rollout.stageHint === 'wrapping-up'
-      ? { checksPassed: 0, checksTotal: 1 }
+      ? { checksPassed: null, checksTotal: null }
       : null
 
     return {
@@ -141,7 +143,8 @@ export class CodexStateObserver {
       cliVersion: row.cli_version || null,
       createdAt: new Date(createdMs).toISOString(),
       turnStartedAt: rollout.turnStartedAt,
-      activity: turnActive ? 'working' : processActive ? 'idle' : 'ended',
+      activity: turnActive ? rollout.activity : processActive ? 'idle' : 'ended',
+      hasSubstantiveActivity: rollout.hasSubstantiveActivity,
       parentSessionId: row.parent_thread_id,
       cwd: row.cwd,
       repository,
@@ -175,22 +178,40 @@ export class CodexStateObserver {
     let planLine = tailPlan ?? (sameTurn ? cached?.planLine ?? null : null)
     const tailStage = lastStageLine(lines)
     let stageLine = tailStage ?? (sameTurn ? cached?.stageLine ?? null : null)
+    const tailActivity = lastActivityLine(lines)
+    let activityLine = tailActivity ?? (sameTurn ? cached?.activityLine ?? null : null)
+    let inputLines = sameTurn ? [...(cached?.inputLines ?? [])] : []
     if (!planLine && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
       planLine = await findLastPlanLine(rolloutPath, metadata.size)
     }
     if (!stageLine && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
       stageLine = await findLastStageLine(rolloutPath, metadata.size)
     }
+    if (!activityLine && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
+      activityLine = await findLastActivityLine(rolloutPath, metadata.size)
+    }
+    if (inputLines.length === 0 && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
+      inputLines = await findUnresolvedInputLines(rolloutPath, metadata.size, lifecycleLine)
+    }
     if (planLine && !planBelongsToLifecycle(planLine, lifecycleLine)) planLine = null
     if (stageLine && !lineBelongsToLifecycle(stageLine, lifecycleLine)) stageLine = null
+    if (activityLine && !lineBelongsToLifecycle(activityLine, lifecycleLine)) activityLine = null
 
     const anchors = [
       lifecycleLine && lifecycleLine !== tailLifecycle ? lifecycleLine : null,
       planLine && planLine !== tailPlan ? planLine : null,
       stageLine && stageLine !== tailStage ? stageLine : null,
+      activityLine && activityLine !== tailActivity ? activityLine : null,
+      ...inputLines,
     ].filter((line): line is string => Boolean(line))
     anchors.sort((left, right) => lineTimestamp(left).localeCompare(lineTimestamp(right)))
-    const snapshot = parseRolloutLines([...anchors, ...lines])
+    const combined = [...new Set([...anchors, ...lines])]
+    const snapshot = parseRolloutLines(combined)
+    const pendingInputIds = new Set(snapshot.pendingInputCallIds)
+    inputLines = combined.filter((line) => {
+      const callId = inputRequestCallId(line)
+      return callId ? pendingInputIds.has(callId) : false
+    })
     this.cache.set(rolloutPath, {
       size: metadata.size,
       modifiedAt: metadata.mtimeMs,
@@ -198,6 +219,8 @@ export class CodexStateObserver {
       lifecycleLine,
       planLine,
       stageLine,
+      activityLine,
+      inputLines,
     })
     return snapshot
   }
@@ -223,6 +246,14 @@ function lastStageLine(lines: readonly string[]): string | null {
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index]
     if (line && stageLineType(line)) return line
+  }
+  return null
+}
+
+function lastActivityLine(lines: readonly string[]): string | null {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]
+    if (line && activityLineType(line)) return line
   }
   return null
 }
@@ -299,6 +330,81 @@ async function findLastStageLine(filePath: string, size: number): Promise<string
   }
 }
 
+async function findLastActivityLine(filePath: string, size: number): Promise<string | null> {
+  return findLastMatchingLine(filePath, size, activityLineType)
+}
+
+async function findLastMatchingLine(
+  filePath: string,
+  size: number,
+  matches: (line: string) => boolean,
+): Promise<string | null> {
+  const handle = await open(filePath, 'r')
+  const chunkSize = 512 * 1024
+  let position = size
+  let carry = ''
+  try {
+    while (position > 0) {
+      const start = Math.max(0, position - chunkSize)
+      const length = position - start
+      const bytes = Buffer.alloc(length)
+      await handle.read(bytes, 0, length, start)
+      const combined = bytes.toString('utf8') + carry
+      const lines = combined.split('\n')
+      carry = lines.shift() ?? ''
+      for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const line = lines[index]
+        if (line && matches(line)) return line
+      }
+      position = start
+    }
+    return carry && matches(carry) ? carry : null
+  } finally {
+    await handle.close()
+  }
+}
+
+async function findUnresolvedInputLines(
+  filePath: string,
+  size: number,
+  lifecycleLine: string,
+): Promise<string[]> {
+  const handle = await open(filePath, 'r')
+  const chunkSize = 512 * 1024
+  const lifecycleTimestamp = lineTimestamp(lifecycleLine)
+  const resolved = new Set<string>()
+  const unresolved: string[] = []
+  let position = size
+  let carry = ''
+  try {
+    while (position > 0) {
+      const start = Math.max(0, position - chunkSize)
+      const length = position - start
+      const bytes = Buffer.alloc(length)
+      await handle.read(bytes, 0, length, start)
+      const combined = bytes.toString('utf8') + carry
+      const lines = combined.split('\n')
+      carry = lines.shift() ?? ''
+      for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const line = lines[index]
+        if (!line || lineTimestamp(line) < lifecycleTimestamp) return unresolved.reverse()
+        const outputId = inputResolutionCallId(line)
+        if (outputId) resolved.add(outputId)
+        const requestId = inputRequestCallId(line)
+        if (requestId && !resolved.has(requestId)) unresolved.push(line)
+      }
+      position = start
+    }
+    if (carry && lineTimestamp(carry) >= lifecycleTimestamp) {
+      const requestId = inputRequestCallId(carry)
+      if (requestId && !resolved.has(requestId)) unresolved.push(carry)
+    }
+    return unresolved.reverse()
+  } finally {
+    await handle.close()
+  }
+}
+
 function lifecycleType(line: string): 'task_started' | 'task_complete' | 'turn_aborted' | null {
   if (!line.includes('task_started') && !line.includes('task_complete') && !line.includes('turn_aborted')) {
     return null
@@ -325,6 +431,46 @@ function planLineType(line: string): boolean {
 function stageLineType(line: string): boolean {
   if (!line.includes('user_message') && !line.includes('SKILL.md')) return false
   return parseRolloutLines([line]).stageHint !== null
+}
+
+function activityLineType(line: string): boolean {
+  if (!line.includes('agent_message') && !line.includes('response_item')) return false
+  return parseRolloutLines([line]).hasSubstantiveActivity
+}
+
+function inputRequestCallId(line: string): string | null {
+  if (!line.includes('request_user_input')) return null
+  try {
+    const record = JSON.parse(line) as {
+      type?: string
+      payload?: { type?: string; name?: string; call_id?: string }
+    }
+    return record.type === 'response_item' &&
+      record.payload?.type === 'function_call' &&
+      record.payload.name === 'request_user_input' &&
+      typeof record.payload.call_id === 'string'
+      ? record.payload.call_id
+      : null
+  } catch {
+    return null
+  }
+}
+
+function inputResolutionCallId(line: string): string | null {
+  if (!line.includes('function_call_output')) return null
+  try {
+    const record = JSON.parse(line) as {
+      type?: string
+      payload?: { type?: string; call_id?: string }
+    }
+    return record.type === 'response_item' &&
+      record.payload?.type === 'function_call_output' &&
+      typeof record.payload.call_id === 'string'
+      ? record.payload.call_id
+      : null
+  } catch {
+    return null
+  }
 }
 
 function planBelongsToLifecycle(planLine: string, lifecycleLine: string | null): boolean {

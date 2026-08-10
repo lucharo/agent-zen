@@ -22,6 +22,7 @@ const session = (index: number): AgentSession => ({
   createdAt: '2026-08-07T08:00:00.000Z',
   turnStartedAt: '2026-08-07T09:00:00.000Z',
   activity: index === 1 ? 'idle' : 'working',
+  hasSubstantiveActivity: true,
   parentSessionId: null,
   cwd: project.directory,
   repository: project.repository,
@@ -45,7 +46,7 @@ const session = (index: number): AgentSession => ({
 })
 
 const snapshot: BridgeSnapshot = {
-  protocolVersion: 2,
+  protocolVersion: 3,
   generatedAt: '2026-08-07T10:00:00.000Z',
   connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
   sessions: [
@@ -73,6 +74,8 @@ test('the board owns horizontal scrolling while columns own vertical scrolling',
   await page.route('**/api/snapshot', (route) => route.fulfill({ json: snapshot }))
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'Running session 1' })).toBeVisible()
+  await expect(page.getByText('1 subagent')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Child review worker/ })).toHaveCount(0)
 
   const pageOverflow = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,

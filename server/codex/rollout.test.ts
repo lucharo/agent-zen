@@ -29,6 +29,7 @@ describe('parseRolloutLines', () => {
     ])
 
     expect(result.activity).toBe('working')
+    expect(result.hasSubstantiveActivity).toBe(true)
     expect(result.turnId).toBe('turn-1')
     expect(result.turnStartedAt).toBe('2026-08-06T12:00:00.000Z')
     expect(result.plan?.explanation).toBe('Bridge is live.')
@@ -50,6 +51,87 @@ describe('parseRolloutLines', () => {
     expect(result.endedAt).toBe('2026-08-06T12:10:00.000Z')
   })
 
+  test('distinguishes planless work from a just-started turn', () => {
+    const justStarted = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({ timestamp: '2026-08-06T12:00:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Update dotfiles' } }),
+    ])
+    const working = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({ timestamp: '2026-08-06T12:00:01.000Z', type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: 'git status --short' } }),
+    ])
+
+    expect(justStarted.hasSubstantiveActivity).toBe(false)
+    expect(working.hasSubstantiveActivity).toBe(true)
+    expect(working.plan).toBeNull()
+  })
+
+  test('counts visible assistant and tool work, but not user input or hidden reasoning', () => {
+    const records = [
+      { payload: { type: 'message', role: 'assistant' }, expected: true },
+      { payload: { type: 'function_call', name: 'wait', call_id: 'call-1' }, expected: true },
+      { payload: { type: 'web_search_call' }, expected: true },
+      { payload: { type: 'message', role: 'user' }, expected: false },
+      { payload: { type: 'reasoning' }, expected: false },
+    ]
+
+    for (const [index, record] of records.entries()) {
+      const snapshot = parseRolloutLines([
+        line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+        line({ timestamp: `2026-08-06T12:00:0${index + 1}.000Z`, type: 'response_item', payload: record.payload }),
+      ])
+      expect(snapshot.hasSubstantiveActivity).toBe(record.expected)
+    }
+  })
+
+  test('marks an unresolved native input request as needing the user', () => {
+    const waiting = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({ timestamp: '2026-08-06T12:01:00.000Z', type: 'response_item', payload: { type: 'function_call', name: 'request_user_input', call_id: 'call-1' } }),
+    ])
+    const resumed = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({ timestamp: '2026-08-06T12:01:00.000Z', type: 'response_item', payload: { type: 'function_call', name: 'request_user_input', call_id: 'call-1' } }),
+      line({ timestamp: '2026-08-06T12:02:00.000Z', type: 'response_item', payload: { type: 'function_call_output', call_id: 'call-1' } }),
+    ])
+
+    expect(waiting.activity).toBe('awaiting-input')
+    expect(waiting.hasSubstantiveActivity).toBe(true)
+    expect(resumed.activity).toBe('working')
+  })
+
+  test('keeps needing the user until every matching input request resolves', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({ timestamp: '2026-08-06T12:01:00.000Z', type: 'response_item', payload: { type: 'function_call', name: 'request_user_input', call_id: 'call-1' } }),
+      line({ timestamp: '2026-08-06T12:01:01.000Z', type: 'response_item', payload: { type: 'function_call', name: 'request_user_input', call_id: 'call-2' } }),
+      line({ timestamp: '2026-08-06T12:01:02.000Z', type: 'response_item', payload: { type: 'function_call_output', call_id: 'wrong-call' } }),
+      line({ timestamp: '2026-08-06T12:01:03.000Z', type: 'response_item', payload: { type: 'function_call_output', call_id: 'call-1' } }),
+    ])
+
+    expect(snapshot.activity).toBe('awaiting-input')
+    expect(snapshot.pendingInputCallIds).toEqual(['call-2'])
+  })
+
+  test('does not mark an auto-resolving input request as needing the user', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({
+        timestamp: '2026-08-06T12:01:00.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'function_call',
+          name: 'request_user_input',
+          call_id: 'call-1',
+          arguments: JSON.stringify({ autoResolutionMs: 60_000, questions: [] }),
+        },
+      }),
+    ])
+
+    expect(snapshot.activity).toBe('working')
+    expect(snapshot.pendingInputCallIds).toEqual([])
+  })
+
   test('keeps an explicit review skill marker for the rest of the active turn', () => {
     const result = parseRolloutLines([
       line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
@@ -67,6 +149,25 @@ describe('parseRolloutLines', () => {
     ])
 
     expect(result.stageHint).toBe('reviewing')
+  })
+
+  test('does not confuse an unrelated workflow helper with review stage', () => {
+    const result = parseRolloutLines([
+      line({ timestamp: '2026-08-07T17:04:48.999Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({ timestamp: '2026-08-07T17:04:49.065Z', type: 'event_msg', payload: { type: 'user_message', message: 'Restart ACM without losing the current state.' } }),
+      line({
+        timestamp: '2026-08-07T17:04:58.980Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          input: "sed -n '1,260p' /Users/me/.agents/skills/acm-review/SKILL.md",
+        },
+      }),
+    ])
+
+    expect(result.stageHint).toBeNull()
+    expect(result.hasSubstantiveActivity).toBe(true)
   })
 
   test('moves from review to wrapping up only on an explicit wrapup invocation', () => {
@@ -104,6 +205,22 @@ describe('parseRolloutLines', () => {
         payload: {
           type: 'user_message',
           message: 'Sometimes I mention $wrapup while explaining the stage, but I am not invoking it.',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('does not treat a quoted standalone command later in prose as an invocation', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-06T10:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-4' } }),
+      line({
+        timestamp: '2026-08-06T10:01:00.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'The documentation contains this example:\n$wrapup\nDo not invoke it.',
         },
       }),
     ])

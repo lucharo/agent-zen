@@ -1,4 +1,5 @@
 export interface AppServerNotification {
+  readonly id?: number | string
   readonly method: string
   readonly params?: unknown
 }
@@ -15,7 +16,7 @@ interface PendingRequest {
 }
 
 interface RpcMessage {
-  readonly id?: number
+  readonly id?: number | string
   readonly method?: string
   readonly params?: unknown
   readonly result?: unknown
@@ -209,6 +210,11 @@ export class CodexAppServerClient {
     } catch {
       return
     }
+    if (message.method) {
+      const notification = { id: message.id, method: message.method, params: message.params }
+      for (const listener of this.listeners) listener(notification)
+      return
+    }
     if (typeof message.id === 'number') {
       const pending = this.pending.get(message.id)
       if (!pending) return
@@ -220,10 +226,6 @@ export class CodexAppServerClient {
         pending.resolve(message.result)
       }
       return
-    }
-    if (message.method) {
-      const notification = { method: message.method, params: message.params }
-      for (const listener of this.listeners) listener(notification)
     }
   }
 

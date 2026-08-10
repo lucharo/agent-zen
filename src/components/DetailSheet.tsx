@@ -74,13 +74,15 @@ function SessionDetail({
   const stage = deriveStage(session)
   const project = projectById(session.projectId)
   const age = elapsedSince(session.createdAt, now)
-  const turn = session.activity === 'working' ? elapsedSince(session.turnStartedAt, now) : null
+  const turn = session.activity === 'working' || session.activity === 'awaiting-input'
+    ? elapsedSince(session.turnStartedAt, now)
+    : null
 
   return (
     <>
       <SheetHeader
         title={session.title}
-        subtitle={`${parent ? 'Subagent · ' : ''}${stage ? STAGE_LABELS[stage] : 'History'}${session.activity === 'idle' ? ' · Idle' : ''} · ${project?.name ?? 'Outside a Git project'}`}
+        subtitle={`${parent ? 'Subagent · ' : ''}${stage ? STAGE_LABELS[stage] : 'History'}${attentionSuffix(session)} · ${project?.name ?? 'Outside a Git project'}`}
         onClose={onClose}
       />
 
@@ -118,7 +120,11 @@ function SessionDetail({
               ) : null}
             </>
           ) : (
-            <p className={styles.planMeta}>No plan yet. Codex publishes one when it has scoped the work.</p>
+            <p className={styles.planMeta}>
+              {stage === 'planning'
+                ? 'No plan or substantive agent work yet.'
+                : 'No plan published. This turn can still be active.'}
+            </p>
           )}
 
           {session.planHistory.length > 0 ? (
@@ -162,7 +168,7 @@ function SessionDetail({
 
           <dl className={styles.meta}>
             <dt>Activity</dt>
-            <dd>{session.activity === 'working' ? 'Current turn running' : 'Session open · between turns'}</dd>
+            <dd>{activityLabel(session)}</dd>
             <dt>Model</dt>
             <dd>{session.model}{session.reasoningEffort ? ` · ${session.reasoningEffort}` : ''}</dd>
             <dt>Control</dt>
@@ -216,7 +222,7 @@ function SessionDetail({
                   >
                     <span className={styles.subagentTitle}>{child.title}</span>
                     <span className={styles.subagentMeta}>
-                      {child.activity === 'working' ? 'Running' : 'Idle'} · {child.model}
+                      {activityLabel(child)} · {child.model}
                     </span>
                   </button>
                 </li>
@@ -289,6 +295,20 @@ function SessionDetail({
       </div>
     </>
   )
+}
+
+function attentionSuffix(session: AgentSession): string {
+  if (session.activity === 'working') return ' · Working'
+  if (session.activity === 'awaiting-input') return ' · Needs you'
+  if (session.activity === 'idle') return ' · Idle'
+  return ''
+}
+
+function activityLabel(session: AgentSession): string {
+  if (session.activity === 'working') return 'Working on current turn'
+  if (session.activity === 'awaiting-input') return 'Needs your input'
+  if (session.activity === 'idle') return 'Between turns'
+  return 'Ended'
 }
 
 function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }) {

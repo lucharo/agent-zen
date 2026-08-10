@@ -12,6 +12,9 @@ input.on('line', (raw) => {
       explanation: null,
       plan: [{ step: 'Build bridge', status: 'inProgress' }],
     })
+    request(7, 'item/tool/requestUserInput', {
+      threadId: 'thread-owned', turnId: 'turn-owned', itemId: 'item-input', isBlocking: true,
+    })
   } else if (message.method === 'thread/list') {
     respond(message.id, { data: [], nextCursor: null, backwardsCursor: null })
   } else if (message.method === 'thread/read') {
@@ -25,4 +28,8 @@ function respond(id: number | undefined, result: unknown) {
 
 function notify(method: string, params: unknown) {
   process.stdout.write(`${JSON.stringify({ method, params })}\n`)
+}
+
+function request(id: number, method: string, params: unknown) {
+  process.stdout.write(`${JSON.stringify({ id, method, params })}\n`)
 }

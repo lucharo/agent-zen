@@ -4,11 +4,13 @@ export interface RolloutSnapshot {
   readonly turnId: string | null
   readonly turnStartedAt: string | null
   readonly activity: SessionActivity
+  readonly hasSubstantiveActivity: boolean
   readonly endedAt: string | null
   readonly latestUserMessage: string | null
   readonly plan: Plan | null
   readonly planHistory: readonly PlanRevision[]
   readonly stageHint: 'reviewing' | 'wrapping-up' | null
+  readonly pendingInputCallIds: readonly string[]
 }
 
 interface RolloutRecord {
@@ -23,11 +25,13 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
   let turnId: string | null = null
   let turnStartedAt: string | null = null
   let activity: SessionActivity = 'idle'
+  let hasSubstantiveActivity = false
   let endedAt: string | null = null
   let latestUserMessage: string | null = null
   let currentStageHint: RolloutSnapshot['stageHint'] = null
   let plan: Plan | null = null
   let planHistory: PlanRevision[] = []
+  const pendingInputCalls = new Set<string>()
 
   for (const raw of lines) {
     if (!raw.trim()) continue
@@ -44,11 +48,13 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
       turnId = stringValue(payload.turn_id)
       turnStartedAt = timestamp
       activity = 'working'
+      hasSubstantiveActivity = false
       endedAt = null
       latestUserMessage = null
       currentStageHint = null
       plan = null
       planHistory = []
+      pendingInputCalls.clear()
       continue
     }
     if (record.type === 'event_msg' && payload?.type === 'user_message') {
@@ -63,7 +69,19 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     ) {
       activity = 'ended'
       endedAt = timestamp
+      pendingInputCalls.clear()
       continue
+    }
+
+    if (isSubstantiveAgentRecord(record)) hasSubstantiveActivity = true
+    const inputCall = requestUserInputCallId(record)
+    if (inputCall) {
+      pendingInputCalls.add(inputCall)
+      activity = 'awaiting-input'
+    }
+    const completedCall = functionCallOutputId(record)
+    if (completedCall && pendingInputCalls.delete(completedCall) && pendingInputCalls.size === 0) {
+      activity = 'working'
     }
 
     currentStageHint = mergeStageHint(currentStageHint, stageHintFromAgentAction(record))
@@ -79,11 +97,13 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     turnId,
     turnStartedAt,
     activity,
+    hasSubstantiveActivity,
     endedAt,
     latestUserMessage,
     plan,
     planHistory,
     stageHint: currentStageHint,
+    pendingInputCallIds: [...pendingInputCalls],
   }
 }
 
@@ -168,15 +188,13 @@ function normalisePlanStatus(status: string): PlanStep['status'] | null {
 
 export function stageHintFromMessage(message: string | null): RolloutSnapshot['stageHint'] {
   if (!message) return null
-  for (const rawLine of message.split('\n')) {
-    const line = rawLine.trim()
-    if (/^[\/$]wrapup(?:\s|$)/i.test(line)) return 'wrapping-up'
-    if (
-      /^[\/$](?:[a-z0-9]+-)*review(?:-[a-z0-9]+)*(?:\s|$)/i.test(line) ||
-      /^[\/$]webapp-agent-demo(?:\s|$)/i.test(line)
-    ) {
-      return 'reviewing'
-    }
+  const line = message.split('\n').map((candidate) => candidate.trim()).find(Boolean) ?? ''
+  if (/^[\/$]wrapup(?:\s|$)/i.test(line)) return 'wrapping-up'
+  if (
+    /^[\/$](?:[a-z0-9]+-)*review(?:-[a-z0-9]+)*(?:\s|$)/i.test(line) ||
+    /^[\/$]webapp-agent-demo(?:\s|$)/i.test(line)
+  ) {
+    return 'reviewing'
   }
   return null
 }
@@ -192,10 +210,48 @@ function stageHintFromAgentAction(record: RolloutRecord): RolloutSnapshot['stage
   }
   const input = payload.input.replaceAll('\\', '/')
   if (/\/wrapup\/SKILL\.md\b/i.test(input)) return 'wrapping-up'
-  if (/\/(?:[^/\s]*review[^/\s]*|webapp-agent-demo)\/SKILL\.md\b/i.test(input)) {
+  if (/\/(?:visual-review|webapp-agent-demo|roborev-review(?:-branch)?|roborev-design-review(?:-branch)?)\/SKILL\.md\b/i.test(input)) {
     return 'reviewing'
   }
   return null
+}
+
+function isSubstantiveAgentRecord(record: RolloutRecord): boolean {
+  const payload = record.payload
+  if (record.type === 'event_msg' && payload?.type === 'agent_message') return true
+  if (record.type !== 'response_item') return false
+  if (payload?.type === 'message') return payload.role === 'assistant'
+  return payload?.type === 'custom_tool_call' ||
+    payload?.type === 'custom_tool_call_output' ||
+    payload?.type === 'function_call' ||
+    payload?.type === 'function_call_output' ||
+    payload?.type === 'web_search_call'
+}
+
+function requestUserInputCallId(record: RolloutRecord): string | null {
+  const payload = record.payload
+  if (
+    record.type !== 'response_item' ||
+    payload?.type !== 'function_call' ||
+    payload.name !== 'request_user_input'
+  ) {
+    return null
+  }
+  if (typeof payload.arguments === 'string') {
+    try {
+      const args = JSON.parse(payload.arguments) as Record<string, unknown>
+      if (typeof args.autoResolutionMs === 'number') return null
+    } catch {
+      // A malformed argument blob still represents a blocking native request.
+    }
+  }
+  return stringValue(payload.call_id)
+}
+
+function functionCallOutputId(record: RolloutRecord): string | null {
+  const payload = record.payload
+  if (record.type !== 'response_item' || payload?.type !== 'function_call_output') return null
+  return stringValue(payload.call_id)
 }
 
 function mergeStageHint(

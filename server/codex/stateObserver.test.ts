@@ -4,6 +4,7 @@ import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Project } from '../../src/domain/types'
+import { deriveStage } from '../../src/domain/stage'
 import { CodexStateObserver } from './stateObserver'
 
 const cleanup: string[] = []
@@ -115,7 +116,7 @@ test('maps the read-only Codex state database and rollout tail into native sessi
     activity: 'working',
   })
   expect(primary?.plan?.steps[1]).toEqual({ step: 'Build', status: 'in_progress' })
-  expect(primary?.wrapup).toEqual({ checksPassed: 0, checksTotal: 1 })
+  expect(primary?.wrapup).toEqual({ checksPassed: null, checksTotal: null })
   expect(sessions.find((session) => session.id === 'worktree-1')).toMatchObject({
     projectId: 'repo',
     repository: 'lucharo/repo',
@@ -130,7 +131,7 @@ test('maps the read-only Codex state database and rollout tail into native sessi
   expect(afterGrowth.find((session) => session.id === 'thread-1')?.plan?.steps[1])
     .toEqual({ step: 'Build', status: 'in_progress' })
   expect(afterGrowth.find((session) => session.id === 'thread-1')?.wrapup)
-    .toEqual({ checksPassed: 0, checksTotal: 1 })
+    .toEqual({ checksPassed: null, checksTotal: null })
 })
 
 test('keeps an idle unarchived thread visible while its Codex process still owns the rollout', async () => {
@@ -196,9 +197,93 @@ test('keeps an idle unarchived thread visible while its Codex process still owns
   expect(sessions[0]).toMatchObject({
     activity: 'idle',
     endedAt: null,
+    hasSubstantiveActivity: true,
     plan: { steps: [{ step: 'Build', status: 'completed' }] },
   })
 
   processInventoryAvailable = false
   expect((await observer.snapshot()).map((session) => session.id)).toEqual(['thread-active'])
 })
+
+test('recovers planless substantive work after it falls outside the bounded rollout tail', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-activity-anchor-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: 'Work without a plan' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:02.000Z', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [] } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:03.000Z', type: 'response_item', payload: { type: 'reasoning', text: 'x'.repeat(5_000) } }),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-planless', rolloutPath)
+
+  const observer = new CodexStateObserver({
+    dbPath,
+    getProjects: () => [],
+    getActiveThreadIds: async () => new Set(['thread-planless']),
+    maxRolloutBytes: 400,
+  })
+  const [session] = await observer.snapshot()
+
+  expect(session).toMatchObject({
+    activity: 'working',
+    hasSubstantiveActivity: true,
+    plan: null,
+  })
+  expect(session && deriveStage(session)).toBe('running')
+})
+
+test('retains a native input request when process inventory is temporarily unavailable', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-input-fallback-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:01:00.000Z', type: 'response_item', payload: { type: 'function_call', name: 'request_user_input', call_id: 'call-1' } }),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-input', rolloutPath)
+
+  const observer = new CodexStateObserver({
+    dbPath,
+    getProjects: () => [],
+    getActiveThreadIds: async () => null,
+  })
+
+  expect(await observer.snapshot()).toMatchObject([{
+    id: 'thread-input',
+    activity: 'awaiting-input',
+    hasSubstantiveActivity: true,
+  }])
+})
+
+function createStateDatabase(dbPath: string, id: string, rolloutPath: string): void {
+  const database = new Database(dbPath, { create: true })
+  database.exec(`
+    CREATE TABLE threads (
+      id TEXT PRIMARY KEY, rollout_path TEXT NOT NULL, created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL, source TEXT NOT NULL, model_provider TEXT NOT NULL,
+      cwd TEXT NOT NULL, title TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
+      git_sha TEXT, git_branch TEXT, git_origin_url TEXT, cli_version TEXT NOT NULL DEFAULT '',
+      preview TEXT NOT NULL DEFAULT '', name TEXT, model TEXT, reasoning_effort TEXT,
+      created_at_ms INTEGER, updated_at_ms INTEGER
+    );
+    CREATE TABLE thread_spawn_edges (
+      parent_thread_id TEXT NOT NULL, child_thread_id TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL
+    );
+  `)
+  database.query(`
+    INSERT INTO threads (
+      id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+      cli_version, preview, created_at_ms, updated_at_ms
+    ) VALUES (?, ?, ?, ?, 'cli', 'openai', '/repo', ?, '0.147.0', '', ?, ?)
+  `).run(id, rolloutPath, 1_786_012_800, 1_786_012_920, id, 1_786_012_800_000, 1_786_012_920_000)
+  database.close()
+}

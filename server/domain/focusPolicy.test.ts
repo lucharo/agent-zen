@@ -15,6 +15,7 @@ const session = (overrides: Partial<AgentSession> = {}): AgentSession => ({
   turnStartedAt: '2026-08-06T12:00:00.000Z',
   turnId: 'turn-root',
   activity: 'working',
+  hasSubstantiveActivity: false,
   parentSessionId: null,
   cwd: '/repo',
   repository: 'lucharo/repo',

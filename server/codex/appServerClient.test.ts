@@ -15,6 +15,7 @@ describe('CodexAppServerClient', () => {
     expect(initialized).toMatchObject({ userAgent: 'fake-codex/1.0', platformOs: 'macos' })
     expect(threads).toEqual({ data: [], nextCursor: null, backwardsCursor: null })
     expect(notifications).toContain('turn/plan/updated')
+    expect(notifications).toContain('item/tool/requestUserInput')
 
     await client.close()
   })

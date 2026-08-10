@@ -74,16 +74,16 @@ export type SessionActivity = 'idle' | 'working' | 'awaiting-input' | 'ended'
 
 /** Read-only review signals. Aggregated, never a CI dashboard. */
 export interface ReviewSignals {
-  readonly visualChecked: boolean
-  readonly prReady: boolean
-  readonly openNotes: number
+  readonly visualChecked: boolean | null
+  readonly prReady: boolean | null
+  readonly openNotes: number | null
   readonly pullRequest: string | null
 }
 
 /** Read-only wrapup progress, sourced from the wrapup skill's own checks. */
 export interface WrapupSignals {
-  readonly checksPassed: number
-  readonly checksTotal: number
+  readonly checksPassed: number | null
+  readonly checksTotal: number | null
 }
 
 export interface AgentSession {
@@ -103,6 +103,8 @@ export interface AgentSession {
   readonly turnStartedAt: string | null
   readonly turnId: string | null
   readonly activity: SessionActivity
+  /** True once the current/latest turn emits assistant output or invokes a tool. */
+  readonly hasSubstantiveActivity: boolean
   /** Set when this session was spawned by another session. */
   readonly parentSessionId: string | null
   /** Codex `session_meta.cwd`. */

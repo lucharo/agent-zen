@@ -6,10 +6,10 @@ Use exactly four numbered zones from left to right with clear arrows between adj
 
 2. “Read-only observer”. Show three short lines: “1-second process inventory”, “active root + child sessions”, “project and worktree matching”. Add a small filter line: “known generated RoboRev workers hidden”.
 
-3. “Stage precedence”. Show a vertical precedence ladder, highest first: “Wrapping up — wrapup invoked”, “Reviewing — review invoked”, “Running — native plan exists”, “Planning — no native plan”. Add a prominent small note below: “A completed turn becomes idle.” Put “Process closes or thread archives → leaves board” outside and below the ladder with a downward arrow.
+3. “Workflow + attention”. Split this zone into two compact vertical lists. Left list titled “Workflow stage”, highest precedence first: “Wrapping up — wrapup invoked”, “Reviewing — allow-listed review invoked”, “Running — assistant/tool work or plan”, “Planning — turn started, work not begun”. Right list titled “Attention”: “Working — turn progressing”, “Needs you — blocking native request”, “Idle — process open between turns”. Add a prominent note below: “Stage and attention are independent.” Put “Process closes or thread archives → leaves board” outside and below both lists with a downward arrow.
 
-4. “Zen surfaces”. Show two minimal app panels: “Kanban: child agents nested” and “Grid: equal 260 px cards”. Add a small line “titles update from Codex”.
+4. “Zen surfaces”. Show two minimal app panels: “Kanban: root cards + subagent count” and “Grid: equal 260 px cards”. Add two small lines: “titles update from Codex” and “unknown review facts stay unknown”.
 
-At the bottom, one concise sentence: “Codex owns state. Agent Zen observes the process and latest turn separately.”
+At the bottom, one concise sentence: “Codex owns state. Agent Zen observes workflow and attention separately.”
 
 Use these labels exactly. Ensure arrows do not skip zones. No other prose, legends, or labels. No empty decorative boxes. No logos except simple generic database, document, filter, and window glyphs.

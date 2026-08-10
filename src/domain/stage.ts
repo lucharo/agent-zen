@@ -5,7 +5,7 @@ import type { AgentSession, Stage } from './types'
  *
  * A thread whose Codex process is gone leaves the board entirely. An idle
  * process remains in its latest agent-derived stage. Every placement is derived
- * from Codex-owned state: wrapup, review, then the native plan. The Kanban is a
+ * from Codex-owned state: wrapup, review, then native work activity. The Kanban is a
  * projection, not an editor, so no local override can silently contradict the
  * session that produced it.
  */
@@ -22,7 +22,7 @@ export function nativeStage(session: AgentSession): Stage {
 }
 
 function planStage(session: AgentSession): Stage {
-  return session.plan && session.plan.steps.length > 0 ? 'running' : 'planning'
+  return session.plan?.steps.length || session.hasSubstantiveActivity ? 'running' : 'planning'
 }
 
 /** The plan step the agent is on right now, or `null` while planning. */

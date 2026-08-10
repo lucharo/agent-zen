@@ -45,7 +45,7 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 2,
+  protocolVersion: 3,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
   sessions: [],
@@ -147,6 +147,12 @@ describe('the board', () => {
       within(column('Running')).getByText(/Generate three new mockups/),
     ).toBeInTheDocument()
     expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
+    expect(
+      within(column('Running')).queryByRole('button', {
+        name: /Sweep board fixtures into tests/,
+      }),
+    ).toBeNull()
+    expect(within(column('Running')).getByText('1 subagent')).toBeInTheDocument()
   })
 
   it('counts only the sessions that hold a slot', () => {

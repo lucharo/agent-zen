@@ -74,6 +74,7 @@ function activeExternalSession(id = 'thread-external'): AgentSession {
     createdAt: '2026-08-07T08:00:00.000Z',
     turnStartedAt: '2026-08-07T09:00:00.000Z',
     activity: 'working',
+    hasSubstantiveActivity: true,
     parentSessionId: null,
     cwd: '/repo',
     repository: 'lucharo/agent-zen',
@@ -160,6 +161,45 @@ describe('AgentZenBridgeService ownership', () => {
     const snapshot = await service.snapshot()
     expect(snapshot.sessions.map((session) => session.id)).toEqual(['thread-owned'])
     expect(snapshot.sessions[0]).toMatchObject({ activity: 'idle', endedAt: null })
+  })
+
+  test('uses native app-server item and input events for immediate attention state', async () => {
+    const client = new FakeClient()
+    const service = new AgentZenBridgeService(dependencies(client))
+    await service.start()
+    await service.launch({ projectId: project.id, prompt: 'Do the work' })
+
+    client.notify({
+      method: 'item/started',
+      params: {
+        threadId: 'thread-owned',
+        turnId: 'turn-owned',
+        item: { type: 'commandExecution', id: 'item-1' },
+      },
+    })
+    expect((await service.snapshot()).sessions[0]).toMatchObject({
+      hasSubstantiveActivity: true,
+      activity: 'working',
+    })
+
+    client.notify({
+      id: 41,
+      method: 'item/tool/requestUserInput',
+      params: { threadId: 'thread-owned', turnId: 'turn-owned', itemId: 'item-2', isBlocking: true },
+    })
+    expect((await service.snapshot()).sessions[0]?.activity).toBe('awaiting-input')
+
+    client.notify({
+      method: 'serverRequest/resolved',
+      params: { threadId: 'thread-owned', requestId: 99 },
+    })
+    expect((await service.snapshot()).sessions[0]?.activity).toBe('awaiting-input')
+
+    client.notify({
+      method: 'serverRequest/resolved',
+      params: { threadId: 'thread-owned', requestId: 41 },
+    })
+    expect((await service.snapshot()).sessions[0]?.activity).toBe('working')
   })
 
   test('ignores a stale completion for an older owned turn', async () => {

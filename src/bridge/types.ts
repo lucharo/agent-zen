@@ -2,7 +2,7 @@ import type { ProjectCandidate } from '@/adapters/ProjectDiscoverySource'
 import type { LaunchAvailability } from '@/domain/stage'
 import type { AgentSession, Project } from '@/domain/types'
 
-export const BRIDGE_PROTOCOL_VERSION = 2
+export const BRIDGE_PROTOCOL_VERSION = 3
 
 export interface BridgeConnectionStatus {
   readonly connected: boolean
