@@ -67,7 +67,7 @@
   margin-top: 2px;
   padding: 2px 5px;
   border-radius: 999px;
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
   font-size: var(--text-micro);
   font-weight: var(--weight-medium);

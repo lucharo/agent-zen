@@ -121,6 +121,72 @@ describe('parseRolloutLines', () => {
     })
   })
 
+  test('reads a directly emitted goal result when JavaScript uses automatic semicolon insertion', () => {
+    const result = parseRolloutLines([
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal-without-semicolons',
+          input: [
+            'const result = await tools.create_goal({objective:"Accept ordinary JavaScript."})',
+            'text(result)',
+          ].join('\n'),
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal-without-semicolons',
+          output: [{ type: 'input_text', text: JSON.stringify({
+            goal: { objective: 'Accept ordinary JavaScript.', status: 'active' },
+          }) }],
+        },
+      }),
+    ])
+
+    expect(result.goal).toEqual({ objective: 'Accept ordinary JavaScript.', status: 'active' })
+  })
+
+  test('reads a directly emitted goal result after an earlier progress message', () => {
+    const result = parseRolloutLines([
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal-after-message',
+          input: [
+            'text("Creating the goal")',
+            'const result = await tools.create_goal({objective:"Keep progress output compatible."});',
+            'text(result);',
+          ].join('\n'),
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal-after-message',
+          output: [
+            { type: 'input_text', text: 'Creating the goal' },
+            { type: 'input_text', text: JSON.stringify({
+              goal: { objective: 'Keep progress output compatible.', status: 'active' },
+            }) },
+          ],
+        },
+      }),
+    ])
+
+    expect(result.goal).toEqual({ objective: 'Keep progress output compatible.', status: 'active' })
+  })
+
   test('keeps the current goal across turns and accepts later goal status results', () => {
     const goalResult = (callId: string, objective: string, status: string) => [
       line({

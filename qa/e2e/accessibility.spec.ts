@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import type { BridgeSnapshot } from '../../src/bridge/types'
+import { BRIDGE_MUTATION_PATH, type BridgeSnapshot } from '../../src/bridge/types'
 import { DEFAULT_UI_PREFERENCES } from '../../src/domain/preferences'
 
 async function expectAccessible(page: Page, surface: string) {
@@ -13,7 +13,7 @@ async function expectAccessible(page: Page, surface: string) {
 test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
   let preferences = DEFAULT_UI_PREFERENCES
   let latestSnapshot: BridgeSnapshot | null = null
-  await page.route('**/api/v4/settings/preferences', async (route) => {
+  await page.route(`**${BRIDGE_MUTATION_PATH}/settings/preferences`, async (route) => {
     preferences = route.request().postDataJSON()
     if (!latestSnapshot) throw new Error('Preference mutation arrived before the first snapshot.')
     latestSnapshot = {

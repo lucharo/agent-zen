@@ -216,13 +216,13 @@ function containsDirectGoalResultEmission(source: string): boolean {
   for (const match of code.matchAll(assignment)) {
     const variable = match[1]
     const start = match.index ?? 0
-    if (!variable || /\btext\s*\(/.test(code.slice(0, start))) continue
+    if (!variable) continue
     const openParen = start + match[0].lastIndexOf('(')
     const closeParen = matchingParenthesis(code, openParen)
     if (closeParen === -1) continue
     const escaped = variable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const emittedResult = `(?:${escaped}|JSON\\.stringify\\s*\\(\\s*${escaped}(?:\\s*,\\s*null\\s*,\\s*\\d+)?\\s*\\))`
-    const directText = new RegExp(`^\\s*;\\s*text\\s*\\(\\s*${emittedResult}\\s*\\)\\s*;`)
+    const directText = new RegExp(`^\\s*;?\\s*text\\s*\\(\\s*${emittedResult}\\s*\\)\\s*;?`)
     if (directText.test(code.slice(closeParen + 1))) return true
   }
   return false

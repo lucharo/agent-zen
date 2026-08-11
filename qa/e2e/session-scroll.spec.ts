@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
-import type { BridgeSnapshot } from '../../src/bridge/types'
+import {
+  BRIDGE_MUTATION_PATH,
+  BRIDGE_PROTOCOL_VERSION,
+  type BridgeSnapshot,
+} from '../../src/bridge/types'
 import { DEFAULT_UI_PREFERENCES } from '../../src/domain/preferences'
+import { classifyAgentSession } from '../../src/domain/stage'
 import type { AgentSession } from '../../src/domain/types'
 
 const project = {
@@ -30,6 +35,7 @@ const session = (index: number): AgentSession => ({
   branch: 'main',
   worktree: project.directory,
   projectId: project.id,
+  goal: null,
   plan: {
     revision: 1,
     updatedAt: '2026-08-07T09:00:00.000Z',
@@ -47,18 +53,18 @@ const session = (index: number): AgentSession => ({
 })
 
 const snapshot: BridgeSnapshot = {
-  protocolVersion: 4,
+  protocolVersion: BRIDGE_PROTOCOL_VERSION,
   generatedAt: '2026-08-07T10:00:00.000Z',
   connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
   sessions: [
-    ...Array.from({ length: 8 }, (_, index) => session(index + 1)),
-    {
+    ...Array.from({ length: 8 }, (_, index) => classifyAgentSession(session(index + 1))),
+    classifyAgentSession({
       ...session(9),
       id: 'session-child',
       threadId: 'thread-child',
       title: 'Child review worker',
       parentSessionId: 'session-1',
-    },
+    }),
   ],
   focus: {
     enabled: false,
@@ -73,7 +79,7 @@ const snapshot: BridgeSnapshot = {
 
 async function routeSnapshot(page: Page, initial: BridgeSnapshot) {
   let current = structuredClone(initial)
-  await page.route('**/api/v4/settings/preferences', async (route) => {
+  await page.route(`**${BRIDGE_MUTATION_PATH}/settings/preferences`, async (route) => {
     current = {
       ...current,
       preferences: route.request().postDataJSON(),
@@ -121,7 +127,7 @@ test('the session grid uses one compact card size with content anchored at the t
   await routeSnapshot(page, snapshot)
   await page.goto('/')
   await page.getByRole('button', { name: 'Grid' }).first().click()
-  await expect(page.getByRole('button', { name: 'Titles only' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'Title, always shown' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('button', { name: /Running session 1.*Idle/ })).toBeVisible()
   await expect(page.getByText('Running · demo').first()).toBeVisible()
   await expect(page.getByText('1 subagent')).toBeVisible()
@@ -161,7 +167,7 @@ test('the session grid uses one compact card size with content anchored at the t
   })
   expect(rowMargins.every((row) => Math.abs(row.left - row.right) <= 1)).toBe(true)
 
-  await page.getByRole('button', { name: 'Details' }).click()
+  await page.getByRole('button', { name: 'Description' }).click()
   const detailHeights = await page.locator('[data-card-id]').evaluateAll((nodes) =>
     nodes.map((node) => node.getBoundingClientRect().height),
   )
