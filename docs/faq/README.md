@@ -96,7 +96,7 @@ Agent Zen never turns a bare marker into invented evidence. If no PR, visual res
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — owned `turn/started` and plan overlays use the same stage model.
 - [Stage tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.test.ts) — marker persistence and precedence.
 
-_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
+_Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11_
 
 ## How can I check why a session is in a column?
 
@@ -111,7 +111,21 @@ The daemon classifies each session once and includes `{ stage, reason }` in the 
 - [CLI session commands](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.ts) — list and explanation output.
 - [UI state](https://github.com/lucharo/agent-zen/blob/main/src/state/store.tsx) — consumes the daemon classification.
 
-_Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10_
+_Created: 2026-08-10 · Updated: 2026-08-11 · Verified: 2026-08-11_
+
+## Does `agent-zen` have CLI verbs and commands?
+
+**Short answer:** Yes. `agent-zen sessions` lists the same live root sessions shown on the board, and `agent-zen explain <session-id-or-title-prefix>` reports one session's canonical stage, reason, attention state, plan position, and goal. Add `--json` for machine-readable output.
+
+The remaining top-level commands are `open`, `daemon`, `version`, and `help`. `agent-zen daemon` provides `start`, `status`, `restart`, `stop`, `logs`, and `run`; `status` also accepts `--json`. The CLI reads the installed daemon snapshot, so it does not maintain a second classifier or inspect rollout files independently.
+
+### Sources
+
+- [CLI entry point](https://github.com/lucharo/agent-zen/blob/main/cli/index.ts) — command dispatch, help text, daemon lifecycle, and live snapshot connection.
+- [Session commands](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.ts) — human-readable and JSON list and explanation output.
+- [CLI regressions](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.test.ts) — canonical stage, reason, goal, and ambiguous-prefix handling.
+
+_Created: 2026-08-11 · Updated: 2026-08-11 · Verified: 2026-08-11 · Scope/version: Agent Zen 0.1.0, protocol 7_
 
 ## Which Codex sessions count as active, and why did idle ones disappear?
 
@@ -243,7 +257,7 @@ _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 The browser data schema is version 4 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Older browser-owned choices are copied once into the bridge, then browser storage is reduced to a project cache needed by local Ideas, Ideas themselves, and Logbook notes. A separate theme key remains only to avoid a light-theme flash before React connects; bridge settings correct it on startup.
 
-The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, Titles or Details, Ideas folding, focus enablement, focus limit, project discovery roots, and registered project directories. Agent Zen-owned thread identity is in memory only and does not survive a daemon restart.
+The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, the cumulative Title, Description, and Comments card choice, Ideas folding, focus enablement, focus limit, project discovery roots, and registered project directories. Agent Zen-owned thread identity is in memory only and does not survive a daemon restart.
 
 Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross-machine sync is not implemented.
 
@@ -254,7 +268,7 @@ Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross
 - [Persistence tests](https://github.com/lucharo/agent-zen/blob/main/src/domain/derivation.test.ts) — prototype removal and user-data preservation.
 - [Settings store](https://github.com/lucharo/agent-zen/blob/main/server/settings.ts) — bridge-owned durable settings.
 
-_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: browser schema v4, settings schema v2_
+_Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11 · Scope/version: browser schema v4, settings schema v2_
 
 ## Where did “113 finished sessions in history” come from?
 
