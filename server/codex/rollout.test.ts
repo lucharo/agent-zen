@@ -187,6 +187,41 @@ describe('parseRolloutLines', () => {
     expect(result.goal).toEqual({ objective: 'Keep progress output compatible.', status: 'active' })
   })
 
+  test('reads a directly emitted goal result after structured progress output', () => {
+    const result = parseRolloutLines([
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal-after-structured-progress',
+          input: [
+            'text({phase:"creating"})',
+            'const result = await tools.create_goal({objective:"Ignore structured progress."});',
+            'text(result);',
+          ].join('\n'),
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal-after-structured-progress',
+          output: [
+            { type: 'input_text', text: JSON.stringify({ phase: 'creating' }) },
+            { type: 'input_text', text: JSON.stringify({
+              goal: { objective: 'Ignore structured progress.', status: 'active' },
+            }) },
+          ],
+        },
+      }),
+    ])
+
+    expect(result.goal).toEqual({ objective: 'Ignore structured progress.', status: 'active' })
+  })
+
   test('keeps the current goal across turns and accepts later goal status results', () => {
     const goalResult = (callId: string, objective: string, status: string) => [
       line({

@@ -156,7 +156,7 @@ function goalPayloadFromOutput(output: unknown): SessionGoal | null | undefined 
   for (const text of outputTexts(output)) {
     const parsed = parseJsonObject(text)
     if (!parsed) continue
-    if (!('goal' in parsed)) return undefined
+    if (!('goal' in parsed)) continue
     if (parsed.goal === null) return null
     if (!isObject(parsed.goal)) continue
     const objective = stringValue(parsed.goal.objective)
