@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react'
 import type {
   IdeaGroupBy,
   IdeaLayout,
-  KanbanCardDetail,
   KanbanGroupBy,
   SessionLayout,
   ThemeChoice,
   View,
 } from '@/domain/types'
-import { Monitor, Moon, Plus, Sun } from 'lucide-react'
+import { MessageSquareText, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import {
@@ -157,23 +156,46 @@ export function Toolbar({
               { value: 'project', label: 'Project' },
             ]}
           />
-          <div className={styles.segmented} role="group" aria-label="Card detail">
-            {(['titles', 'details'] as const).map((detail) => (
-              <button
-                key={detail}
-                type="button"
-                className={styles.segment}
-                data-selected={state.kanbanCardDetail === detail}
-                aria-pressed={state.kanbanCardDetail === detail}
-                aria-label={detail === 'titles' ? 'Titles only' : 'Details'}
-                data-tooltip={detail === 'titles' ? 'Titles only' : 'Full details'}
-                onClick={() =>
-                  dispatch({ type: 'set-kanban-card-detail', detail: detail as KanbanCardDetail })
-                }
-              >
-                {detail === 'titles' ? <TitleIcon /> : <DetailsIcon />}
-              </button>
-            ))}
+          <div className={styles.segmented} role="group" aria-label="Card fields">
+            <button
+              type="button"
+              className={styles.segment}
+              data-selected="true"
+              aria-pressed="true"
+              aria-label="Title, always shown"
+              data-tooltip="Title · always shown"
+              disabled
+            >
+              <TitleIcon />
+            </button>
+            <button
+              type="button"
+              className={styles.segment}
+              data-selected={state.kanbanCardDetail !== 'titles'}
+              aria-pressed={state.kanbanCardDetail !== 'titles'}
+              aria-label="Description"
+              data-tooltip="Description"
+              onClick={() => dispatch({
+                type: 'set-kanban-card-detail',
+                detail: state.kanbanCardDetail === 'titles' ? 'details' : 'titles',
+              })}
+            >
+              <DetailsIcon />
+            </button>
+            <button
+              type="button"
+              className={styles.segment}
+              data-selected={state.kanbanCardDetail === 'comments'}
+              aria-pressed={state.kanbanCardDetail === 'comments'}
+              aria-label="Comments"
+              data-tooltip="Your Logbook comments"
+              onClick={() => dispatch({
+                type: 'set-kanban-card-detail',
+                detail: state.kanbanCardDetail === 'comments' ? 'details' : 'comments',
+              })}
+            >
+              <MessageSquareText size={14} strokeWidth={1.7} aria-hidden="true" />
+            </button>
           </div>
         </>
       )}

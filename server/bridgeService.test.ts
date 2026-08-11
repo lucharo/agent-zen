@@ -103,6 +103,7 @@ function activeExternalSession(id = 'thread-external'): AgentSession {
     projectId: project.id,
     plan: null,
     planHistory: [],
+    goal: null,
     review: null,
     wrapup: null,
     endedAt: null,

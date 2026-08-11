@@ -24,6 +24,7 @@ const session = (overrides: Partial<AgentSession> = {}): AgentSession => ({
   projectId: 'repo',
   plan: null,
   planHistory: [],
+  goal: null,
   review: null,
   wrapup: null,
   endedAt: null,

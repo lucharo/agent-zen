@@ -174,6 +174,8 @@ function SessionDetail({
           <dl className={styles.meta}>
             <dt>Activity</dt>
             <dd>{activityLabel(session)}</dd>
+            <dt>Goal</dt>
+            <dd>{session.goal ? `${session.goal.status} · ${session.goal.objective}` : '—'}</dd>
             <dt>Stage reason</dt>
             <dd>{stageReasonLabel(session.classification.reason)}</dd>
             <dt>Model</dt>

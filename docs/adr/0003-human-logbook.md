@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-06
+- Updated: 2026-08-11
 
 ## Outcome
 
@@ -19,7 +20,7 @@ Every idea or session may have a local, human-only Logbook: an append-only place
 
 - Store immutable entry text, author timestamp, and attachment identity locally.
 - Permit correction by adding a new entry or explicit human edit history; never let session refresh overwrite notes.
-- Render the Logbook beside, but not inside, read-only native agent state.
+- Keep Logbook authorship visually distinct from read-only native agent state. The detail view keeps the full Logbook separate; an explicit card preference may show labelled excerpts.
 - Keep capture friction low enough for “note to self” use while avoiding notifications or an automatic call to action.
 - Promote notes to an idea or GitHub issue only through an explicit human action.
 

@@ -65,7 +65,7 @@ describe('AgentZenSettingsStore', () => {
       ideaLayout: 'list',
       sessionLayout: 'grid',
       kanbanGroupBy: 'project',
-      kanbanCardDetail: 'details',
+      kanbanCardDetail: 'comments',
       ideasFolded: true,
     })).rejects.toThrow()
     expect((await store.read()).preferences).toBeNull()
@@ -135,7 +135,7 @@ describe('AgentZenSettingsStore', () => {
       ideaLayout: 'list',
       sessionLayout: 'grid',
       kanbanGroupBy: 'project',
-      kanbanCardDetail: 'details',
+      kanbanCardDetail: 'comments',
       ideasFolded: true,
     })
 
@@ -149,7 +149,7 @@ describe('AgentZenSettingsStore', () => {
       ideaLayout: 'list',
       sessionLayout: 'grid',
       kanbanGroupBy: 'project',
-      kanbanCardDetail: 'details',
+      kanbanCardDetail: 'comments',
       ideasFolded: true,
     })
     expect(await reloaded.registeredProjects()).toMatchObject([

@@ -7,7 +7,7 @@ export interface SessionGridViewProps {
 }
 
 export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
-  const { state, board, now } = useAgentZen()
+  const { state, board, now, logbookFor } = useAgentZen()
   const entries = board.filter(
     (entry) => !state.projectFilter || entry.session.projectId === state.projectFilter,
   )
@@ -40,6 +40,7 @@ export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
                     columnIndex={0}
                     cardIndex={index}
                     detail={state.kanbanCardDetail}
+                    comments={logbookFor(entry.session.id)}
                     showProject={state.kanbanGroupBy !== 'project'}
                     showStage
                   />

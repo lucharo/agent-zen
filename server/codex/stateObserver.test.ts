@@ -23,6 +23,30 @@ test('maps the read-only Codex state database and rollout tail into native sessi
     [
       JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
       JSON.stringify({ timestamp: '2026-08-06T12:00:10.000Z', type: 'event_msg', payload: { type: 'user_message', message: '$wrapup\nPlease finish the work.' } }),
+      JSON.stringify({
+        timestamp: '2026-08-06T12:00:20.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal',
+          input: 'const result = await tools.create_goal({objective:"Finish the native session observer."}); text(result);',
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-08-06T12:00:20.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal',
+          output: [{
+            type: 'input_text',
+            text: JSON.stringify({
+              goal: { objective: 'Finish the native session observer.', status: 'active' },
+            }),
+          }],
+        },
+      }),
       JSON.stringify({ timestamp: '2026-08-06T12:00:30.000Z', type: 'response_item', payload: { type: 'reasoning', text: 'x'.repeat(2_000) } }),
       JSON.stringify({
         timestamp: '2026-08-06T12:01:00.000Z',
@@ -116,6 +140,10 @@ test('maps the read-only Codex state database and rollout tail into native sessi
     activity: 'working',
   })
   expect(primary?.plan?.steps[1]).toEqual({ step: 'Build', status: 'in_progress' })
+  expect(primary?.goal).toEqual({
+    objective: 'Finish the native session observer.',
+    status: 'active',
+  })
   expect(primary?.wrapup).toEqual({ checksPassed: null, checksTotal: null })
   expect(sessions.find((session) => session.id === 'worktree-1')).toMatchObject({
     projectId: 'repo',
@@ -130,8 +158,42 @@ test('maps the read-only Codex state database and rollout tail into native sessi
   const afterGrowth = await observer.snapshot()
   expect(afterGrowth.find((session) => session.id === 'thread-1')?.plan?.steps[1])
     .toEqual({ step: 'Build', status: 'in_progress' })
+  expect(afterGrowth.find((session) => session.id === 'thread-1')?.goal)
+    .toEqual({ objective: 'Finish the native session observer.', status: 'active' })
   expect(afterGrowth.find((session) => session.id === 'thread-1')?.wrapup)
     .toEqual({ checksPassed: null, checksTotal: null })
+
+  await appendFile(
+    rolloutPath,
+    [
+      JSON.stringify({
+        timestamp: '2026-08-06T12:03:00.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal-blocked',
+          input: `const result = await tools.update_goal({status:"blocked"}); text(result); // ${'z'.repeat(2_000)}`,
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-08-06T12:03:00.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal-blocked',
+          output: [{
+            type: 'input_text',
+            text: JSON.stringify({
+              goal: { objective: 'Finish the native session observer.', status: 'blocked' },
+            }),
+          }],
+        },
+      }),
+    ].join('\n') + '\n',
+  )
+  expect((await observer.snapshot()).find((session) => session.id === 'thread-1')?.goal)
+    .toEqual({ objective: 'Finish the native session observer.', status: 'blocked' })
 })
 
 test('keeps an idle unarchived thread visible while its Codex process still owns the rollout', async () => {

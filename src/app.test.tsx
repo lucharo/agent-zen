@@ -46,7 +46,7 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 6,
+  protocolVersion: 7,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
   sessions: [],
@@ -498,25 +498,37 @@ describe('navigation', () => {
     expect(screen.getAllByRole('list')[0]).toHaveAttribute('data-layout', 'list')
   })
 
-  it('keeps time and progress while card details hide only the description', async () => {
+  it('keeps titles and goals visible while Description and Comments are cumulative card fields', async () => {
     const { user } = mount()
 
     expect(screen.queryByRole('combobox', { name: 'Session card detail' })).toBeNull()
     expect(within(column('Running')).getByText('agent-zen')).toBeInTheDocument()
     expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
     expect(within(column('Running')).getByText('3 / 5')).toBeInTheDocument()
+    expect(within(column('Running')).getByLabelText(
+      'Goal active: Turn Agent Zen into a calm, reliable session control plane.',
+    )).toBeInTheDocument()
     expect(within(column('Running')).queryByText('Generate three new mockups')).toBeNull()
+    expect(within(column('Running')).queryByText(/Decision: no Done column/)).toBeNull()
 
-    await user.click(within(screen.getByRole('group', { name: 'Card detail' })).getByRole('button', {
-      name: 'Details',
-    }))
+    const fields = screen.getByRole('group', { name: 'Card fields' })
+    expect(within(fields).getByRole('button', { name: 'Title, always shown' })).toBeDisabled()
+    expect(within(fields).getByRole('button', { name: 'Description' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(fields).getByRole('button', { name: 'Comments' })).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(within(fields).getByRole('button', { name: 'Comments' }))
+
     expect(within(column('Running')).getByText('Generate three new mockups')).toBeInTheDocument()
+    expect(within(column('Running')).getByText(/Decision: no Done column/)).toBeInTheDocument()
+    expect(within(fields).getByRole('button', { name: 'Description' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(fields).getByRole('button', { name: 'Comments' })).toHaveAttribute('aria-pressed', 'true')
 
-    await user.click(within(screen.getByRole('group', { name: 'Card detail' })).getByRole('button', {
-      name: 'Titles only',
-    }))
+    await user.click(within(fields).getByRole('button', { name: 'Description' }))
+
     expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
     expect(within(column('Running')).queryByText('Generate three new mockups')).toBeNull()
+    expect(within(column('Running')).queryByText(/Decision: no Done column/)).toBeNull()
+    expect(within(fields).getByRole('button', { name: 'Comments' })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('switches Sessions between Kanban and a stage-labelled grid', async () => {

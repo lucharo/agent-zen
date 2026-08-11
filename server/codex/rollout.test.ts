@@ -41,6 +41,221 @@ describe('parseRolloutLines', () => {
     expect(result.planHistory).toHaveLength(1)
   })
 
+  test('reads an explicit Codex goal from the successful goal tool result', () => {
+    const result = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal',
+          input: 'const result = await tools.create_goal({objective:"Ship reliable goal detection."}); text(result);',
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal',
+          output: [
+            { type: 'input_text', text: 'Script completed\nWall time 0.0 seconds\nOutput:\n' },
+            {
+              type: 'input_text',
+              text: JSON.stringify({
+                goal: {
+                  threadId: 'thread-1',
+                  objective: 'Ship reliable goal detection.',
+                  status: 'active',
+                  tokensUsed: 42,
+                  timeUsedSeconds: 3,
+                  createdAt: 1_786_012_800,
+                  updatedAt: 1_786_012_803,
+                },
+              }),
+            },
+          ],
+        },
+      }),
+    ])
+
+    expect(result.goal).toEqual({
+      objective: 'Ship reliable goal detection.',
+      status: 'active',
+    })
+  })
+
+  test('reads a goal result emitted through JSON.stringify', () => {
+    const result = parseRolloutLines([
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal',
+          input: 'const result = await tools.get_goal({}); text(JSON.stringify(result, null, 2));',
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal',
+          output: [{
+            type: 'input_text',
+            text: JSON.stringify({
+              goal: { objective: 'Keep observed goal forms compatible.', status: 'active' },
+            }),
+          }],
+        },
+      }),
+    ])
+
+    expect(result.goal).toEqual({
+      objective: 'Keep observed goal forms compatible.',
+      status: 'active',
+    })
+  })
+
+  test('keeps the current goal across turns and accepts later goal status results', () => {
+    const goalResult = (callId: string, objective: string, status: string) => [
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: callId,
+          input: status === 'active'
+            ? `const result = await tools.create_goal({objective:${JSON.stringify(objective)}}); text(result);`
+            : `const result = await tools.update_goal({status:${JSON.stringify(status)}}); text(result);`,
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: callId,
+          output: [{ type: 'input_text', text: JSON.stringify({ goal: { objective, status } }) }],
+        },
+      }),
+    ]
+    const result = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      ...goalResult('call-create', 'Finish the feature.', 'active'),
+      line({ timestamp: '2026-08-06T12:10:00.000Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-1' } }),
+      line({ timestamp: '2026-08-06T12:11:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-2' } }),
+      ...goalResult('call-block', 'Finish the feature.', 'blocked'),
+    ])
+
+    expect(result.goal).toEqual({ objective: 'Finish the feature.', status: 'blocked' })
+  })
+
+  test('does not treat a quoted goal-call example and its diagnostic output as a goal event', () => {
+    const result = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-diagnostic',
+          input: 'const example = \'tools.create_goal({objective:"Not real"})\'; text(example);',
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-diagnostic',
+          output: [{
+            type: 'input_text',
+            text: JSON.stringify({ goal: { objective: 'Not real', status: 'active' } }),
+          }],
+        },
+      }),
+    ])
+
+    expect(result.goal).toBeNull()
+  })
+
+  test('ignores later fabricated goal JSON after the direct goal result', () => {
+    const result = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal-with-diagnostic',
+          input: [
+            'const result = await tools.get_goal({});',
+            'text(result);',
+            'text({goal:{objective:"Fabricated diagnostic",status:"active"}});',
+          ].join('\n'),
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal-with-diagnostic',
+          output: [
+            { type: 'input_text', text: JSON.stringify({
+              goal: { objective: 'Real current goal.', status: 'blocked' },
+            }) },
+            { type: 'input_text', text: JSON.stringify({
+              goal: { objective: 'Fabricated diagnostic', status: 'active' },
+            }) },
+          ],
+        },
+      }),
+    ])
+
+    expect(result.goal).toEqual({ objective: 'Real current goal.', status: 'blocked' })
+  })
+
+  test('requires the goal tool result itself to be emitted', () => {
+    const result = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal-without-direct-result',
+          input: [
+            'await tools.get_goal({});',
+            'text({goal:{objective:"Fabricated diagnostic",status:"active"}});',
+          ].join('\n'),
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal-without-direct-result',
+          output: [{ type: 'input_text', text: JSON.stringify({
+            goal: { objective: 'Fabricated diagnostic', status: 'active' },
+          }) }],
+        },
+      }),
+    ])
+
+    expect(result.goal).toBeNull()
+  })
+
   test('marks a completed turn as ended until the thread is resumed', () => {
     const result = parseRolloutLines([
       line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),

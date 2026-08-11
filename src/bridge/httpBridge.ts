@@ -1,5 +1,6 @@
 import {
   BRIDGE_PROTOCOL_VERSION,
+  BRIDGE_MUTATION_PATH,
   type BridgeSnapshot,
   type LaunchSessionPayload,
   type LaunchSessionResponse,
@@ -153,29 +154,29 @@ export function createHttpBridge(
       }
     },
     refresh,
-    setFocus: (enabled, limit) => updateSnapshot('/api/v4/settings/focus', { enabled, limit }),
+    setFocus: (enabled, limit) => updateSnapshot(`${BRIDGE_MUTATION_PATH}/settings/focus`, { enabled, limit }),
     setPreferences: (preferences) =>
-      updateSnapshot('/api/v4/settings/preferences', preferences),
+      updateSnapshot(`${BRIDGE_MUTATION_PATH}/settings/preferences`, preferences),
     registerProjects: (candidateIds) =>
-      updateSnapshot('/api/v4/projects/register', { candidateIds }),
+      updateSnapshot(`${BRIDGE_MUTATION_PATH}/projects/register`, { candidateIds }),
     launch: (payload) =>
-      request<LaunchSessionResponse>('/api/v4/sessions/launch', {
+      request<LaunchSessionResponse>(`${BRIDGE_MUTATION_PATH}/sessions/launch`, {
         method: 'POST',
         body: JSON.stringify(payload),
       }, null),
     interrupt: async (threadId) => {
-      await request(`/api/v4/sessions/${encodeURIComponent(threadId)}/interrupt`, { method: 'POST' })
+      await request(`${BRIDGE_MUTATION_PATH}/sessions/${encodeURIComponent(threadId)}/interrupt`, { method: 'POST' })
       await refresh()
     },
     steer: async (threadId, prompt) => {
-      await request(`/api/v4/sessions/${encodeURIComponent(threadId)}/steer`, {
+      await request(`${BRIDGE_MUTATION_PATH}/sessions/${encodeURIComponent(threadId)}/steer`, {
         method: 'POST',
         body: JSON.stringify({ prompt }),
       })
       await refresh()
     },
     respond: async (threadId, response) => {
-      await request(`/api/v4/sessions/${encodeURIComponent(threadId)}/respond`, {
+      await request(`${BRIDGE_MUTATION_PATH}/sessions/${encodeURIComponent(threadId)}/respond`, {
         method: 'POST',
         body: JSON.stringify(response),
       })

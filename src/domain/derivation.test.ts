@@ -280,7 +280,7 @@ describe('persistence', () => {
     expect(initial.kanbanCardDetail).toBe('titles')
   })
 
-  it('migrates older installs to compact cards once, then preserves the chosen detail', () => {
+  it('migrates older installs to compact cards once, then preserves the chosen card fields', () => {
     const storage = window.localStorage
     storage.setItem(
       STORAGE_KEY,
@@ -291,8 +291,8 @@ describe('persistence', () => {
     expect(migrated.version).toBe(4)
     expect(migrated.kanbanCardDetail).toBe('titles')
 
-    saveState(storage, { ...migrated, kanbanCardDetail: 'details' })
-    expect(loadState(storage, NOW).kanbanCardDetail).toBe('details')
+    saveState(storage, { ...migrated, kanbanCardDetail: 'comments' })
+    expect(loadState(storage, NOW).kanbanCardDetail).toBe('comments')
   })
 
   it('removes old prototype ideas while preserving ideas captured by the user', () => {

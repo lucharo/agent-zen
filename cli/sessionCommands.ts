@@ -29,6 +29,7 @@ export async function runSessionsCommand(
   io.write(sessions.map((session) => [
     stageLabel(session),
     attentionLabel(session),
+    goalLabel(session),
     session.title,
     session.id,
   ].join('\t')).join('\n'))
@@ -56,6 +57,7 @@ export async function runExplainCommand(
     `Stage: ${stageLabel(session)}`,
     `Reason: ${stageReasonLabel(session.classification.reason)} (${session.classification.reason})`,
     `Attention: ${attentionLabel(session)}`,
+    `Goal: ${goalLabel(session)}${session.goal ? ` · ${session.goal.objective}` : ''}`,
     `Project: ${session.projectId ?? 'Outside a Git project'}`,
     `Turn: ${session.turnId ?? 'none'}`,
     `Snapshot: ${snapshot.generatedAt} · protocol ${snapshot.protocolVersion}`,
@@ -83,6 +85,7 @@ function sessionListItem(session: ClassifiedAgentSession) {
     activity: session.activity,
     stage: session.classification.stage,
     reason: session.classification.reason,
+    goal: session.goal,
   }
 }
 
@@ -102,6 +105,7 @@ function sessionExplanation(snapshot: BridgeSnapshot, session: ClassifiedAgentSe
       reason: session.classification.reason,
       turnId: session.turnId,
       plan: planProgress(session),
+      goal: session.goal,
     },
   }
 }
@@ -116,6 +120,11 @@ function attentionLabel(session: ClassifiedAgentSession): string {
   if (session.activity === 'awaiting-input') return 'Needs you'
   if (session.activity === 'idle') return 'Idle'
   return 'Ended'
+}
+
+function goalLabel(session: ClassifiedAgentSession): string {
+  if (!session.goal) return 'No goal'
+  return `Goal ${session.goal.status}`
 }
 
 function requireJsonOnly(command: string, args: readonly string[]): void {

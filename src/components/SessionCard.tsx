@@ -1,6 +1,12 @@
 import { currentPlanStep, planProgress } from '@/domain/stage'
 import { formatSessionTiming } from '@/domain/time'
-import { STAGE_LABELS, type AgentSession, type KanbanCardDetail } from '@/domain/types'
+import { Target } from 'lucide-react'
+import {
+  STAGE_LABELS,
+  type AgentSession,
+  type KanbanCardDetail,
+  type LogbookNote,
+} from '@/domain/types'
 import type { BoardSession } from '@/state/store'
 import { StageIcon } from './primitives'
 import styles from './SessionCard.module.css'
@@ -12,6 +18,7 @@ export interface SessionCardProps {
   columnIndex: number
   cardIndex: number
   detail: KanbanCardDetail
+  comments: readonly LogbookNote[]
   showProject: boolean
   showStage?: boolean
 }
@@ -23,6 +30,7 @@ export function SessionCard({
   columnIndex,
   cardIndex,
   detail,
+  comments,
   showProject,
   showStage = false,
 }: SessionCardProps) {
@@ -68,7 +76,20 @@ export function SessionCard({
               </span>
             </span>
           ) : null}
-          <h3 className={styles.title}>{session.title}</h3>
+          <div className={styles.titleRow}>
+            <h3 className={styles.title}>{session.title}</h3>
+            {session.goal ? (
+              <span
+                className={styles.goal}
+                data-status={session.goal.status}
+                aria-label={`Goal ${session.goal.status}: ${session.goal.objective}`}
+                title={session.goal.objective}
+              >
+                <Target size={11} strokeWidth={1.8} aria-hidden="true" />
+                Goal
+              </span>
+            ) : null}
+          </div>
           {detail === 'titles' && compactMeta ? (
             <p
               className={needsUser ? styles.compactNeeds : styles.compactMeta}
@@ -77,34 +98,46 @@ export function SessionCard({
               {compactMeta}
             </p>
           ) : null}
-          {detail === 'details' && childLabel ? (
+          {detail !== 'titles' && childLabel ? (
             <p className={styles.childSummary}>
               {childLabel}
             </p>
           ) : null}
 
-          {detail === 'details' && stage === 'planning' ? (
+          {detail !== 'titles' && stage === 'planning' ? (
             <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
               {needsUser ? '● Needs you' : idle ? 'Idle · between turns' : 'Starting'}
             </p>
           ) : null}
 
-          {detail === 'details' && stage === 'running' ? (
+          {detail !== 'titles' && stage === 'running' ? (
             <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
               {runningSummary(session)}
             </p>
           ) : null}
 
-          {detail === 'details' && stage === 'reviewing' && session.review ? (
+          {detail !== 'titles' && stage === 'reviewing' && session.review ? (
             <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
               {attentionPrefix(session)}{reviewSummary(session)}
             </p>
           ) : null}
 
-          {detail === 'details' && stage === 'wrapping-up' && session.wrapup ? (
+          {detail !== 'titles' && stage === 'wrapping-up' && session.wrapup ? (
             <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
               {attentionPrefix(session)}{wrapupSummary(session)}
             </p>
+          ) : null}
+
+          {detail === 'comments' && comments.length > 0 ? (
+            <div className={styles.comments} aria-label="Your Logbook comments">
+              <span className={styles.commentsLabel}>Comments</span>
+              {[...comments].slice(-2).reverse().map((comment) => (
+                <p key={comment.id}>{comment.body}</p>
+              ))}
+              {comments.length > 2 ? (
+                <span className={styles.earlierComments}>+{comments.length - 2} earlier</span>
+              ) : null}
+            </div>
           ) : null}
 
           {timing ? <p className={styles.timing}>{timing}</p> : null}
@@ -185,6 +218,8 @@ function MetaPopover({ session }: { session: AgentSession }) {
       <dl className={styles.metaList}>
         <dt>Activity</dt>
         <dd>{activityLabel(session)}</dd>
+        <dt>Goal</dt>
+        <dd>{session.goal ? `${session.goal.status} · ${session.goal.objective}` : '—'}</dd>
         <dt>Model</dt>
         <dd>{session.model}</dd>
         <dt>Effort</dt>

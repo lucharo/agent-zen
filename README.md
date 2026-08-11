@@ -11,10 +11,10 @@ This is not a throughput dashboard. It is an active shelf for choosing what to c
 ## What it does
 
 - Shows one card per root Codex session, with child agents contained inside it.
-- Reads native Codex plans, turns, session names, projects, branches and worktrees without asking the agent to maintain another ledger.
+- Reads native Codex goals, plans, turns, session names, projects, branches and worktrees without asking the agent to maintain another ledger.
 - Projects sessions into Planning / Idle, Running, Reviewing and Wrapping up. Running means the turn is progressing; Idle and Needs you return ordinary work to the first column.
 - Offers a compact grid when the Kanban columns are too much.
-- Keeps Ideas as a human-owned space before planning, plus a private Logbook attached to each session.
+- Keeps Ideas as a human-owned space before planning, plus a private Logbook attached to each session. Cards can show those comments without mixing them into Codex state.
 - Leaves the session board read-only. Agent Zen observes Codex; it does not become a second workflow authority.
 
 Finished or archived sessions leave the active board. There is deliberately no Done column competing for attention.
@@ -45,7 +45,7 @@ agent-zen daemon stop
 
 `daemon start` and `daemon stop` are idempotent. Start installs and enables `io.lucharo.agent-zen`; stop unloads and disables it. The service binds only to loopback. Its LaunchAgent lives at `~/Library/LaunchAgents/io.lucharo.agent-zen.plist`, with logs and settings under `~/.agent-zen/`.
 
-`sessions` and `explain` read the same classified daemon snapshot as the board. `explain` reports the stable stage reason, so a CLI check and the visible column cannot silently use different classifiers.
+`sessions` and `explain` read the same classified daemon snapshot as the board. Both include the current explicit goal, when one exists. `explain` also reports the stable stage reason, so a CLI check and the visible column cannot silently use different classifiers.
 
 After updating the repository, run `bun run install:cli` again followed by `agent-zen daemon restart`.
 
@@ -70,7 +70,7 @@ The loopback Bun service combines two native sources:
 1. It observes active Codex processes, `~/.codex/state_5.sqlite`, and the matching rollout JSONL files. That is how sessions started in Codex Desktop, terminals or worktrees remain visible.
 2. It owns one bundled `codex app-server --stdio` child for supported control of sessions launched through this Agent Zen process.
 
-ACP and hooks are not required. Existing sessions remain read-only. Plans are optional: substantive work can be Running before an agent creates a plan, and every native plan replacement is reflected without creating a second task database. See [ADR-0002](docs/adr/0002-native-codex-connection.md) for the exact stage and ownership contract.
+ACP and hooks are not required. Existing sessions remain read-only. Goals and plans are optional: a successful Codex goal-tool result becomes the session's explicit goal, while substantive work can be Running before an agent creates a plan. Every native plan replacement is reflected without creating a second task database. See [ADR-0002](docs/adr/0002-native-codex-connection.md) for the exact stage and ownership contract.
 
 The browser refreshes the snapshot every second. UI preferences, registered projects and the optional focus limit live in `~/.agent-zen/settings.json`. Ideas and the human-only Logbook remain local browser data.
 

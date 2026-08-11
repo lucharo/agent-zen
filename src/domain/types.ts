@@ -70,6 +70,14 @@ export interface PlanRevision {
   readonly steps: readonly PlanStep[]
 }
 
+export type SessionGoalStatus = 'active' | 'complete' | 'blocked'
+
+/** The current explicit Codex goal, read from the goal tool's own result. */
+export interface SessionGoal {
+  readonly objective: string
+  readonly status: SessionGoalStatus
+}
+
 export type SessionActivity = 'idle' | 'working' | 'awaiting-input' | 'ended'
 
 /** Read-only review signals. Aggregated, never a CI dashboard. */
@@ -161,6 +169,7 @@ export interface AgentSession {
   readonly projectId: string | null
   readonly plan: Plan | null
   readonly planHistory: readonly PlanRevision[]
+  readonly goal: SessionGoal | null
   readonly review: ReviewSignals | null
   readonly wrapup: WrapupSignals | null
   /** Present only for an Agent Zen-owned app-server request awaiting a human response. */
@@ -213,5 +222,5 @@ export type IdeaGroupBy = 'created' | 'project'
 export type IdeaLayout = 'grid' | 'list'
 export type SessionLayout = 'kanban' | 'grid'
 export type KanbanGroupBy = 'none' | 'project'
-export type KanbanCardDetail = 'titles' | 'details'
+export type KanbanCardDetail = 'titles' | 'details' | 'comments'
 export type View = 'kanban' | 'ideas'

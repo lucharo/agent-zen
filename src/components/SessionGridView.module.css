@@ -76,6 +76,10 @@
   height: 252px;
 }
 
+.grid[data-detail='comments'] > li {
+  height: 360px;
+}
+
 .empty {
   margin: auto;
   color: var(--ink-muted);

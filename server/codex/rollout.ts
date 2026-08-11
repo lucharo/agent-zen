@@ -1,4 +1,11 @@
-import type { Plan, PlanRevision, PlanStep, SessionActivity } from '../../src/domain/types'
+import type {
+  Plan,
+  PlanRevision,
+  PlanStep,
+  SessionActivity,
+  SessionGoal,
+  SessionGoalStatus,
+} from '../../src/domain/types'
 
 export interface RolloutSnapshot {
   readonly turnId: string | null
@@ -9,6 +16,7 @@ export interface RolloutSnapshot {
   readonly latestUserMessage: string | null
   readonly plan: Plan | null
   readonly planHistory: readonly PlanRevision[]
+  readonly goal: SessionGoal | null
   readonly stageHint: 'reviewing' | 'wrapping-up' | null
   readonly pendingInputCallIds: readonly string[]
 }
@@ -21,6 +29,11 @@ interface RolloutRecord {
   readonly payload?: Record<string, unknown>
 }
 
+export interface GoalRecordAnchor {
+  readonly kind: 'call' | 'result'
+  readonly callId: string
+}
+
 export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
   let turnId: string | null = null
   let turnStartedAt: string | null = null
@@ -31,7 +44,9 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
   let currentStageHint: RolloutSnapshot['stageHint'] = null
   let plan: Plan | null = null
   let planHistory: PlanRevision[] = []
+  let goal: SessionGoal | null = null
   const pendingInputCalls = new Set<string>()
+  const goalToolCalls = new Set<string>()
 
   for (const raw of lines) {
     if (!raw.trim()) continue
@@ -74,6 +89,10 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     }
 
     if (isSubstantiveAgentRecord(record)) hasSubstantiveActivity = true
+    const goalToolCall = goalToolCallId(record)
+    if (goalToolCall) goalToolCalls.add(goalToolCall)
+    const goalToolOutput = goalToolOutputFromRecord(record, goalToolCalls)
+    if (goalToolOutput !== undefined) goal = goalToolOutput
     const inputCall = requestUserInputCallId(record)
     if (inputCall) {
       pendingInputCalls.add(inputCall)
@@ -100,9 +119,187 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     latestUserMessage,
     plan,
     planHistory,
+    goal,
     stageHint: currentStageHint,
     pendingInputCallIds: [...pendingInputCalls],
   }
+}
+
+function goalToolCallId(record: RolloutRecord): string | null {
+  const payload = record.payload
+  if (
+    record.type !== 'response_item' ||
+    payload?.type !== 'custom_tool_call' ||
+    payload.name !== 'exec' ||
+    typeof payload.input !== 'string' ||
+    !containsDirectGoalResultEmission(payload.input)
+  ) {
+    return null
+  }
+  return stringValue(payload.call_id)
+}
+
+function goalToolOutputFromRecord(
+  record: RolloutRecord,
+  goalToolCalls: ReadonlySet<string>,
+): SessionGoal | null | undefined {
+  const payload = record.payload
+  if (record.type !== 'response_item' || payload?.type !== 'custom_tool_call_output') {
+    return undefined
+  }
+  const callId = stringValue(payload.call_id)
+  if (!callId || !goalToolCalls.has(callId)) return undefined
+  return goalPayloadFromOutput(payload.output)
+}
+
+function goalPayloadFromOutput(output: unknown): SessionGoal | null | undefined {
+  for (const text of outputTexts(output)) {
+    const parsed = parseJsonObject(text)
+    if (!parsed) continue
+    if (!('goal' in parsed)) return undefined
+    if (parsed.goal === null) return null
+    if (!isObject(parsed.goal)) continue
+    const objective = stringValue(parsed.goal.objective)
+    const status = goalStatus(parsed.goal.status)
+    if (objective && status) return { objective, status }
+  }
+  return undefined
+}
+
+export function goalRecordAnchor(line: string): GoalRecordAnchor | null {
+  let record: RolloutRecord
+  try {
+    record = JSON.parse(line) as RolloutRecord
+  } catch {
+    return null
+  }
+  const callId = goalToolCallId(record)
+  if (callId) return { kind: 'call', callId }
+  const payload = record.payload
+  if (
+    record.type !== 'response_item' ||
+    payload?.type !== 'custom_tool_call_output' ||
+    goalPayloadFromOutput(payload.output) === undefined
+  ) {
+    return null
+  }
+  const resultCallId = stringValue(payload.call_id)
+  return resultCallId ? { kind: 'result', callId: resultCallId } : null
+}
+
+function outputTexts(output: unknown): string[] {
+  if (typeof output === 'string') return [output]
+  if (!Array.isArray(output)) return []
+  return output.flatMap((item) => (
+    isObject(item) && item.type === 'input_text' && typeof item.text === 'string'
+      ? [item.text]
+      : []
+  ))
+}
+
+function parseJsonObject(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value.trim()) as unknown
+    return isObject(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function goalStatus(value: unknown): SessionGoalStatus | null {
+  return value === 'active' || value === 'complete' || value === 'blocked' ? value : null
+}
+
+function containsDirectGoalResultEmission(source: string): boolean {
+  const code = stripJavaScriptText(source)
+  const assignment = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+tools\.(?:create_goal|update_goal|get_goal)\s*\(/g
+  for (const match of code.matchAll(assignment)) {
+    const variable = match[1]
+    const start = match.index ?? 0
+    if (!variable || /\btext\s*\(/.test(code.slice(0, start))) continue
+    const openParen = start + match[0].lastIndexOf('(')
+    const closeParen = matchingParenthesis(code, openParen)
+    if (closeParen === -1) continue
+    const escaped = variable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const emittedResult = `(?:${escaped}|JSON\\.stringify\\s*\\(\\s*${escaped}(?:\\s*,\\s*null\\s*,\\s*\\d+)?\\s*\\))`
+    const directText = new RegExp(`^\\s*;\\s*text\\s*\\(\\s*${emittedResult}\\s*\\)\\s*;`)
+    if (directText.test(code.slice(closeParen + 1))) return true
+  }
+  return false
+}
+
+function matchingParenthesis(source: string, openParen: number): number {
+  let depth = 0
+  for (let index = openParen; index < source.length; index += 1) {
+    if (source[index] === '(') depth += 1
+    if (source[index] === ')') {
+      depth -= 1
+      if (depth === 0) return index
+    }
+  }
+  return -1
+}
+
+/** Remove strings and comments so quoted examples cannot impersonate tool calls. */
+function stripJavaScriptText(source: string): string {
+  let result = ''
+  let index = 0
+  let state: 'code' | 'single' | 'double' | 'template' | 'line-comment' | 'block-comment' = 'code'
+  while (index < source.length) {
+    const char = source[index] ?? ''
+    const next = source[index + 1] ?? ''
+    if (state === 'code') {
+      if (char === '/' && next === '/') {
+        result += '  '
+        index += 2
+        state = 'line-comment'
+        continue
+      }
+      if (char === '/' && next === '*') {
+        result += '  '
+        index += 2
+        state = 'block-comment'
+        continue
+      }
+      if (char === "'") state = 'single'
+      else if (char === '"') state = 'double'
+      else if (char === '`') state = 'template'
+      result += state === 'code' ? char : ' '
+      index += 1
+      continue
+    }
+    if (state === 'line-comment') {
+      if (char === '\n') {
+        state = 'code'
+        result += '\n'
+      } else result += ' '
+      index += 1
+      continue
+    }
+    if (state === 'block-comment') {
+      if (char === '*' && next === '/') {
+        result += '  '
+        index += 2
+        state = 'code'
+      } else {
+        result += char === '\n' ? '\n' : ' '
+        index += 1
+      }
+      continue
+    }
+    if (char === '\\') {
+      result += '  '
+      index += 2
+      continue
+    }
+    const closes = (state === 'single' && char === "'") ||
+      (state === 'double' && char === '"') ||
+      (state === 'template' && char === '`')
+    result += char === '\n' ? '\n' : ' '
+    index += 1
+    if (closes) state = 'code'
+  }
+  return result
 }
 
 function planUpdateFromRecord(

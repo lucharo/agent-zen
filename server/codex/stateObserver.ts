@@ -3,7 +3,7 @@ import { open, stat } from 'node:fs/promises'
 import type { AgentSession, Project } from '../../src/domain/types'
 import { normaliseGitHubRepository } from '../projects'
 import { discoverActiveCodexThreadIds } from './processInventory'
-import { parseRolloutLines, type RolloutSnapshot } from './rollout'
+import { goalRecordAnchor, parseRolloutLines, type RolloutSnapshot } from './rollout'
 
 interface ThreadRow {
   readonly id: string
@@ -33,6 +33,7 @@ interface CachedRollout {
   readonly planLine: string | null
   readonly stageLine: string | null
   readonly activityLine: string | null
+  readonly goalLines: readonly string[]
   readonly inputLines: readonly string[]
 }
 
@@ -153,6 +154,7 @@ export class CodexStateObserver {
       projectId: project?.id ?? null,
       plan: rollout.plan,
       planHistory: rollout.planHistory,
+      goal: rollout.goal,
       review,
       wrapup,
       endedAt: turnActive || processActive
@@ -180,6 +182,15 @@ export class CodexStateObserver {
     let stageLine = tailStage ?? (sameTurn ? cached?.stageLine ?? null : null)
     const tailActivity = lastActivityLine(lines)
     let activityLine = tailActivity ?? (sameTurn ? cached?.activityLine ?? null : null)
+    const tailGoalLines = lastGoalLines(lines)
+    const tailHasUnpairedGoalResult = tailGoalLines.length === 0 && lines.some((line) =>
+      goalRecordAnchor(line)?.kind === 'result'
+    )
+    let goalLines = tailGoalLines.length > 0
+      ? tailGoalLines
+      : tailHasUnpairedGoalResult
+        ? []
+        : [...(cached?.goalLines ?? [])]
     let inputLines = sameTurn ? [...(cached?.inputLines ?? [])] : []
     if (!planLine && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
       planLine = await findLastPlanLine(rolloutPath, metadata.size)
@@ -189,6 +200,9 @@ export class CodexStateObserver {
     }
     if (!activityLine && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
       activityLine = await findLastActivityLine(rolloutPath, metadata.size)
+    }
+    if (goalLines.length === 0) {
+      goalLines = await findLastGoalLines(rolloutPath, metadata.size)
     }
     if (inputLines.length === 0 && lifecycleLine && lifecycleType(lifecycleLine) === 'task_started') {
       inputLines = await findUnresolvedInputLines(rolloutPath, metadata.size, lifecycleLine)
@@ -202,6 +216,7 @@ export class CodexStateObserver {
       planLine && planLine !== tailPlan ? planLine : null,
       stageLine && stageLine !== tailStage ? stageLine : null,
       activityLine && activityLine !== tailActivity ? activityLine : null,
+      ...goalLines,
       ...inputLines,
     ].filter((line): line is string => Boolean(line))
     anchors.sort((left, right) => lineTimestamp(left).localeCompare(lineTimestamp(right)))
@@ -220,10 +235,28 @@ export class CodexStateObserver {
       planLine,
       stageLine,
       activityLine,
+      goalLines,
       inputLines,
     })
     return snapshot
   }
+}
+
+function lastGoalLines(lines: readonly string[]): string[] {
+  const calls = new Map<string, string>()
+  let latest: string[] = []
+  for (const line of lines) {
+    if (!line) continue
+    const anchor = goalRecordAnchor(line)
+    if (!anchor) continue
+    if (anchor.kind === 'call') {
+      calls.set(anchor.callId, line)
+      continue
+    }
+    const call = calls.get(anchor.callId)
+    if (call) latest = [call, line]
+  }
+  return latest
 }
 
 function lastPlanLine(lines: readonly string[]): string | null {
@@ -332,6 +365,48 @@ async function findLastStageLine(filePath: string, size: number): Promise<string
 
 async function findLastActivityLine(filePath: string, size: number): Promise<string | null> {
   return findLastMatchingLine(filePath, size, activityLineType)
+}
+
+async function findLastGoalLines(filePath: string, size: number): Promise<string[]> {
+  const handle = await open(filePath, 'r')
+  const chunkSize = 512 * 1024
+  const results = new Map<string, string>()
+  let position = size
+  let carry = ''
+  try {
+    while (position > 0) {
+      const start = Math.max(0, position - chunkSize)
+      const length = position - start
+      const bytes = Buffer.alloc(length)
+      await handle.read(bytes, 0, length, start)
+      const combined = bytes.toString('utf8') + carry
+      const lines = combined.split('\n')
+      carry = lines.shift() ?? ''
+      for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const line = lines[index]
+        if (!line) continue
+        const anchor = goalRecordAnchor(line)
+        if (!anchor) continue
+        if (anchor.kind === 'result') {
+          results.set(anchor.callId, line)
+          continue
+        }
+        const result = results.get(anchor.callId)
+        if (result) return [line, result]
+      }
+      position = start
+    }
+    if (carry) {
+      const anchor = goalRecordAnchor(carry)
+      if (anchor?.kind === 'call') {
+        const result = results.get(anchor.callId)
+        if (result) return [carry, result]
+      }
+    }
+    return []
+  } finally {
+    await handle.close()
+  }
 }
 
 async function findLastMatchingLine(

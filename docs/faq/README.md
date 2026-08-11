@@ -54,7 +54,21 @@ The App Server connection and its owned-thread map are intentionally in memory. 
 - [Bridge ownership](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — connection-generation ownership map.
 - [Ownership regression](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.test.ts) — reconnect turns an owned session into external observation.
 
-_Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10_
+_Created: 2026-08-10 · Updated: 2026-08-11 · Verified: 2026-08-11_
+
+## How does Agent Zen know whether a session has a goal?
+
+**Short answer:** It reads the successful Codex goal-tool result. It does not infer a goal from the prompt, title, plan, or a mention of `create_goal` in diagnostic text.
+
+The rollout parser matches a real `create_goal`, `update_goal`, or `get_goal` call to its result by call id, then keeps the objective and status in the canonical session snapshot. The observer can recover that pair after it falls outside the normal rollout tail. Cards show a compact Goal badge; the detail view and `agent-zen sessions --json` or `agent-zen explain ... --json` show the objective and status.
+
+### Sources
+
+- [Rollout parser](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.ts) — matched goal call and result extraction.
+- [Codex observer](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — bounded goal-anchor recovery.
+- [Session CLI](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.ts) — goal state from the same snapshot as the board.
+
+_Created: 2026-08-11 · Updated: 2026-08-11 · Verified: 2026-08-11_
 
 ## What puts a session in each Sessions stage?
 
@@ -258,9 +272,9 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## How do Sessions layouts, dense columns, and card detail work?
 
-**Short answer:** Sessions switches between Kanban and Grid. Every Kanban stage header shows its visible count; columns scroll independently and show a bottom “Scroll for more” affordance. Grid gives every session its own equal-size, stage-labelled card. Both layouts can display full details or titles only.
+**Short answer:** Sessions switches between Kanban and Grid. Title is always shown. Description and Comments are cumulative card controls, so Comments also turns Description on.
 
-Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner. Grid rows wrap and centre independently, so a short final row does not cling to the left edge. Title cards are `260 × 184px`; detail cards are `260 × 252px`, top-aligned without stretching to fill sparse rows. Titles is the default and keeps stage, project, attention state, subagent count, labelled timing, and native plan position; it hides only the current step description and review or wrap-up summary. Cards reveal repository, branch, worktree, model, effort, Codex version, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card.
+Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner. Grid rows wrap and centre independently, so a short final row does not cling to the left edge. Title cards are `260 × 184px`; description cards are `260 × 252px`; comment cards use a taller `260 × 360px` frame for the labelled Logbook excerpts. The default keeps stage, project, attention state, goal presence, subagent count, labelled timing, and native plan position. Description adds the current step or review and wrap-up summary. Comments adds the two newest human Logbook notes and keeps Description on. Cards reveal repository, branch, worktree, model, effort, Codex version, goal objective, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card.
 
 ### Sources
 
@@ -270,7 +284,7 @@ Horizontal trackpad gestures over a Kanban column bubble to the board, while ver
 - [Scroll regression](https://github.com/lucharo/agent-zen/blob/main/qa/e2e/session-scroll.spec.ts) — one horizontal owner and two-axis wheel routing.
 - [Session card styles](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionCard.module.css) — delayed hover and immediate focus disclosure.
 
-_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11_
 
 ## What does Quick Capture create?
 

@@ -115,12 +115,12 @@ export function CommandPalette({
       },
       {
         id: 'do-card-detail',
-        label: state.kanbanCardDetail === 'details' ? 'Show session titles only' : 'Show session details',
+        label: state.kanbanCardDetail === 'titles' ? 'Show session descriptions' : 'Show session titles only',
         group: 'Do',
         run: () =>
           dispatch({
             type: 'set-kanban-card-detail',
-            detail: state.kanbanCardDetail === 'details' ? 'titles' : 'details',
+            detail: state.kanbanCardDetail === 'titles' ? 'details' : 'titles',
           }),
       },
       ...(['system', 'light', 'dark'] as const).map((theme) => ({

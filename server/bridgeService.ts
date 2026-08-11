@@ -486,6 +486,7 @@ function transientSession(
     projectId: null,
     plan: null,
     planHistory: [],
+    goal: null,
     review: null,
     wrapup: null,
     endedAt: null,

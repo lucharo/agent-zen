@@ -11,7 +11,7 @@ function snapshot(): BridgeSnapshot {
     .filter((session) => !session.endedAt)
     .map(classifyAgentSession)
   return {
-    protocolVersion: 6,
+    protocolVersion: 7,
     generatedAt: '2026-08-10T17:00:00.000Z',
     connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
     sessions,
@@ -47,7 +47,7 @@ describe('session CLI commands', () => {
     const value = JSON.parse(output.join('')) as Record<string, unknown>
     expect(value).toEqual({
       generatedAt: '2026-08-10T17:00:00.000Z',
-      protocolVersion: 6,
+      protocolVersion: 7,
       sessions: [
         {
           id: 'sess-index-threads',
@@ -56,6 +56,7 @@ describe('session CLI commands', () => {
           activity: 'working',
           stage: 'planning',
           reason: 'turn-starting',
+          goal: null,
         },
         {
           id: 'sess-control-plane',
@@ -64,6 +65,10 @@ describe('session CLI commands', () => {
           activity: 'working',
           stage: 'running',
           reason: 'active-plan',
+          goal: {
+            objective: 'Turn Agent Zen into a calm, reliable session control plane.',
+            status: 'active',
+          },
         },
         {
           id: 'sess-harbor-canary',
@@ -72,6 +77,7 @@ describe('session CLI commands', () => {
           activity: 'awaiting-input',
           stage: 'reviewing',
           reason: 'explicit-review-invocation',
+          goal: null,
         },
         {
           id: 'sess-retire-dask',
@@ -80,6 +86,7 @@ describe('session CLI commands', () => {
           activity: 'working',
           stage: 'wrapping-up',
           reason: 'explicit-wrapup-invocation',
+          goal: null,
         },
       ],
     })
@@ -92,7 +99,7 @@ describe('session CLI commands', () => {
 
     expect(JSON.parse(output.join(''))).toEqual({
       generatedAt: '2026-08-10T17:00:00.000Z',
-      protocolVersion: 6,
+      protocolVersion: 7,
       session: {
         id: 'sess-control-plane',
         threadId: '019e21b0-3d54-7f18-8a77-1c0be4d2f905',
@@ -105,6 +112,10 @@ describe('session CLI commands', () => {
         reason: 'active-plan',
         turnId: 'turn-control-plane',
         plan: { completed: 3, total: 5 },
+        goal: {
+          objective: 'Turn Agent Zen into a calm, reliable session control plane.',
+          status: 'active',
+        },
       },
     })
   })

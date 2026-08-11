@@ -20,7 +20,7 @@ Agent Zen uses the bundled Codex App Server for supported session control and na
 Implement one typed Codex adapter with three internal responsibilities:
 
 1. **Catalog reader:** use `thread/list`, `thread/read(includeTurns=true)`, and parent/ancestor filters for persisted session inventory and history.
-2. **Process + rollout observer:** inventory rollout files held open by live Codex processes, query those exact thread ids from the state database, and tail their rollouts for turn activity, current plan updates, model/effort, and parent-child edges. Treat process handles and stores as read-only and version-sensitive.
+2. **Process + rollout observer:** inventory rollout files held open by live Codex processes, query those exact thread ids from the state database, and tail their rollouts for turn activity, explicit goal results, current plan updates, model/effort, and parent-child edges. Treat process handles and stores as read-only and version-sensitive.
 3. **Controller:** run one Agent Zen-owned bundled `codex app-server --stdio` child for sessions launched through Agent Zen. Use `turn/start`, `turn/steer`, `turn/interrupt`, streamed events, and JSON-RPC server-request responses for control. Keep the transport boundary replaceable by the managed daemon when Codex is installed through the standalone channel that provides it.
 
 Derive the board stage locally:
@@ -45,7 +45,7 @@ The local HTTP bridge binds only to `127.0.0.1`, validates loopback `Host` and a
 
 Every snapshot carries a bridge protocol version and one canonical `{ stage, reason }` decision per session. The UI and CLI consume that decision rather than classifying independently. A newer dashboard refuses a stale bridge response and asks for a restart instead of rendering structurally valid but misleading old data. Mutating routes include the protocol version in their URL, so an older bridge rejects an unfamiliar write before changing local state.
 
-The rollout observer keeps the latest lifecycle and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. It does not infer a second plan or ask the agent to republish one.
+The rollout observer keeps the latest lifecycle, explicit goal, and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. A goal is accepted only from a successful `create_goal`, `update_goal`, or `get_goal` result matched to its tool call id. Quoted examples and diagnostic output do not create a goal. The observer does not infer a second goal or plan, or ask the agent to republish either one.
 
 The observer also keeps a bounded substantive-activity anchor and unresolved input-request anchors. A long working planless turn therefore remains Running, and a request that fell outside the ordinary tail remains Needs you until its matching response arrives in Planning / Idle or its preserved review/wrap-up stage.
 
@@ -67,7 +67,7 @@ Sessions leave the focus board when their owning Codex process no longer holds t
 - The adapter must isolate internal SQLite/JSONL parsing so a Codex schema change has one repair point.
 - The implementation should generate or vendor types from the installed Codex version during development rather than hand-maintain the protocol.
 - The browser UI needs a small local bridge or daemon because it cannot launch `codex app-server` or read `~/.codex` directly.
-- A cold observer start inventories live Codex file handles, then may scan backwards through one long active rollout to recover its latest lifecycle and plan anchors; subsequent polling uses a bounded cache.
+- A cold observer start inventories live Codex file handles, then may scan backwards through one long active rollout to recover its latest lifecycle, goal, and plan anchors; subsequent polling uses a bounded cache.
 
 ## Rejected alternatives
 

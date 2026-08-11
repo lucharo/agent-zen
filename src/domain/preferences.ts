@@ -57,7 +57,7 @@ export function normaliseUiPreferences(value: unknown): UiPreferences | null {
     ideaLayout: oneOf(preferences.ideaLayout, ['grid', 'list'], 'grid'),
     sessionLayout: oneOf(preferences.sessionLayout, ['kanban', 'grid'], 'kanban'),
     kanbanGroupBy: oneOf(preferences.kanbanGroupBy, ['none', 'project'], 'none'),
-    kanbanCardDetail: oneOf(preferences.kanbanCardDetail, ['titles', 'details'], 'titles'),
+    kanbanCardDetail: oneOf(preferences.kanbanCardDetail, ['titles', 'details', 'comments'], 'titles'),
     ideasFolded: preferences.ideasFolded === true,
   }
 }

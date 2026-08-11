@@ -21,7 +21,7 @@ export interface KanbanViewProps {
 }
 
 export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: KanbanViewProps) {
-  const { state, dispatch, board, now, availableProjects } = useAgentZen()
+  const { state, dispatch, board, now, availableProjects, logbookFor } = useAgentZen()
   const boardRef = useRef<HTMLDivElement>(null)
 
   const filtered = state.projectFilter
@@ -186,6 +186,7 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
                               columnIndex={stageIndex + 1}
                               cardIndex={index}
                               detail={state.kanbanCardDetail}
+                              comments={logbookFor(entry.session.id)}
                               showProject={state.kanbanGroupBy !== 'project'}
                             />
                           ))}
