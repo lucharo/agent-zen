@@ -325,6 +325,43 @@ describe('parseRolloutLines', () => {
     expect(result.goal).toEqual({ objective: 'Real current goal.', status: 'blocked' })
   })
 
+  test('ignores an earlier goal-shaped diagnostic before the direct goal result', () => {
+    const result = parseRolloutLines([
+      line({
+        timestamp: '2026-08-06T12:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'call-goal-after-diagnostic',
+          input: [
+            'text({goal:{objective:"Diagnostic",status:"active"}});',
+            'const result = await tools.get_goal({});',
+            'text(result);',
+          ].join('\n'),
+        },
+      }),
+      line({
+        timestamp: '2026-08-06T12:00:01.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call-goal-after-diagnostic',
+          output: [
+            { type: 'input_text', text: JSON.stringify({
+              goal: { objective: 'Diagnostic', status: 'active' },
+            }) },
+            { type: 'input_text', text: JSON.stringify({
+              goal: { objective: 'Real current goal.', status: 'blocked' },
+            }) },
+          ],
+        },
+      }),
+    ])
+
+    expect(result.goal).toEqual({ objective: 'Real current goal.', status: 'blocked' })
+  })
+
   test('requires the goal tool result itself to be emitted', () => {
     const result = parseRolloutLines([
       line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),

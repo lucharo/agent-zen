@@ -24,6 +24,7 @@ export function App() {
   const [detail, setDetail] = useState<DetailTarget>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const modalOpen = paletteOpen || captureOpen || settingsOpen || projectOnboardingOpen || detail !== null
+  const quickCaptureSurface = window.location.search === '?surface=quick-capture'
 
   const ideas = filterIdeas(state.ideas, { projectId: state.projectFilter })
 
@@ -103,6 +104,21 @@ export function App() {
     const timer = window.setTimeout(() => setNotice(null), 2600)
     return () => window.clearTimeout(timer)
   }, [notice])
+
+  if (quickCaptureSurface) {
+    const closeQuickCapture = () => {
+      window.setTimeout(() => window.location.assign('agent-zen://close-quick-capture'), 50)
+    }
+    return (
+      <div className={styles.quickCaptureSurface}>
+        <CaptureSheet
+          open
+          onClose={closeQuickCapture}
+          onSaved={() => undefined}
+        />
+      </div>
+    )
+  }
 
   if (!sourceReady) {
     return (

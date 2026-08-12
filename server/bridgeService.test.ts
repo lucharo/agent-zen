@@ -64,6 +64,12 @@ class FakeClient {
         thread: { id: threadId, name: threadId ? this.threadNames.get(threadId) ?? null : null },
       } as T
     }
+    if (method === 'thread/list') {
+      return {
+        data: [...this.threadNames].map(([id, name]) => ({ id, name })),
+        nextCursor: null,
+      } as T
+    }
     return {} as T
   }
 
@@ -447,6 +453,11 @@ describe('AgentZenBridgeService ownership', () => {
     const snapshot = await service.snapshot()
 
     expect(snapshot.sessions[0]?.title).toBe('Renamed Codex session')
+    expect(client.requestCalls).toContainEqual({
+      method: 'thread/list',
+      params: { limit: 100, useStateDbOnly: true },
+    })
+    expect(client.requests).not.toContain('thread/read')
   })
 
   test('registers the Git project of an active observed session', async () => {

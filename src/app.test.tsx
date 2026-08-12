@@ -456,6 +456,19 @@ describe('navigation', () => {
     expect(screen.getByRole('dialog', { name: 'Quick capture' })).toBeInTheDocument()
   })
 
+  it('renders only quick capture for the native global-shortcut surface', () => {
+    window.history.replaceState(null, '', '/?surface=quick-capture')
+    try {
+      mount()
+
+      expect(screen.getByRole('dialog', { name: 'Quick capture' })).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Running' })).toBeNull()
+      expect(screen.queryByRole('button', { name: /Sessions/ })).toBeNull()
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
   it('does not open a second modal from a global shortcut', async () => {
     const { user } = mount()
 

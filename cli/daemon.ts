@@ -1,4 +1,5 @@
 import { dirname, join, resolve } from 'node:path'
+import { BRIDGE_PROTOCOL_VERSION } from '../src/bridge/types'
 
 export const DAEMON_LABEL = 'io.lucharo.agent-zen'
 export const DAEMON_START_TIMEOUT_MS = 20_000
@@ -29,6 +30,7 @@ export interface DaemonHealth {
   readonly reachable: boolean
   readonly pid: number | null
   readonly version: string | null
+  readonly protocolVersion: number | null
   readonly codexConnected: boolean
 }
 
@@ -146,6 +148,7 @@ export function parseDaemonHealth(value: unknown): DaemonHealth {
     reachable: true,
     pid: Number(runtimeObject.pid),
     version: typeof runtimeObject.version === 'string' ? runtimeObject.version : null,
+    protocolVersion: Number.isInteger(object.protocolVersion) ? Number(object.protocolVersion) : null,
     codexConnected: connected,
   }
 }
@@ -175,7 +178,8 @@ export function isOwnedHealthy(launchd: LaunchctlState, health: DaemonHealth): b
     launchd.loaded
     && launchd.pid
     && health.reachable
-    && health.pid === launchd.pid,
+    && health.pid === launchd.pid
+    && health.protocolVersion === BRIDGE_PROTOCOL_VERSION
   )
 }
 
@@ -223,7 +227,13 @@ function xml(value: string): string {
 }
 
 function unreachableHealth(): DaemonHealth {
-  return { reachable: false, pid: null, version: null, codexConnected: false }
+  return {
+    reachable: false,
+    pid: null,
+    version: null,
+    protocolVersion: null,
+    codexConnected: false,
+  }
 }
 
 function escapeRegex(value: string): string {

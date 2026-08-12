@@ -34,6 +34,13 @@ export interface GoalRecordAnchor {
   readonly callId: string
 }
 
+type GoalOutputSelection = 'first' | 'last' | 'only'
+
+interface GoalToolCall {
+  readonly callId: string
+  readonly outputSelection: GoalOutputSelection
+}
+
 export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
   let turnId: string | null = null
   let turnStartedAt: string | null = null
@@ -46,7 +53,7 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
   let planHistory: PlanRevision[] = []
   let goal: SessionGoal | null = null
   const pendingInputCalls = new Set<string>()
-  const goalToolCalls = new Set<string>()
+  const goalToolCalls = new Map<string, GoalOutputSelection>()
 
   for (const raw of lines) {
     if (!raw.trim()) continue
@@ -89,8 +96,8 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     }
 
     if (isSubstantiveAgentRecord(record)) hasSubstantiveActivity = true
-    const goalToolCall = goalToolCallId(record)
-    if (goalToolCall) goalToolCalls.add(goalToolCall)
+    const goalToolCall = goalToolCallFromRecord(record)
+    if (goalToolCall) goalToolCalls.set(goalToolCall.callId, goalToolCall.outputSelection)
     const goalToolOutput = goalToolOutputFromRecord(record, goalToolCalls)
     if (goalToolOutput !== undefined) goal = goalToolOutput
     const inputCall = requestUserInputCallId(record)
@@ -125,45 +132,57 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
   }
 }
 
-function goalToolCallId(record: RolloutRecord): string | null {
+function goalToolCallFromRecord(record: RolloutRecord): GoalToolCall | null {
   const payload = record.payload
   if (
     record.type !== 'response_item' ||
     payload?.type !== 'custom_tool_call' ||
     payload.name !== 'exec' ||
-    typeof payload.input !== 'string' ||
-    !containsDirectGoalResultEmission(payload.input)
+    typeof payload.input !== 'string'
   ) {
     return null
   }
-  return stringValue(payload.call_id)
+  const callId = stringValue(payload.call_id)
+  const outputSelection = directGoalResultSelection(payload.input)
+  return callId && outputSelection ? { callId, outputSelection } : null
 }
 
 function goalToolOutputFromRecord(
   record: RolloutRecord,
-  goalToolCalls: ReadonlySet<string>,
+  goalToolCalls: ReadonlyMap<string, GoalOutputSelection>,
 ): SessionGoal | null | undefined {
   const payload = record.payload
   if (record.type !== 'response_item' || payload?.type !== 'custom_tool_call_output') {
     return undefined
   }
   const callId = stringValue(payload.call_id)
-  if (!callId || !goalToolCalls.has(callId)) return undefined
-  return goalPayloadFromOutput(payload.output)
+  const outputSelection = callId ? goalToolCalls.get(callId) : undefined
+  if (!outputSelection) return undefined
+  return goalPayloadFromOutput(payload.output, outputSelection)
 }
 
-function goalPayloadFromOutput(output: unknown): SessionGoal | null | undefined {
+function goalPayloadFromOutput(
+  output: unknown,
+  selection: GoalOutputSelection = 'first',
+): SessionGoal | null | undefined {
+  const candidates: Array<SessionGoal | null> = []
   for (const text of outputTexts(output)) {
     const parsed = parseJsonObject(text)
     if (!parsed) continue
     if (!('goal' in parsed)) continue
-    if (parsed.goal === null) return null
+    if (parsed.goal === null) {
+      candidates.push(null)
+      continue
+    }
     if (!isObject(parsed.goal)) continue
     const objective = stringValue(parsed.goal.objective)
     const status = goalStatus(parsed.goal.status)
-    if (objective && status) return { objective, status }
+    if (objective && status) candidates.push({ objective, status })
   }
-  return undefined
+  if (candidates.length === 0 || (selection === 'only' && candidates.length !== 1)) {
+    return undefined
+  }
+  return selection === 'last' ? candidates[candidates.length - 1] : candidates[0]
 }
 
 export function goalRecordAnchor(line: string): GoalRecordAnchor | null {
@@ -173,8 +192,8 @@ export function goalRecordAnchor(line: string): GoalRecordAnchor | null {
   } catch {
     return null
   }
-  const callId = goalToolCallId(record)
-  if (callId) return { kind: 'call', callId }
+  const call = goalToolCallFromRecord(record)
+  if (call) return { kind: 'call', callId: call.callId }
   const payload = record.payload
   if (
     record.type !== 'response_item' ||
@@ -210,9 +229,10 @@ function goalStatus(value: unknown): SessionGoalStatus | null {
   return value === 'active' || value === 'complete' || value === 'blocked' ? value : null
 }
 
-function containsDirectGoalResultEmission(source: string): boolean {
+function directGoalResultSelection(source: string): GoalOutputSelection | null {
   const code = stripJavaScriptText(source)
   const assignment = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+tools\.(?:create_goal|update_goal|get_goal)\s*\(/g
+  let found: GoalOutputSelection | null = null
   for (const match of code.matchAll(assignment)) {
     const variable = match[1]
     const start = match.index ?? 0
@@ -223,9 +243,22 @@ function containsDirectGoalResultEmission(source: string): boolean {
     const escaped = variable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const emittedResult = `(?:${escaped}|JSON\\.stringify\\s*\\(\\s*${escaped}(?:\\s*,\\s*null\\s*,\\s*\\d+)?\\s*\\))`
     const directText = new RegExp(`^\\s*;?\\s*text\\s*\\(\\s*${emittedResult}\\s*\\)\\s*;?`)
-    if (directText.test(code.slice(closeParen + 1))) return true
+    const directMatch = directText.exec(code.slice(closeParen + 1))
+    if (!directMatch) continue
+    if (found) return null
+    const directStart = closeParen + 1 + (directMatch.index ?? 0)
+    const directEnd = directStart + directMatch[0].length
+    let hasTextBefore = false
+    let hasTextAfter = false
+    for (const textMatch of code.matchAll(/\btext\s*\(/g)) {
+      const textPosition = textMatch.index ?? 0
+      if (textPosition >= directStart && textPosition < directEnd) continue
+      if (textPosition < directStart) hasTextBefore = true
+      if (textPosition >= directEnd) hasTextAfter = true
+    }
+    found = hasTextBefore ? (hasTextAfter ? 'only' : 'last') : 'first'
   }
-  return false
+  return found
 }
 
 function matchingParenthesis(source: string, openParen: number): number {

@@ -14,7 +14,7 @@ bun run typecheck:server
 mkdir -p "$build_dir" "$bin_dir" "$libexec_dir" "$share_dir"
 
 bun build --compile cli/index.ts --outfile "$build_dir/agent-zen"
-bun build --compile server/index.ts --outfile "$build_dir/agent-zen-server"
+bun build --compile --compile-exec-argv=--smol server/index.ts --outfile "$build_dir/agent-zen-server"
 
 /usr/bin/install -m 0755 "$build_dir/agent-zen" "$bin_dir/agent-zen"
 /usr/bin/install -m 0755 "$build_dir/agent-zen-server" "$libexec_dir/agent-zen-server"

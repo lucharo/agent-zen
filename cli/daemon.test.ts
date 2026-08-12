@@ -6,6 +6,7 @@ import {
   defaultDaemonPaths,
   hasManagedDaemonStopped,
   isLaunchAtLoginConfigured,
+  isOwnedHealthy,
   parseDaemonHealth,
   parseLaunchAtLoginEnabled,
   parseLogLineCount,
@@ -97,17 +98,17 @@ describe('Agent Zen daemon contract', () => {
   test('does not call a daemon stopped while its old pid still serves HTTP', () => {
     expect(hasManagedDaemonStopped(
       { loaded: false, state: null, pid: null },
-      { reachable: true, pid: 4217, version: '0.1.0', codexConnected: true },
+      { reachable: true, pid: 4217, version: '0.1.0', protocolVersion: 7, codexConnected: true },
       4217,
     )).toBe(false)
     expect(hasManagedDaemonStopped(
       { loaded: false, state: null, pid: null },
-      { reachable: false, pid: null, version: null, codexConnected: false },
+      { reachable: false, pid: null, version: null, protocolVersion: null, codexConnected: false },
       4217,
     )).toBe(true)
     expect(hasManagedDaemonStopped(
       { loaded: false, state: null, pid: null },
-      { reachable: true, pid: 9001, version: '0.1.0', codexConnected: true },
+      { reachable: true, pid: 9001, version: '0.1.0', protocolVersion: 7, codexConnected: true },
       4217,
     )).toBe(true)
   })
@@ -116,14 +117,35 @@ describe('Agent Zen daemon contract', () => {
     expect(parseDaemonHealth({
       connection: { connected: false },
       generatedAt: '2026-08-10T13:00:00.000Z',
+      protocolVersion: 7,
       runtime: { pid: 4217, version: '0.1.0' },
-    })).toEqual({ reachable: true, pid: 4217, version: '0.1.0', codexConnected: false })
+    })).toEqual({
+      reachable: true,
+      pid: 4217,
+      version: '0.1.0',
+      protocolVersion: 7,
+      codexConnected: false,
+    })
     expect(parseDaemonHealth({ connection: { connected: true } })).toEqual({
       reachable: false,
       pid: null,
       version: null,
+      protocolVersion: null,
       codexConnected: false,
     })
+  })
+
+  test('does not reuse a launchd daemon with an incompatible bridge protocol', () => {
+    const launchd = { loaded: true, state: 'running', pid: 4217 }
+    const health = {
+      reachable: true,
+      pid: 4217,
+      version: '0.1.0',
+      protocolVersion: 6,
+      codexConnected: true,
+    }
+
+    expect(isOwnedHealthy(launchd, health)).toBe(false)
   })
 
   test('rejects invalid daemon log line counts', () => {
@@ -141,7 +163,13 @@ describe('Agent Zen daemon contract', () => {
 
   test('repairs persistence for a healthy loaded daemon when its plist is missing or override is disabled', () => {
     const launchd = { loaded: true, state: 'running', pid: 4217 }
-    const health = { reachable: true, pid: 4217, version: '0.1.0', codexConnected: true }
+    const health = {
+      reachable: true,
+      pid: 4217,
+      version: '0.1.0',
+      protocolVersion: 7,
+      codexConnected: true,
+    }
     const missingPlist = { plistExists: false, overrideEnabled: true }
     const disabledOverride = { plistExists: true, overrideEnabled: false }
     const configured = { plistExists: true, overrideEnabled: true }

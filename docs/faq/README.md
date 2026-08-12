@@ -304,7 +304,7 @@ _Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11_
 
 **Short answer:** One local Idea. It does not launch a session or create a GitHub issue.
 
-The centred capture dialog contains title, notes, and one optional project field. Selecting a project also records its linked repository, so a separate repository field would be duplicate noise. `C` opens capture in the browser, `Command-N` does so in the native shell, `Command-M` jumps to Project, and `Command-Return` saves. Capture keeps these field hints visible as part of its keyboard-first form; toolbar button hints appear only while Command is held. Focus stays in the field the human selected while shortcut hints or live session data update behind the dialog.
+The centred capture dialog contains title, notes, and one optional project field. Selecting a project also records its linked repository, so a separate repository field would be duplicate noise. `C` opens capture in the browser. In the native shell, `Option-Space` opens only Quick Capture from anywhere and `Command-N` opens it while Agent Zen is active. The global shortcut is changeable from the menu-bar item. `Command-M` jumps to Project, and `Command-Return` saves. Capture keeps these field hints visible as part of its keyboard-first form; toolbar button hints appear only while Command is held. Focus stays in the field the human selected while shortcut hints or live session data update behind the dialog.
 
 ![Agent Zen centred Quick Capture](2026-08-07-agent-zen-quick-capture.png)
 
@@ -314,30 +314,34 @@ The centred capture dialog contains title, notes, and one optional project field
 - [Overlay primitive](https://github.com/lucharo/agent-zen/blob/main/src/components/primitives.tsx) — stable focus and modal keyboard handling.
 - [Capture regression](https://github.com/lucharo/agent-zen/blob/main/src/app.test.tsx) — field focus survives surrounding rerenders.
 
-_Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-07 · Updated: 2026-08-12 · Verified: 2026-08-12_
 
 ## Why does Command-N open a browser window, and what does the native app change?
 
 **Short answer:** Browsers reserve Command-N before page JavaScript can reliably handle it, so the web app truthfully uses `C`. The native WKWebView shell owns real macOS menu commands for Command-N New Idea and Command-, Settings.
 
-The shell also adds a menu-bar companion showing active and visible session counts, with Open Agent Zen, New Idea, Settings, and Quit actions. Its embedded bridge is served on its own loopback origin, and the UI automatically connects back to that origin. The shell explicitly locates user-local `codex` installs because Finder-launched apps do not inherit the login-shell PATH.
+The shell launches quietly as a menu-bar companion instead of opening or foregrounding the board. Its three-bar icon represents Running, Reviewing, and Wrapping up; the menu gives each stage an explicit count. Open Agent Zen is the only action that shows the full board. Quick Capture opens a compact capture-only window.
 
-This is an environment/distribution blocker, not a JavaScript shortcut bug.
+The shell always loads its own build-identified frontend on port 5275. That keeps Quick Capture current and preserves one browser-storage origin for Ideas and Logbook entries. When the launch-at-login daemon on port 5274 carries the current bridge protocol, the packaged process forwards API requests to it without starting another Codex child; otherwise the same port-5275 process starts its own bridge. That packaged process watches its AppKit parent and exits if the app crashes, so it cannot remain behind and block the frontend port. An incompatible or unrelated HTTP server cannot impersonate the packaged frontend. The shell explicitly locates user-local `codex` installs because Finder-launched apps do not inherit the login-shell PATH.
+
+The menu says **Connected · Updating sessions…** as soon as that health check succeeds. It permits one status snapshot at a time and waits five seconds after completion before starting another. The bridge also coalesces simultaneous snapshot requests from multiple surfaces, preventing several readers from scanning the same large rollout while keeping health responsive.
+
+The earlier personal-Mac Apple Development build was cold-launched from `/Applications`: its embedded bridge connected to Codex, the window and menu-bar companion appeared, and macOS exposed the `Command-N` and `Command-,` menu commands. The current shell starts as an accessory app and becomes foreground only after an explicit Open or Quick Capture action.
 
 ### Sources
 
 - [Native shell](https://github.com/lucharo/agent-zen/blob/main/native/AgentZenApp.swift) — menus, WKWebView, bridge ownership, and menu-bar status.
 - [macOS build](https://github.com/lucharo/agent-zen/blob/main/scripts/build-macos-app.sh) — app bundling and automatic Apple-identity selection.
-- [Bridge URL tests](https://github.com/lucharo/agent-zen/blob/main/src/bridge/httpBridge.test.ts) — browser-development and packaged-origin routing.
+- [Frontend proxy tests](https://github.com/lucharo/agent-zen/blob/main/server/http.test.ts) — stable packaged origin, exact build identity, and daemon API forwarding.
 - [ADR-0006](../adr/0006-browser-keyboard-and-accessibility.md) — keyboard and accessibility contract.
 
-
+_Created: 2026-08-06 · Updated: 2026-08-12 · Runtime performance verified: 2026-08-12 · Current accessory AppKit lifecycle deliberately not launched_
 
 ## How should the native app be distributed?
 
-**Short answer:** First test an Apple-signed native build on the personal Mac, then ship a hardened and notarised Developer ID build. Treat the Mac App Store as a later distribution target.
+**Short answer:** The Apple-signed personal-Mac test works. Next ship a hardened and notarised Developer ID build. Treat the Mac App Store as a later distribution target.
 
-`bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. It signs the compiled Bun bridge with the required JavaScriptCore JIT entitlements before signing and verifying the outer app. An Apple Developer account helps, but Xcode or the developer portal must create and install the certificate and private key on the build Mac.
+`bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. It signs the compiled Bun bridge with the required JavaScriptCore JIT entitlements before signing and verifying the outer app. The personal Mac currently has Apple Development and Apple Distribution identities, but not the `Developer ID Application` identity required for a notarised outside-the-Mac-App-Store release.
 
 The Mac App Store requires sandboxing. Agent Zen needs deliberate entitlements and user-granted access for local Codex stores, repositories, Git, and subprocess control, so that work should be designed and tested rather than added as a packaging afterthought.
 
@@ -347,7 +351,7 @@ The Mac App Store requires sandboxing. Agent Zen needs deliberate entitlements a
 - [Apple certificates overview](https://developer.apple.com/help/account/certificates/certificates-overview/) — certificate types and management.
 - [Apple notarisation guidance](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) — Developer ID notarisation requirement.
 
-_Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
+_Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11_
 
 ## What does project onboarding do?
 

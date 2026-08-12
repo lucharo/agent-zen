@@ -59,7 +59,7 @@ Several tools informed it:
 - [Vibe Kanban](https://github.com/BloopAI/vibe-kanban) showed the appeal of keeping agent sessions visible and controllable from one place. Agent Zen is intentionally quieter and optimises for bounded attention rather than maximum parallel throughput.
 - [agentsview](https://github.com/wesm/agentsview) demonstrated how useful the agent's own local session records can be when gathered into a dependable browser. Agent Zen uses the same general principle but focuses on the small set of sessions that are active now.
 - [RoboRev](https://github.com/roborev-dev/roborev) and the Kenn/Wes CLI family influenced the familiar `daemon start|status|restart|stop` contract.
-- [Kanban Code](https://github.com/langwatch/kanban-code), Things 3 and the local [Taskflow](https://github.com/lucharo/taskflow) experiment contributed smaller ideas: native-feeling session controls, fast keyboard capture, project assignment and centred detail sheets.
+- [Kanban Code](https://github.com/langwatch/kanban-code), [Things 3](https://culturedcode.com/things/) and the local [Taskflow](https://github.com/lucharo/taskflow) experiment contributed smaller ideas: native-feeling session controls, global Quick Entry-style keyboard capture, project assignment and centred detail sheets.
 
 These are influences, not dependencies or claims of feature parity. The product boundary came from the paper workflow: unlimited capture, a deliberately small active horizon, and no obligation to react to every session just because it is visible.
 
@@ -76,13 +76,15 @@ The browser refreshes the snapshot every second. UI preferences, registered proj
 
 ## Native macOS shell
 
-The repository also contains a small AppKit and WKWebView shell with real `Command-N`, `Command-,` and menu-bar commands:
+The repository also contains a small AppKit and WKWebView shell. It launches quietly in the menu bar without opening a window or taking over the active desktop. The menu shows separate Running, Reviewing and Wrapping up counts, while its three-bar icon gives a compact live view of those stages.
+
+`Option-Space` opens only Quick Capture from anywhere. Change it from the menu-bar item's **Quick Capture Shortcut** submenu; `Control-Space`, `Option-Command-Space` and Off are included. `Command-N` opens the same capture surface while Agent Zen is active, and `Command-,` opens Settings.
 
 ```sh
 bun run build:macos
 ```
 
-The browser and daemon are the working distribution today. The next native step is an Apple-signed personal-Mac test, followed by Developer ID signing and notarisation. See [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).
+On the personal Mac, an Apple Development-signed build now cold-launches from `/Applications`, connects its embedded bridge, and exposes the window, menu-bar companion, `Command-N`, and `Command-,`. The remaining distribution step is a hardened, notarised Developer ID build; the browser and daemon remain the portable distribution today. See [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).
 
 ## Development
 
@@ -91,6 +93,8 @@ bun run bridge       # source bridge on http://127.0.0.1:5274
 bun run dev          # Vite on http://127.0.0.1:5273
 bun run check        # types, unit/server/CLI tests, production build
 bun run test:daemon  # installed launchd start/stop/restart lifecycle
+bun run test:memory  # separate bridge and bridge+Codex peak-memory gates
+bun run test:native  # native bridge protocol and shortcut contract
 bun run test:a11y    # Playwright and axe
 ```
 

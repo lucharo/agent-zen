@@ -300,6 +300,277 @@ test('recovers planless substantive work after it falls outside the bounded roll
   expect(session && deriveStage(session)).toBe('running')
 })
 
+test('recovers the current turn across an oversized irrelevant rollout record', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-oversized-rollout-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:01.000Z', type: 'response_item', payload: { type: 'reasoning', text: 'x'.repeat(300_000) } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:02.000Z', type: 'event_msg', payload: { type: 'task_complete' } }),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-oversized', rolloutPath)
+
+  const observer = new CodexStateObserver({
+    dbPath,
+    getProjects: () => [],
+    getActiveThreadIds: async () => new Set(['thread-oversized']),
+    maxRolloutBytes: 400,
+  })
+  const [session] = await observer.snapshot()
+
+  expect(session).toMatchObject({
+    turnId: 'turn-1',
+    activity: 'idle',
+    hasSubstantiveActivity: false,
+  })
+})
+
+test('does not reuse a cached turn when a new turn start falls behind an oversized record', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-cached-turn-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:01.000Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-1' } }),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-cached-turn', rolloutPath)
+  const observer = new CodexStateObserver({
+    dbPath,
+    getProjects: () => [],
+    getActiveThreadIds: async () => new Set(['thread-cached-turn']),
+    maxRolloutBytes: 400,
+  })
+
+  expect((await observer.snapshot())[0]?.turnId).toBe('turn-1')
+
+  await appendFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:01:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-2' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:01:01.000Z', type: 'response_item', payload: { type: 'reasoning', text: 'x'.repeat(300_000) } }),
+    ].join('\n') + '\n',
+  )
+
+  expect((await observer.snapshot())[0]).toMatchObject({
+    turnId: 'turn-2',
+    activity: 'working',
+  })
+})
+
+test('does not reuse a cached plan when a same-turn update falls behind an oversized record', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-cached-plan-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      planRecord('2026-08-06T12:00:01.000Z', 'Old plan'),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-cached-plan', rolloutPath)
+  const observer = boundedObserver(dbPath, 'thread-cached-plan')
+
+  expect((await observer.snapshot())[0]?.plan?.steps[0]?.step).toBe('Old plan')
+
+  await appendFile(
+    rolloutPath,
+    [
+      planRecord('2026-08-06T12:01:00.000Z', 'Current plan'),
+      oversizedReasoning('2026-08-06T12:01:01.000Z'),
+    ].join('\n') + '\n',
+  )
+
+  expect((await observer.snapshot())[0]?.plan?.steps[0]?.step).toBe('Current plan')
+})
+
+test('discovers a same-turn input request behind an oversized record', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-cached-input-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    `${JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } })}\n`,
+  )
+  createStateDatabase(dbPath, 'thread-cached-input', rolloutPath)
+  const observer = boundedObserver(dbPath, 'thread-cached-input')
+
+  expect((await observer.snapshot())[0]?.activity).toBe('working')
+
+  await appendFile(
+    rolloutPath,
+    [
+      inputRequestRecord('2026-08-06T12:01:00.000Z', 'call-new-input'),
+      oversizedReasoning('2026-08-06T12:01:01.000Z'),
+    ].join('\n') + '\n',
+  )
+
+  expect((await observer.snapshot())[0]?.activity).toBe('awaiting-input')
+})
+
+test('does not retain a cached input request when its resolution falls behind an oversized record', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-resolved-input-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      inputRequestRecord('2026-08-06T12:00:01.000Z', 'call-resolved-input'),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-resolved-input', rolloutPath)
+  const observer = boundedObserver(dbPath, 'thread-resolved-input')
+
+  expect((await observer.snapshot())[0]?.activity).toBe('awaiting-input')
+
+  await appendFile(
+    rolloutPath,
+    [
+      inputResolutionRecord('2026-08-06T12:01:00.000Z', 'call-resolved-input'),
+      oversizedReasoning('2026-08-06T12:01:01.000Z'),
+    ].join('\n') + '\n',
+  )
+
+  expect((await observer.snapshot())[0]?.activity).toBe('working')
+})
+
+test('does not reuse a cached goal when an update falls behind an oversized record', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-cached-goal-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      ...goalRecords('2026-08-06T12:00:01', 'call-goal-a', 'Goal A'),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-cached-goal', rolloutPath)
+  const observer = boundedObserver(dbPath, 'thread-cached-goal')
+
+  expect((await observer.snapshot())[0]?.goal?.objective).toBe('Goal A')
+
+  await appendFile(
+    rolloutPath,
+    [
+      ...goalRecords('2026-08-06T12:01:00', 'call-goal-b', 'Goal B'),
+      oversizedReasoning('2026-08-06T12:01:01.000Z'),
+    ].join('\n') + '\n',
+  )
+
+  expect((await observer.snapshot())[0]?.goal?.objective).toBe('Goal B')
+})
+
+test('recovers a goal result whose call predates the cached file boundary', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-split-goal-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  const [goalBCall, goalBResult] = goalRecords('2026-08-06T12:01:00', 'call-goal-b', 'Goal B')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      ...goalRecords('2026-08-06T12:00:01', 'call-goal-a', 'Goal A'),
+      goalBCall,
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-split-goal', rolloutPath)
+  const observer = boundedObserver(dbPath, 'thread-split-goal')
+
+  expect((await observer.snapshot())[0]?.goal?.objective).toBe('Goal A')
+
+  await appendFile(
+    rolloutPath,
+    [goalBResult!, oversizedReasoning('2026-08-06T12:01:01.000Z')].join('\n') + '\n',
+  )
+
+  expect((await observer.snapshot())[0]?.goal?.objective).toBe('Goal B')
+})
+
+test('keeps a goal update that precedes a new turn outside the bounded tail', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-cross-turn-goal-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      ...goalRecords('2026-08-06T12:00:01', 'call-goal-a', 'Goal A'),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-cross-turn-goal', rolloutPath)
+  const observer = boundedObserver(dbPath, 'thread-cross-turn-goal')
+
+  expect((await observer.snapshot())[0]?.goal?.objective).toBe('Goal A')
+
+  await appendFile(
+    rolloutPath,
+    [
+      ...goalRecords('2026-08-06T12:01:00', 'call-goal-b', 'Goal B'),
+      JSON.stringify({ timestamp: '2026-08-06T12:02:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-2' } }),
+      oversizedReasoning('2026-08-06T12:02:01.000Z'),
+    ].join('\n') + '\n',
+  )
+
+  expect((await observer.snapshot())[0]).toMatchObject({
+    turnId: 'turn-2',
+    goal: { objective: 'Goal B', status: 'active' },
+  })
+})
+
+test('does not rescan goal-less rollout history after every append', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-goal-less-cache-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    `${JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } })}\n`,
+  )
+  createStateDatabase(dbPath, 'thread-goal-less-cache', rolloutPath)
+  let goalHistoryReads = 0
+  const observer = new CodexStateObserver({
+    dbPath,
+    getProjects: () => [],
+    getActiveThreadIds: async () => new Set(['thread-goal-less-cache']),
+    maxRolloutBytes: 400,
+    readGoalHistory: async () => {
+      goalHistoryReads += 1
+      return []
+    },
+  })
+
+  await observer.snapshot()
+  for (const [timestamp, text] of [
+    ['2026-08-06T12:01:00.000Z', 'first append'],
+    ['2026-08-06T12:02:00.000Z', 'second append'],
+  ] as const) {
+    await appendFile(
+      rolloutPath,
+      `${JSON.stringify({ timestamp, type: 'response_item', payload: { type: 'message', role: 'assistant', content: text } })}\n`,
+    )
+    await observer.snapshot()
+  }
+
+  expect(goalHistoryReads).toBe(1)
+})
+
 test('retains a native input request when process inventory is temporarily unavailable', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'agent-zen-input-fallback-'))
   cleanup.push(directory)
@@ -326,6 +597,78 @@ test('retains a native input request when process inventory is temporarily unava
     hasSubstantiveActivity: true,
   }])
 })
+
+function boundedObserver(dbPath: string, threadId: string): CodexStateObserver {
+  return new CodexStateObserver({
+    dbPath,
+    getProjects: () => [],
+    getActiveThreadIds: async () => new Set([threadId]),
+    maxRolloutBytes: 400,
+  })
+}
+
+function planRecord(timestamp: string, step: string): string {
+  return JSON.stringify({
+    timestamp,
+    type: 'response_item',
+    payload: {
+      type: 'custom_tool_call',
+      name: 'exec',
+      input: `await tools.update_plan({plan:[{step:${JSON.stringify(step)},status:"in_progress"}]});`,
+    },
+  })
+}
+
+function inputRequestRecord(timestamp: string, callId: string): string {
+  return JSON.stringify({
+    timestamp,
+    type: 'response_item',
+    payload: { type: 'function_call', name: 'request_user_input', call_id: callId },
+  })
+}
+
+function inputResolutionRecord(timestamp: string, callId: string): string {
+  return JSON.stringify({
+    timestamp,
+    type: 'response_item',
+    payload: { type: 'function_call_output', call_id: callId, output: 'answered' },
+  })
+}
+
+function goalRecords(timestampPrefix: string, callId: string, objective: string): string[] {
+  return [
+    JSON.stringify({
+      timestamp: `${timestampPrefix}.000Z`,
+      type: 'response_item',
+      payload: {
+        type: 'custom_tool_call',
+        name: 'exec',
+        call_id: callId,
+        input: `const result = await tools.create_goal({objective:${JSON.stringify(objective)}}); text(result);`,
+      },
+    }),
+    JSON.stringify({
+      timestamp: `${timestampPrefix}.100Z`,
+      type: 'response_item',
+      payload: {
+        type: 'custom_tool_call_output',
+        call_id: callId,
+        output: [{
+          type: 'input_text',
+          text: JSON.stringify({ goal: { objective, status: 'active' } }),
+        }],
+      },
+    }),
+  ]
+}
+
+function oversizedReasoning(timestamp: string): string {
+  return JSON.stringify({
+    timestamp,
+    type: 'response_item',
+    payload: { type: 'reasoning', text: 'x'.repeat(300_000) },
+  })
+}
 
 function createStateDatabase(dbPath: string, id: string, rolloutPath: string): void {
   const database = new Database(dbPath, { create: true })

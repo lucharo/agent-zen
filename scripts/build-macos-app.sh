@@ -6,6 +6,7 @@ app_dir="$repo_root/build/Agent Zen.app"
 contents_dir="$app_dir/Contents"
 macos_dir="$contents_dir/MacOS"
 resources_dir="$contents_dir/Resources"
+native_configuration="$repo_root/build/NativeBuildConfiguration.swift"
 
 cd "$repo_root"
 bun run build
@@ -15,15 +16,33 @@ if [[ -e "$app_dir" ]]; then
 fi
 mkdir -p "$macos_dir" "$resources_dir"
 
+frontend_build_id="$(shasum -a 256 dist/index.html | awk '{ print $1 }')"
+if [[ -z "$frontend_build_id" ]]; then
+  echo "Could not calculate the packaged frontend identity" >&2
+  exit 1
+fi
+printf '%s\n' "$frontend_build_id" > "$resources_dir/frontend-build-id"
+
+bridge_protocol_version="$(sed -n 's/^export const BRIDGE_PROTOCOL_VERSION = \([0-9][0-9]*\)$/\1/p' src/bridge/types.ts)"
+if [[ -z "$bridge_protocol_version" ]]; then
+  echo "Could not read BRIDGE_PROTOCOL_VERSION from src/bridge/types.ts" >&2
+  exit 1
+fi
+printf 'let agentZenBridgeProtocolVersion = %s\n' "$bridge_protocol_version" > "$native_configuration"
+
 xcrun swiftc \
   -parse-as-library \
   -O \
   -framework AppKit \
+  -framework Carbon \
   -framework WebKit \
   native/AgentZenApp.swift \
+  native/BridgeProtocol.swift \
+  native/GlobalShortcut.swift \
+  "$native_configuration" \
   -o "$macos_dir/Agent Zen"
 
-bun build --compile server/index.ts --outfile "$resources_dir/agent-zen-bridge"
+bun build --compile --compile-exec-argv=--smol server/index.ts --outfile "$resources_dir/agent-zen-bridge"
 ditto dist "$resources_dir/dist"
 cp native/Info.plist "$contents_dir/Info.plist"
 

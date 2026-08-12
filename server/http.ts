@@ -11,9 +11,31 @@ export interface BridgeRequestHandlerOptions {
   readonly distDirectory: string
   readonly allowedOrigins?: readonly string[]
   readonly runtime?: { readonly pid: number; readonly version: string }
+  readonly frontendBuildId?: string
+  readonly frontendApiPort?: number
+}
+
+export interface FrontendProxyRequestHandlerOptions {
+  readonly port: number
+  readonly distDirectory: string
+  readonly upstreamBaseUrl: string
+  readonly frontendBuildId: string
+  readonly fetchUpstream?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 }
 
 export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions) {
+  let snapshotInFlight: ReturnType<AgentZenBridgeService['snapshot']> | null = null
+  const readSnapshot = (): ReturnType<AgentZenBridgeService['snapshot']> => {
+    if (snapshotInFlight) return snapshotInFlight
+    const nextSnapshot = options.service.snapshot()
+    snapshotInFlight = nextSnapshot
+    const clear = () => {
+      if (snapshotInFlight === nextSnapshot) snapshotInFlight = null
+    }
+    void nextSnapshot.then(clear, clear)
+    return nextSnapshot
+  }
+
   return async (request: Request): Promise<Response> => {
     const policy = localRequestPolicy(request, options.port, options.allowedOrigins)
     if (!policy.allowed) return json({ error: policy.reason }, policy.status)
@@ -23,10 +45,15 @@ export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions)
     const url = new URL(request.url)
     try {
       if (url.pathname === '/api/health' && request.method === 'GET') {
-        return json({ ...options.service.health(), runtime: options.runtime }, 200, headers)
+        return json({
+          ...options.service.health(),
+          runtime: options.runtime,
+          frontendBuildId: options.frontendBuildId,
+          frontendApiPort: options.frontendApiPort,
+        }, 200, headers)
       }
       if (url.pathname === '/api/snapshot' && request.method === 'GET') {
-        return json(await options.service.snapshot(), 200, headers)
+        return json(await readSnapshot(), 200, headers)
       }
       if (url.pathname === `${BRIDGE_MUTATION_PATH}/settings/focus` && request.method === 'PUT') {
         const body = await bodyObject(request)
@@ -136,6 +163,63 @@ export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions)
         500,
         headers,
       )
+    }
+  }
+}
+
+export function createFrontendProxyRequestHandler(options: FrontendProxyRequestHandlerOptions) {
+  const fetchUpstream = options.fetchUpstream ?? fetch
+  return async (request: Request): Promise<Response> => {
+    const policy = localRequestPolicy(request, options.port)
+    if (!policy.allowed) return json({ error: policy.reason }, policy.status)
+    const headers = policy.corsHeaders
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
+
+    const url = new URL(request.url)
+    if (!url.pathname.startsWith('/api/')) {
+      return staticResponse(url.pathname, options.distDirectory, headers)
+    }
+
+    try {
+      const upstreamUrl = new URL(`${url.pathname}${url.search}`, options.upstreamBaseUrl)
+      const forwardedHeaders = new Headers()
+      for (const name of ['accept', 'content-type']) {
+        const value = request.headers.get(name)
+        if (value) forwardedHeaders.set(name, value)
+      }
+      let body: ArrayBuffer | undefined
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        body = await request.arrayBuffer()
+        if (body.byteLength > 64 * 1024) return json({ error: 'Request body is too large.' }, 413)
+      }
+      const upstream = await fetchUpstream(upstreamUrl, {
+        method: request.method,
+        headers: forwardedHeaders,
+        body,
+        cache: 'no-store',
+      })
+      if (url.pathname === '/api/health' && request.method === 'GET') {
+        const health = await upstream.json().catch(() => null)
+        if (!health || typeof health !== 'object' || Array.isArray(health)) {
+          return json({ error: 'invalid-upstream-health' }, 502, headers)
+        }
+        return json({
+          ...health,
+          frontendBuildId: options.frontendBuildId,
+          frontendApiPort: Number(new URL(options.upstreamBaseUrl).port),
+        }, upstream.status, headers)
+      }
+      const responseHeaders = new Headers(upstream.headers)
+      responseHeaders.set('Cache-Control', 'no-store')
+      for (const [name, value] of Object.entries(headers)) responseHeaders.set(name, value)
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: responseHeaders,
+      })
+    } catch (error) {
+      return json({
+        error: error instanceof Error ? error.message : 'Agent Zen daemon proxy failed.',
+      }, 502, headers)
     }
   }
 }

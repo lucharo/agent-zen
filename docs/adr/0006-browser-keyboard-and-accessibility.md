@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-06
+- Updated: 2026-08-11
 
 ## Outcome
 
@@ -30,7 +31,7 @@ Agent Zen keeps keyboard capture fast without pretending the browser can overrid
 - The native macOS shell maps the same capture command to `⌘N` and Settings to `⌘,` without changing the product command model.
 - New primitives or visual tokens must pass the same keyboard and automated accessibility checks before use.
 
-See [ADR-0007](0007-native-shell-and-distribution.md).
+The personal-Mac Apple Development build now exposes both native commands through macOS and cold-launches the same web UI. See [ADR-0007](0007-native-shell-and-distribution.md).
 
 ## Rejected alternatives
 

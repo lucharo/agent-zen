@@ -5,6 +5,15 @@
   min-height: 0;
 }
 
+.quickCaptureSurface {
+  height: 100%;
+  background: var(--surface-sunken);
+}
+
+.quickCaptureSurface :global([data-testid='capture-sheet']) {
+  width: min(560px, calc(100vw - 24px));
+}
+
 .main {
   display: flex;
   flex-direction: column;

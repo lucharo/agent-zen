@@ -70,11 +70,11 @@ interface TurnStartResult {
   readonly turn: { readonly id: string; readonly startedAt?: number | null }
 }
 
-interface ThreadReadResult {
-  readonly thread?: {
+interface ThreadListResult {
+  readonly data?: readonly {
     readonly id?: string
     readonly name?: string | null
-  }
+  }[]
 }
 
 export interface BridgeServiceDependencies {
@@ -170,8 +170,9 @@ export class AgentZenBridgeService {
     }
   }
 
-  health(): Pick<BridgeSnapshot, 'connection' | 'generatedAt'> {
+  health(): Pick<BridgeSnapshot, 'protocolVersion' | 'connection' | 'generatedAt'> {
     return {
+      protocolVersion: BRIDGE_PROTOCOL_VERSION,
       connection: this.connection,
       generatedAt: new Date(this.now()).toISOString(),
     }
@@ -264,23 +265,25 @@ export class AgentZenBridgeService {
   }
 
   private async catalogNames(threadIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
-    if (!this.connection.connected) return new Map()
-    const entries = await Promise.all(threadIds.map(async (threadId): Promise<[string, string] | null> => {
-      try {
-        const result = await this.dependencies.client.request<ThreadReadResult>('thread/read', {
-          threadId,
-          includeTurns: false,
-        })
-        const name = typeof result.thread?.name === 'string'
-          ? compactTitle(result.thread.name)
-          : ''
-        return name ? [threadId, name] : null
-      } catch {
-        // One unreadable catalog entry must not hide the rest of the live board.
-        return null
-      }
-    }))
-    return new Map(entries.filter((entry): entry is [string, string] => entry !== null))
+    if (!this.connection.connected || threadIds.length === 0) return new Map()
+    try {
+      const result = await this.dependencies.client.request<ThreadListResult>('thread/list', {
+        limit: 100,
+        useStateDbOnly: true,
+      })
+      const wanted = new Set(threadIds)
+      const entries = (result.data ?? []).flatMap((thread): [string, string][] => {
+        if (typeof thread.id !== 'string' || !wanted.has(thread.id) || typeof thread.name !== 'string') {
+          return []
+        }
+        const name = compactTitle(thread.name)
+        return name ? [[thread.id, name]] : []
+      })
+      return new Map(entries)
+    } catch {
+      // Catalog metadata must never hide the live board.
+      return new Map()
+    }
   }
 
   private async launchWithCodex(request: LaunchRequest): Promise<LaunchSessionResponse> {

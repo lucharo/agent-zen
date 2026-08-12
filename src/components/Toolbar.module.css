@@ -259,3 +259,21 @@
     padding-inline: var(--space-3);
   }
 }
+
+@media (max-width: 900px) {
+  .search {
+    display: none;
+  }
+
+  .themeButton {
+    width: var(--control-height);
+    padding: 0;
+    justify-content: center;
+  }
+
+  .themeButton span,
+  .toolbar[data-shortcuts='true'] .contextShortcut,
+  .toolbar[data-shortcuts='true'] .addShortcut {
+    display: none;
+  }
+}

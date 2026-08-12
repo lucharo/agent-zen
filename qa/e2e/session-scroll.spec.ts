@@ -224,6 +224,42 @@ test('the wide toolbar stays bounded and shortcut hints remain contextual', asyn
   await expect(searchShortcut).toBeHidden()
 })
 
+test('the native minimum-width toolbar keeps every visible control inside the window', async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 620 })
+  await routeSnapshot(page, snapshot)
+  await page.goto('/')
+
+  const toolbar = page.getByRole('banner', { name: 'Agent Zen toolbar' })
+  const bounds = await toolbar.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }))
+
+  expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth)
+  await expect(toolbar.getByRole('button', { name: /Theme:/ })).toBeVisible()
+  await expect(toolbar.getByRole('button', { name: /Quick capture/ })).toBeVisible()
+  await expect(toolbar.getByRole('button', { name: 'Search or jump' })).toBeHidden()
+})
+
+test('the native global shortcut opens only a bounded quick-capture surface', async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 330 })
+  await routeSnapshot(page, snapshot)
+  await page.goto('/?surface=quick-capture')
+
+  const dialog = page.getByRole('dialog', { name: 'Quick capture' })
+  await expect(dialog).toBeVisible()
+  await expect(page.getByRole('banner', { name: 'Agent Zen toolbar' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Running' })).toHaveCount(0)
+  const layout = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    clientHeight: document.documentElement.clientHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }))
+  expect(layout.scrollWidth).toBe(layout.clientWidth)
+  expect(layout.scrollHeight).toBe(layout.clientHeight)
+})
+
 test('quick capture stays on the selected field while live state refreshes', async ({ page }) => {
   await routeSnapshot(page, snapshot)
   await page.goto('/')
