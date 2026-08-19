@@ -112,18 +112,11 @@
 }
 
 .item {
-  display: block;
   width: 100%;
-  text-align: left;
 }
 
 .item[data-layout='grid'] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-content: start;
-  gap: var(--space-1) var(--space-4);
   min-height: 92px;
-  padding: var(--space-4);
   border-radius: var(--radius-lg);
   background: linear-gradient(180deg, var(--surface) 0%, var(--surface-sunken) 100%);
   box-shadow: inset 0 0 0 1px var(--hairline), var(--shadow-card);
@@ -139,7 +132,20 @@
   border-top: 1px solid var(--hairline);
 }
 
-.item[data-layout='list'] {
+.itemHit {
+  width: 100%;
+  text-align: left;
+}
+
+.itemHit[data-layout='grid'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-4);
+}
+
+.itemHit[data-layout='list'] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 150px 130px;
   align-items: baseline;
@@ -148,7 +154,7 @@
   transition: background var(--duration-fast) var(--ease);
 }
 
-.item[data-layout='list']:hover {
+.itemHit[data-layout='list']:hover {
   background: var(--surface-hover);
 }
 
@@ -169,7 +175,7 @@
   color: var(--ink-muted);
 }
 
-.item[data-layout='grid'] .itemTime {
+.itemHit[data-layout='grid'] .itemTime {
   grid-column: 1;
   margin-top: var(--space-2);
 }
@@ -180,7 +186,7 @@
   color: var(--ink-muted);
 }
 
-.item[data-layout='grid'] .itemProject {
+.itemHit[data-layout='grid'] .itemProject {
   grid-column: 2;
   grid-row: 2;
   margin-top: var(--space-2);
@@ -193,12 +199,12 @@
   color: var(--logbook-ink);
 }
 
-.item[data-layout='grid'] .itemNotes {
+.itemHit[data-layout='grid'] .itemNotes {
   grid-column: 1 / -1;
   margin-top: var(--space-1);
 }
 
-.item[data-layout='list'] .itemNotes {
+.itemHit[data-layout='list'] .itemNotes {
   grid-column: 3;
   margin-top: 2px;
 }
@@ -208,11 +214,11 @@
     padding-inline: var(--space-4);
   }
 
-  .item[data-layout='list'] {
+  .itemHit[data-layout='list'] {
     grid-template-columns: minmax(0, 1fr) 110px;
   }
 
-  .item[data-layout='list'] .itemNotes {
+  .itemHit[data-layout='list'] .itemNotes {
     grid-column: 1 / -1;
   }
 }

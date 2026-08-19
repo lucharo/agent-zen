@@ -10,6 +10,7 @@ import {
 import { SESSION_STAGES, STAGE_LABELS, type Idea, type Stage } from '@/domain/types'
 import { useAgentZen, type BoardSession } from '@/state/store'
 import { Chevron, StageIcon } from './primitives'
+import { QuickLogbook } from './QuickLogbook'
 import { SessionCard } from './SessionCard'
 import styles from './KanbanView.module.css'
 
@@ -110,19 +111,22 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
               <ul className={styles.stack}>
                 {ideas.slice(0, 4).map((idea, index) => (
                   <li key={idea.id}>
-                    <button
-                      type="button"
-                      className={styles.ideaCard}
-                      data-card-id={idea.id}
-                      data-column={0}
-                      data-index={index}
-                      onClick={() => onOpenIdea(idea.id)}
-                    >
-                      <span className={styles.ideaTitle}>{idea.title}</span>
-                      <span className={styles.ideaMeta}>
-                        {projectName(availableProjects, idea.projectId)}
-                      </span>
-                    </button>
+                    <article className={styles.ideaCard}>
+                      <button
+                        type="button"
+                        className={styles.ideaHit}
+                        data-card-id={idea.id}
+                        data-column={0}
+                        data-index={index}
+                        onClick={() => onOpenIdea(idea.id)}
+                      >
+                        <span className={styles.ideaTitle}>{idea.title}</span>
+                        <span className={styles.ideaMeta}>
+                          {projectName(availableProjects, idea.projectId)}
+                        </span>
+                      </button>
+                      <QuickLogbook subjectId={idea.id} subjectLabel={idea.title} />
+                    </article>
                   </li>
                 ))}
                 {ideas.length > 4 ? (

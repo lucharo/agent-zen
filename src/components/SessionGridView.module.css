@@ -60,16 +60,19 @@
   height: 184px;
 }
 
-.grid > li > article,
-.grid > li > article > button {
+.grid > li > article {
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .grid > li > article > button {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
+  min-height: 0;
 }
 
 .grid[data-detail='details'] > li {

@@ -5,6 +5,7 @@ import type { Idea } from '@/domain/types'
 import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { Chevron } from './primitives'
+import { QuickLogbook } from './QuickLogbook'
 import styles from './IdeasView.module.css'
 
 export interface IdeasViewProps {
@@ -73,25 +74,28 @@ export function IdeasView({ ideas, onOpenIdea, onCapture }: IdeasViewProps) {
                   const noteCount = logbookFor(idea.id).length
                   return (
                     <li key={idea.id}>
-                      <button
-                        type="button"
-                        className={styles.item}
-                        data-layout={state.ideaLayout}
-                        onClick={() => onOpenIdea(idea.id)}
-                      >
-                        <span className={styles.itemTitle}>{idea.title}</span>
-                        <span className={styles.itemTime}>
-                          {formatCaptureTime(idea.createdAt, now)}
-                        </span>
-                        <span className={styles.itemProject}>
-                          {projectById(idea.projectId)?.name ?? 'No project'}
-                        </span>
-                        {noteCount > 0 ? (
-                          <span className={styles.itemNotes}>
-                            {noteCount} logbook {noteCount === 1 ? 'note' : 'notes'}
+                      <article className={styles.item} data-layout={state.ideaLayout}>
+                        <button
+                          type="button"
+                          className={styles.itemHit}
+                          data-layout={state.ideaLayout}
+                          onClick={() => onOpenIdea(idea.id)}
+                        >
+                          <span className={styles.itemTitle}>{idea.title}</span>
+                          <span className={styles.itemTime}>
+                            {formatCaptureTime(idea.createdAt, now)}
                           </span>
-                        ) : null}
-                      </button>
+                          <span className={styles.itemProject}>
+                            {projectById(idea.projectId)?.name ?? 'No project'}
+                          </span>
+                          {noteCount > 0 ? (
+                            <span className={styles.itemNotes}>
+                              {noteCount} logbook {noteCount === 1 ? 'note' : 'notes'}
+                            </span>
+                          ) : null}
+                        </button>
+                        <QuickLogbook subjectId={idea.id} subjectLabel={idea.title} />
+                      </article>
                     </li>
                   )
                 })}

@@ -223,18 +223,18 @@
   pointer-events: none;
 }
 
-.card:hover .popover,
-.card:focus-within .popover {
+.hit:hover + .popover,
+.hit:focus-visible + .popover {
   opacity: 1;
   visibility: visible;
   transform: none;
 }
 
-.card:hover .popover {
+.hit:hover + .popover {
   transition-delay: 1.2s, 1.2s, 1.2s;
 }
 
-.card:focus-within .popover {
+.hit:focus-visible + .popover {
   transition-delay: 0s;
 }
 

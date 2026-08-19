@@ -9,6 +9,7 @@ import {
 } from '@/domain/types'
 import type { BoardSession } from '@/state/store'
 import { StageIcon } from './primitives'
+import { QuickLogbook } from './QuickLogbook'
 import styles from './SessionCard.module.css'
 
 export interface SessionCardProps {
@@ -158,6 +159,7 @@ export function SessionCard({
         </button>
 
         <MetaPopover session={session} />
+        <QuickLogbook subjectId={session.id} subjectLabel={session.title} />
       </article>
     </li>
   )

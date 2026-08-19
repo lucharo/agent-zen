@@ -601,6 +601,44 @@ describe('capture', () => {
   })
 })
 
+describe('quick logbook entry', () => {
+  it('appends a note from a session card without opening its detail', async () => {
+    const { user, storage } = mount()
+    const running = column('Running')
+    const input = within(running).getByLabelText(
+      'Quick logbook entry for Revise calm control plane',
+    )
+
+    await user.type(input, 'Keep the card widths as they are.{Enter}')
+
+    expect(input).toHaveValue('')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(storage.getItem(STORAGE_KEY)).toContain('Keep the card widths as they are.')
+
+    await user.click(within(running).getByText('Revise calm control plane'))
+    const logbook = within(screen.getByRole('dialog')).getByRole('region', { name: 'Logbook' })
+    expect(within(logbook).getByText('Keep the card widths as they are.')).toBeInTheDocument()
+  })
+
+  it('is available on idea cards in both the board and Ideas view', async () => {
+    const { user } = mount()
+    const label = 'Quick logbook entry for Session dashboard'
+
+    const boardInput = within(column('Ideas')).getByLabelText(label)
+    await user.type(boardInput, 'Compare this with the native shell.{Enter}')
+    expect(boardInput).toHaveValue('')
+
+    await user.click(screen.getByRole('tab', { name: 'Ideas' }))
+    const ideasInput = screen.getByLabelText(label)
+    await user.type(ideasInput, 'Keep this one local.{Enter}')
+
+    await user.click(screen.getByText('Session dashboard'))
+    const logbook = within(screen.getByRole('dialog')).getByRole('region', { name: 'Logbook' })
+    expect(within(logbook).getByText('Compare this with the native shell.')).toBeInTheDocument()
+    expect(within(logbook).getByText('Keep this one local.')).toBeInTheDocument()
+  })
+})
+
 describe('session detail', () => {
   it('shows the Codex plan as read-only and keeps the Logbook human-only', async () => {
     const { user } = mount()
