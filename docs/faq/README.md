@@ -270,6 +270,23 @@ Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross
 
 _Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11 · Scope/version: browser schema v4, settings schema v2_
 
+## How can I add a quick Logbook note from a card?
+
+**Short answer:** Every session and idea card has a one-line Quick Logbook input. Type a note and press Enter to append it to that card's human-owned Logbook, clear the input, and leave the detail view closed.
+
+The input is available on session cards in Kanban and Grid, on idea cards in the board, and in the Ideas view. Blank or whitespace-only submissions are ignored. Notes use the existing append-only Logbook and never become agent-authored state.
+
+### Sources
+
+- [Quick Logbook](../../src/components/QuickLogbook.tsx) — Enter submission, clearing, and subject binding.
+- [Session card](../../src/components/SessionCard.tsx) — session-card integration.
+- [Kanban view](../../src/components/KanbanView.tsx) — board idea-card integration.
+- [Ideas view](../../src/components/IdeasView.tsx) — Ideas-view integration.
+- [App regressions](../../src/app.test.tsx) — no-detail-open, persistence, and session/idea coverage.
+- [Reducer](../../src/state/reducer.ts) — human-owned append-only storage.
+
+_Created: 2026-08-20 · Updated: 2026-08-20 · Verified: 2026-08-20_
+
 ## Where did “113 finished sessions in history” come from?
 
 **Short answer:** It was not a trustworthy history total. The observer loaded a bounded window of 120 recent threads; at that moment seven were live, so the UI displayed the remaining 113 as “history”.
