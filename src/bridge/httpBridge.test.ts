@@ -13,6 +13,8 @@ const preferences = {
   kanbanCardDetail: 'comments',
   ideasFolded: true,
   foldedSessionLanes: ['planning'],
+  showCollapsedLanes: false,
+  highlightNeedsYou: false,
 } as const
 
 afterEach(() => vi.unstubAllGlobals())
@@ -66,7 +68,7 @@ describe('bridge compatibility', () => {
 
   it('persists UI preferences through the local settings endpoint', async () => {
     const snapshot: BridgeSnapshot = {
-      protocolVersion: 9,
+      protocolVersion: 10,
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
       sessions: [],
@@ -87,7 +89,7 @@ describe('bridge compatibility', () => {
     await bridge.setPreferences(preferences)
 
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:9999/api/v9/settings/preferences',
+      'http://127.0.0.1:9999/api/v10/settings/preferences',
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify(preferences),
@@ -98,7 +100,7 @@ describe('bridge compatibility', () => {
 
   it('answers an owned Codex request through the local bridge', async () => {
     const snapshot: BridgeSnapshot = {
-      protocolVersion: 9,
+      protocolVersion: 10,
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
       sessions: [],
@@ -125,7 +127,7 @@ describe('bridge compatibility', () => {
     })
 
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:9999/api/v9/sessions/thread-owned/respond',
+      'http://127.0.0.1:9999/api/v10/sessions/thread-owned/respond',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ requestId: 41, kind: 'approval', decision: 'accept' }),
@@ -167,7 +169,7 @@ describe('bridge compatibility', () => {
 
     await expect(bridge.setFocus(true, 2)).rejects.toThrow(/different builds/i)
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:9999/api/v9/settings/focus',
+      'http://127.0.0.1:9999/api/v10/settings/focus',
       expect.objectContaining({ method: 'PUT' }),
     )
   })

@@ -85,6 +85,7 @@ function sessionListItem(session: ClassifiedAgentSession) {
     activity: session.activity,
     stage: session.classification.stage,
     reason: session.classification.reason,
+    needsUser: session.classification.needsUser,
     goal: session.goal,
   }
 }
@@ -103,6 +104,7 @@ function sessionExplanation(snapshot: BridgeSnapshot, session: ClassifiedAgentSe
       activity: session.activity,
       stage: session.classification.stage,
       reason: session.classification.reason,
+      needsUser: session.classification.needsUser,
       turnId: session.turnId,
       plan: planProgress(session),
       goal: session.goal,
@@ -116,8 +118,8 @@ function stageLabel(session: ClassifiedAgentSession): string {
 }
 
 function attentionLabel(session: ClassifiedAgentSession): string {
+  if (session.classification.needsUser) return 'Needs you'
   if (session.activity === 'working') return 'Working'
-  if (session.activity === 'awaiting-input') return 'Needs you'
   if (session.activity === 'idle') return 'Idle'
   return 'Ended'
 }

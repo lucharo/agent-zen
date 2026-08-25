@@ -67,6 +67,26 @@ describe('LaunchCoordinator', () => {
     })
   })
 
+  test('counts an active child when its root is between turns', async () => {
+    let called = 0
+    const coordinator = new LaunchCoordinator({
+      getSessions: () => [
+        session({ activity: 'idle', turnId: null, turnStartedAt: null }),
+        session({ id: 'child', threadId: 'child', parentSessionId: 'root' }),
+      ],
+      getFocus: () => ({ enabled: true, limit: 1 }),
+      launch: async () => {
+        called += 1
+        return { threadId: 'new-thread', turnId: 'new-turn' }
+      },
+    })
+
+    await expect(coordinator.launch({ cwd: '/repo', prompt: 'Do the work' })).rejects.toBeInstanceOf(
+      FocusLimitReachedError,
+    )
+    expect(called).toBe(0)
+  })
+
   test('serialises competing launches so only one can claim the final slot', async () => {
     const sessions: AgentSession[] = []
     let launches = 0

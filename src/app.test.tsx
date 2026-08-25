@@ -46,7 +46,7 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 9,
+  protocolVersion: 10,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
   sessions: [],
@@ -175,10 +175,10 @@ describe('the board', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
-  it('shows Ideas plus five session lanes and collapses empty lanes', () => {
+  it('shows Ideas plus the seven ordered session lanes and collapses empty lanes', () => {
     mount()
 
-    for (const name of ['Ideas', 'Needs you', 'Planning / Idle', 'Running', 'Reviewing', 'Wrapping up']) {
+    for (const name of ['Ideas', 'Planning', 'Idle', 'Running', 'Needs you', 'Reviewing', 'Wrapping up', 'Wrapped up']) {
       expect(column(name)).toBeInTheDocument()
     }
 
@@ -201,7 +201,7 @@ describe('the board', () => {
   it('places each fixture session in the column its own state implies', () => {
     mount()
 
-    expect(within(column('Planning / Idle')).getByText('Index local Codex threads')).toBeInTheDocument()
+    expect(within(column('Planning')).getByText('Index local Codex threads')).toBeInTheDocument()
     expect(within(column('Running')).getByText('Revise calm control plane')).toBeInTheDocument()
     expect(within(column('Needs you')).getByText('Harbor canary review')).toBeInTheDocument()
     expect(within(column('Needs you')).getByText('Reviewing · acm')).toBeInTheDocument()
@@ -215,6 +215,24 @@ describe('the board', () => {
       }),
     ).toBeNull()
     expect(within(column('Running')).getByText('1 subagent')).toBeInTheDocument()
+  })
+
+  it('can hide collapsed lanes and disable the Needs you lane highlight', async () => {
+    const { user } = mount()
+    expect(column('Needs you')).toHaveAttribute('data-highlight', 'true')
+
+    await user.keyboard('{Meta>},{/Meta}')
+    const settings = screen.getByRole('dialog', { name: 'Settings' })
+    await user.click(within(settings).getByRole('switch', { name: 'Show collapsed lanes' }))
+    await user.click(within(settings).getByRole('switch', { name: 'Highlight Needs you' }))
+    await user.click(within(settings).getByRole('button', { name: 'Close settings' }))
+
+    expect(screen.queryByRole('region', { name: 'Idle' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Reviewing' })).toBeNull()
+    expect(column('Needs you')).toHaveAttribute('data-highlight', 'false')
+
+    await user.click(within(column('Planning')).getByRole('button', { name: 'Collapse Planning' }))
+    expect(screen.queryByRole('region', { name: 'Planning' })).toBeNull()
   })
 
   it('counts only the sessions that hold a slot', () => {
@@ -242,27 +260,27 @@ describe('the board', () => {
     const storage = createMemoryStorage()
     const first = mount(storage)
     const { user } = first
-    const planning = column('Planning / Idle')
+    const planning = column('Planning')
     expect(within(planning).getByText('Index local Codex threads')).toBeInTheDocument()
 
     await user.click(within(planning).getByRole('button', {
-      name: 'Collapse Planning / Idle',
+      name: 'Collapse Planning',
       expanded: true,
     }))
 
-    expect(column('Planning / Idle')).toHaveAttribute('data-folded', 'true')
-    expect(within(column('Planning / Idle')).queryByText('Index local Codex threads')).toBeNull()
+    expect(column('Planning')).toHaveAttribute('data-folded', 'true')
+    expect(within(column('Planning')).queryByText('Index local Codex threads')).toBeNull()
 
     first.unmount()
     mount(storage)
-    expect(column('Planning / Idle')).toHaveAttribute('data-folded', 'true')
+    expect(column('Planning')).toHaveAttribute('data-folded', 'true')
 
-    await user.click(within(column('Planning / Idle')).getByRole('button', {
-      name: 'Expand Planning / Idle',
+    await user.click(within(column('Planning')).getByRole('button', {
+      name: 'Expand Planning',
       expanded: false,
     }))
 
-    expect(within(column('Planning / Idle')).getByText('Index local Codex threads')).toBeInTheDocument()
+    expect(within(column('Planning')).getByText('Index local Codex threads')).toBeInTheDocument()
   })
 
   it('does not invent a history count from the observer window', () => {
@@ -286,6 +304,8 @@ describe('navigation', () => {
       kanbanCardDetail: 'details',
       ideasFolded: true,
       foldedSessionLanes: ['planning'],
+      showCollapsedLanes: false,
+      highlightNeedsYou: false,
     })
     const user = userEvent.setup({ document })
     render(
@@ -573,6 +593,7 @@ describe('navigation', () => {
     await user.click(within(fields).getByRole('button', { name: 'Comments' }))
 
     expect(within(column('Running')).getByText('Generate three new mockups')).toBeInTheDocument()
+    expect(within(column('Planning')).getByText('Planning · plan mode')).toBeInTheDocument()
     expect(within(column('Running')).getByText(/Decision: no Done column/)).toBeInTheDocument()
     expect(within(fields).getByRole('button', { name: 'Description' })).toHaveAttribute('aria-pressed', 'true')
     expect(within(fields).getByRole('button', { name: 'Comments' })).toHaveAttribute('aria-pressed', 'true')
@@ -608,7 +629,7 @@ describe('navigation', () => {
     expect(within(grid).queryByRole('button', { name: /Sweep board fixtures into tests/ })).toBeNull()
     expect(within(grid).getByText('1 subagent')).toBeInTheDocument()
     expect(within(grid).getAllByText(/Running ·/).length).toBeGreaterThan(0)
-    expect(screen.queryByRole('region', { name: 'Planning / Idle' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Planning' })).toBeNull()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
     expect(within(grid).getByRole('heading', { name: 'agent-zen' })).toBeInTheDocument()
@@ -627,7 +648,7 @@ describe('navigation', () => {
 
     const grid = screen.getByRole('region', { name: 'Session grid' })
     expect(within(grid).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent))
-      .toEqual(['Needs you', 'Planning / Idle', 'Running', 'Wrapping up'])
+      .toEqual(['Planning', 'Running', 'Needs you', 'Wrapping up'])
     expect(within(grid).queryByRole('heading', { name: 'Reviewing' })).toBeNull()
     expect(within(grid).getByText('Harbor canary review')).toBeInTheDocument()
     expect(within(grid).getByText('Reviewing · acm')).toBeInTheDocument()
@@ -721,6 +742,16 @@ describe('quick logbook entry', () => {
 })
 
 describe('session detail', () => {
+  it('describes Planning as active native plan mode', async () => {
+    const { user } = mount()
+
+    await user.click(within(column('Planning')).getByText('Index local Codex threads'))
+
+    expect(within(screen.getByRole('dialog')).getByText(
+      'Plan mode is active; no plan has been published.',
+    )).toBeInTheDocument()
+  })
+
   it('shows the Codex plan as read-only and keeps the Logbook human-only', async () => {
     const { user } = mount()
 
@@ -802,7 +833,7 @@ describe('session detail', () => {
           options: [{ label: 'Current session', description: 'Only this session.' }],
         }],
       },
-      classification: { stage: 'planning', reason: 'awaiting-input' } as const,
+      classification: { stage: 'running', reason: 'active-turn', needsUser: true } as const,
     }
     const responses: unknown[] = []
     const snapshot: BridgeSnapshot = {
@@ -853,6 +884,7 @@ describe('session detail', () => {
         classification: {
           stage: 'wrapping-up',
           reason: 'explicit-wrapup-invocation',
+          needsUser: false,
         },
       }],
       preferences: selectUiPreferences(createInitialState(NOW)),
@@ -885,7 +917,7 @@ describe('settings and limits', () => {
 
     await user.keyboard('{Meta>},{/Meta}')
     const settings = screen.getByRole('dialog', { name: 'Settings' })
-    await user.click(within(settings).getByRole('switch'))
+    await user.click(within(settings).getByRole('switch', { name: 'Enable focus limit' }))
     await user.click(within(settings).getByRole('button', { name: 'Lower active session limit' }))
     await user.click(within(settings).getByRole('button', { name: 'Close settings' }))
 

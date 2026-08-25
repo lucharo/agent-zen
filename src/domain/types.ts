@@ -11,31 +11,44 @@
  *    persisted**. They are ours to mutate.
  */
 
-/** The five board stages. There is deliberately no `done`. */
-export type Stage = 'ideas' | 'planning' | 'running' | 'reviewing' | 'wrapping-up'
+/** The canonical board states. */
+export type Stage =
+  | 'ideas'
+  | 'planning'
+  | 'idle'
+  | 'running'
+  | 'reviewing'
+  | 'wrapping-up'
+  | 'wrapped-up'
 
 export const STAGES: readonly Stage[] = [
   'ideas',
   'planning',
+  'idle',
   'running',
   'reviewing',
   'wrapping-up',
+  'wrapped-up',
 ] as const
 
 export const STAGE_LABELS: Record<Stage, string> = {
   ideas: 'Ideas',
-  planning: 'Planning / Idle',
+  planning: 'Planning',
+  idle: 'Idle',
   running: 'Running',
   reviewing: 'Reviewing',
   'wrapping-up': 'Wrapping up',
+  'wrapped-up': 'Wrapped up',
 }
 
 /** Stages backed by a live agent session. `ideas` is ours, so it carries no mark. */
 export const SESSION_STAGES: readonly Exclude<Stage, 'ideas'>[] = [
   'planning',
+  'idle',
   'running',
   'reviewing',
   'wrapping-up',
+  'wrapped-up',
 ] as const
 
 // ---------------------------------------------------------------------------
@@ -79,6 +92,8 @@ export interface SessionGoal {
 }
 
 export type SessionActivity = 'idle' | 'working' | 'awaiting-input' | 'ended'
+export type SessionCollaborationMode = 'default' | 'plan'
+export type SessionTurnOutcome = 'completed' | 'aborted'
 
 /** Read-only review signals. Aggregated, never a CI dashboard. */
 export interface ReviewSignals {
@@ -156,6 +171,9 @@ export interface AgentSession {
   readonly turnStartedAt: string | null
   readonly turnId: string | null
   readonly activity: SessionActivity
+  /** Native Codex collaboration mode for the current turn. */
+  readonly collaborationMode?: SessionCollaborationMode | null
+  readonly turnOutcome?: SessionTurnOutcome | null
   /** True once the current/latest turn emits assistant output or invokes a tool. */
   readonly hasSubstantiveActivity: boolean
   /** Set when this session was spawned by another session. */

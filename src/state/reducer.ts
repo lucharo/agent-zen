@@ -32,6 +32,8 @@ export type Action =
   | { type: 'set-kanban-card-detail'; detail: KanbanCardDetail }
   | { type: 'toggle-ideas-fold' }
   | { type: 'toggle-session-lane-fold'; lane: SessionLane }
+  | { type: 'set-show-collapsed-lanes'; value: boolean }
+  | { type: 'set-highlight-needs-you'; value: boolean }
   | { type: 'set-active-limit-enabled'; enabled: boolean }
   | { type: 'set-active-limit'; limit: number }
   | { type: 'sync-ui-preferences'; preferences: UiPreferences }
@@ -83,6 +85,12 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
           ? state.foldedSessionLanes.filter((lane) => lane !== action.lane)
           : [...state.foldedSessionLanes, action.lane],
       }
+
+    case 'set-show-collapsed-lanes':
+      return { ...state, showCollapsedLanes: action.value }
+
+    case 'set-highlight-needs-you':
+      return { ...state, highlightNeedsYou: action.value }
 
     case 'set-active-limit-enabled':
       return { ...state, activeLimitEnabled: action.enabled }

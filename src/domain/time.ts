@@ -1,12 +1,30 @@
 const SECOND = 1000
 const MINUTE = 60 * SECOND
 const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+const WEEK = 7 * DAY
 
 /** A calm elapsed-time reading: `48s`, `42m`, `2h 14m`, `3h`. */
 export function formatDuration(ms: number): string {
   const clamped = Math.max(0, ms)
   if (clamped < MINUTE) return `${Math.floor(clamped / SECOND)}s`
   if (clamped < HOUR) return `${Math.floor(clamped / MINUTE)}m`
+  if (clamped >= WEEK) {
+    const weeks = Math.floor(clamped / WEEK)
+    const days = Math.floor((clamped % WEEK) / DAY)
+    const hours = Math.floor((clamped % DAY) / HOUR)
+    return [`${weeks}w`, days ? `${days}d` : null, hours ? `${hours}h` : null]
+      .filter(Boolean)
+      .join(' ')
+  }
+  if (clamped >= DAY) {
+    const days = Math.floor(clamped / DAY)
+    const hours = Math.floor((clamped % DAY) / HOUR)
+    const minutes = Math.floor((clamped % HOUR) / MINUTE)
+    return [`${days}d`, hours ? `${hours}h` : null, minutes ? `${minutes}m` : null]
+      .filter(Boolean)
+      .join(' ')
+  }
   const hours = Math.floor(clamped / HOUR)
   const minutes = Math.floor((clamped % HOUR) / MINUTE)
   return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`

@@ -1,4 +1,4 @@
-import { Focus, FolderGit2, Link2, X } from 'lucide-react'
+import { Eye, Focus, FolderGit2, Link2, X } from 'lucide-react'
 import { useAgentZen } from '@/state/store'
 import { Overlay } from './primitives'
 import styles from './SettingsDialog.module.css'
@@ -10,7 +10,7 @@ export interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogProps) {
-  const { state, activeCount, sourceMode, sourceLabel, connectionError, setFocus } = useAgentZen()
+  const { state, dispatch, activeCount, sourceMode, sourceLabel, connectionError, setFocus } = useAgentZen()
 
   return (
     <Overlay
@@ -49,6 +49,30 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
               The local bridge is unavailable, so Agent Zen is showing sample sessions until it reconnects.
             </p>
           ) : null}
+        </section>
+
+        <section className={styles.section} aria-labelledby="appearance-heading">
+          <div className={styles.sectionHead}>
+            <span className={styles.sectionIcon} data-tone="appearance"><SettingsIcon kind="appearance" /></span>
+            <div className={styles.sectionCopy}>
+              <h3 id="appearance-heading">Board appearance</h3>
+              <p>Choose how collapsed lanes and attention states appear.</p>
+            </div>
+          </div>
+          <div className={styles.preferenceRows}>
+            <PreferenceSwitch
+              label="Show collapsed lanes"
+              description="Keep collapsed and empty lanes visible as narrow tabs."
+              checked={state.showCollapsedLanes}
+              onChange={(value) => dispatch({ type: 'set-show-collapsed-lanes', value })}
+            />
+            <PreferenceSwitch
+              label="Highlight Needs you"
+              description="Tint the whole Needs you lane yellow."
+              checked={state.highlightNeedsYou}
+              onChange={(value) => dispatch({ type: 'set-highlight-needs-you', value })}
+            />
+          </div>
         </section>
 
         <section className={styles.section} aria-labelledby="limit-heading">
@@ -139,7 +163,35 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
   )
 }
 
-function SettingsIcon({ kind }: { kind: 'connection' | 'focus' | 'projects' }) {
-  const Icon = kind === 'connection' ? Link2 : kind === 'focus' ? Focus : FolderGit2
+function PreferenceSwitch({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string
+  description: string
+  checked: boolean
+  onChange: (value: boolean) => void
+}) {
+  return (
+    <div className={styles.preferenceRow}>
+      <div><strong>{label}</strong><span>{description}</span></div>
+      <button
+        type="button"
+        className={styles.toggle}
+        role="switch"
+        aria-label={label}
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+      >
+        <span className={styles.toggleThumb} />
+      </button>
+    </div>
+  )
+}
+
+function SettingsIcon({ kind }: { kind: 'connection' | 'focus' | 'projects' | 'appearance' }) {
+  const Icon = kind === 'connection' ? Link2 : kind === 'focus' ? Focus : kind === 'appearance' ? Eye : FolderGit2
   return <Icon size={20} strokeWidth={1.6} aria-hidden="true" />
 }

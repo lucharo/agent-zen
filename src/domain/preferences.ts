@@ -20,6 +20,8 @@ export interface UiPreferences {
   readonly kanbanCardDetail: KanbanCardDetail
   readonly ideasFolded: boolean
   readonly foldedSessionLanes: readonly SessionLane[]
+  readonly showCollapsedLanes: boolean
+  readonly highlightNeedsYou: boolean
 }
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -33,6 +35,8 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   kanbanCardDetail: 'titles',
   ideasFolded: false,
   foldedSessionLanes: [],
+  showCollapsedLanes: true,
+  highlightNeedsYou: true,
 }
 
 export function selectUiPreferences(preferences: UiPreferences): UiPreferences {
@@ -47,6 +51,8 @@ export function selectUiPreferences(preferences: UiPreferences): UiPreferences {
     kanbanCardDetail: preferences.kanbanCardDetail,
     ideasFolded: preferences.ideasFolded,
     foldedSessionLanes: preferences.foldedSessionLanes,
+    showCollapsedLanes: preferences.showCollapsedLanes,
+    highlightNeedsYou: preferences.highlightNeedsYou,
   }
 }
 
@@ -68,6 +74,8 @@ export function normaliseUiPreferences(value: unknown): UiPreferences | null {
           (lane): lane is SessionLane => SESSION_LANES.includes(lane as SessionLane),
         ))]
       : [],
+    showCollapsedLanes: preferences.showCollapsedLanes !== false,
+    highlightNeedsYou: preferences.highlightNeedsYou !== false,
   }
 }
 

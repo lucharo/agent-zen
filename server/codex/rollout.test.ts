@@ -4,6 +4,20 @@ import { parseRolloutLines } from './rollout'
 const line = (value: unknown) => JSON.stringify(value)
 
 describe('parseRolloutLines', () => {
+  test('reads native collaboration mode and resets it for a new turn', () => {
+    const planning = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      line({ timestamp: '2026-08-06T12:00:00.100Z', type: 'turn_context', payload: { collaboration_mode: { mode: 'plan' } } }),
+    ])
+    const nextTurn = parseRolloutLines([
+      line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'turn_context', payload: { collaboration_mode: { mode: 'plan' } } }),
+      line({ timestamp: '2026-08-06T12:10:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-2' } }),
+    ])
+
+    expect(planning.collaborationMode).toBe('plan')
+    expect(nextTurn.collaborationMode).toBeNull()
+  })
+
   test('derives the current turn and latest replacement plan without a second ledger', () => {
     const result = parseRolloutLines([
       line({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
@@ -402,6 +416,7 @@ describe('parseRolloutLines', () => {
 
     expect(result.activity).toBe('ended')
     expect(result.endedAt).toBe('2026-08-06T12:10:00.000Z')
+    expect(result.turnOutcome).toBe('completed')
   })
 
   test('distinguishes planless work from a just-started turn', () => {

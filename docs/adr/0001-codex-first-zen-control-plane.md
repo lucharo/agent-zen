@@ -19,7 +19,7 @@ Agent Zen presents a quiet local control plane with exactly two primary views: S
 
 - Provide only `Sessions` and `Ideas` as primary views.
 - Let Sessions switch between a stage Kanban and a compact grid without changing the underlying session state.
-- Use six board lanes: `Ideas`, `Needs you`, `Planning / Idle`, `Running`, `Reviewing`, and `Wrapping up`. `Needs you` is an attention projection, not a persisted workflow stage.
+- Use eight ordered board lanes: `Ideas`, `Planning`, `Idle`, `Running`, `Needs you`, `Reviewing`, `Wrapping up`, and `Wrapped up`. `Needs you` wins the visible lane without erasing the workflow phase.
 - Keep completed work off the active board rather than in a Done column. Any future history surface needs explicit pagination and retention semantics.
 - Put the Codex mark in the column title, never on every card.
 - Show only title, project, native plan step, labelled timing, and exceptional state on cards. Put model, repository, branch, worktree, and session identity in accessible progressive disclosure.

@@ -1,4 +1,4 @@
-import { currentPlanStep, planProgress } from '@/domain/stage'
+import { currentPlanStep, planProgress, type ClassifiedAgentSession } from '@/domain/stage'
 import { formatSessionTiming } from '@/domain/time'
 import { Target } from 'lucide-react'
 import {
@@ -38,7 +38,7 @@ export function SessionCard({
   const { session, stage, project, children } = entry
   const progress = planProgress(session)
   const idle = session.activity === 'idle'
-  const needsUser = session.activity === 'awaiting-input'
+  const needsUser = session.classification.needsUser
   const projectLabel = project?.name ?? 'Outside a Git project'
   const childLabel = children.length > 0
     ? `${children.length} ${children.length === 1 ? 'subagent' : 'subagents'}`
@@ -107,7 +107,7 @@ export function SessionCard({
 
           {detail !== 'titles' && stage === 'planning' ? (
             <p className={statusLineClass(needsUser)} aria-live={needsUser ? 'polite' : undefined}>
-              {needsUser ? '● Needs you' : idle ? 'Idle · between turns' : 'Starting'}
+              {needsUser ? '● Needs you' : 'Planning · plan mode'}
             </p>
           ) : null}
 
@@ -165,15 +165,15 @@ export function SessionCard({
   )
 }
 
-function runningSummary(session: AgentSession): string {
+function runningSummary(session: ClassifiedAgentSession): string {
   const step = currentPlanStep(session)
-  if (session.activity === 'awaiting-input') return `● Needs you · ${step ?? 'waiting on your reply'}`
+  if (session.classification.needsUser) return `● Needs you · ${step ?? 'waiting on your reply'}`
   if (session.activity === 'idle') return session.plan ? 'Idle · plan retained' : 'Idle · no plan'
   return step ?? (session.plan ? 'Between plan steps' : 'Working · no plan')
 }
 
-function attentionPrefix(session: AgentSession): string {
-  if (session.activity === 'awaiting-input') return '● Needs you · '
+function attentionPrefix(session: ClassifiedAgentSession): string {
+  if (session.classification.needsUser) return '● Needs you · '
   if (session.activity === 'idle') return 'Idle · '
   return ''
 }
@@ -211,7 +211,7 @@ function wrapupSummary(session: AgentSession): string {
  * Hover and focus reveal the operational identity the card deliberately leaves
  * off. The detail sheet carries the same information for non-pointer users.
  */
-function MetaPopover({ session }: { session: AgentSession }) {
+function MetaPopover({ session }: { session: ClassifiedAgentSession }) {
   const worktree = session.worktree ?? session.cwd
 
   return (
@@ -249,9 +249,9 @@ function MetaPopover({ session }: { session: AgentSession }) {
   )
 }
 
-function activityLabel(session: AgentSession): string {
+function activityLabel(session: ClassifiedAgentSession): string {
+  if (session.classification.needsUser) return 'Needs you'
   if (session.activity === 'working') return 'Turn running'
-  if (session.activity === 'awaiting-input') return 'Needs you'
   if (session.activity === 'idle') return 'Session open · between turns'
   return 'Ended'
 }

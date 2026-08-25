@@ -262,7 +262,7 @@ test('keeps an idle unarchived thread visible while its Codex process still owns
     hasSubstantiveActivity: true,
     plan: { steps: [{ step: 'Build', status: 'completed' }] },
   })
-  expect(deriveStage(sessions[0]!)).toBe('planning')
+  expect(deriveStage(sessions[0]!)).toBe('idle')
 
   processInventoryAvailable = false
   expect((await observer.snapshot()).map((session) => session.id)).toEqual(['thread-active'])
@@ -328,6 +328,33 @@ test('recovers the current turn across an oversized irrelevant rollout record', 
     activity: 'idle',
     hasSubstantiveActivity: false,
   })
+})
+
+test('retains a completed wrap-up invocation outside the bounded rollout tail', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'agent-zen-wrapup-anchor-'))
+  cleanup.push(directory)
+  const dbPath = join(directory, 'state.sqlite')
+  const rolloutPath = join(directory, 'rollout.jsonl')
+  await writeFile(
+    rolloutPath,
+    [
+      JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: '$wrapup' } }),
+      oversizedReasoning('2026-08-06T12:00:02.000Z'),
+      JSON.stringify({ timestamp: '2026-08-06T12:00:03.000Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-1' } }),
+    ].join('\n') + '\n',
+  )
+  createStateDatabase(dbPath, 'thread-wrapup-anchor', rolloutPath)
+  const observer = boundedObserver(dbPath, 'thread-wrapup-anchor')
+
+  const [session] = await observer.snapshot()
+
+  expect(session).toMatchObject({
+    activity: 'idle',
+    turnOutcome: 'completed',
+    wrapup: { checksPassed: null, checksTotal: null },
+  })
+  expect(session && deriveStage(session)).toBe('wrapped-up')
 })
 
 test('does not reuse a cached turn when a new turn start falls behind an oversized record', async () => {

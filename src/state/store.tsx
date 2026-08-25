@@ -25,7 +25,7 @@ import type {
 import { selectUiPreferences } from '@/domain/preferences'
 import {
   activeSessionCount,
-  classifyAgentSession,
+  classifyAgentSessions,
   launchAvailability,
   type ClassifiedAgentSession,
   type SessionStage,
@@ -113,7 +113,7 @@ export function AgentZenProvider({
   const stateRef = useRef(state)
   stateRef.current = state
   const [sessions, setSessions] = useState<readonly ClassifiedAgentSession[]>(() =>
-    bridge ? [] : sessionSource.snapshot().map(classifyAgentSession),
+    bridge ? [] : classifyAgentSessions(sessionSource.snapshot()),
   )
   const [bridgeSnapshot, setBridgeSnapshot] = useState<BridgeSnapshot | null>(() =>
     bridge ? bridge.snapshot() : null,
@@ -229,7 +229,7 @@ export function AgentZenProvider({
         })
       })
     }
-    return sessionSource.subscribe((next) => setSessions(next.map(classifyAgentSession)))
+    return sessionSource.subscribe((next) => setSessions(classifyAgentSessions(next)))
   }, [bridge, enqueuePreferences, sessionSource])
 
   useEffect(() => () => {

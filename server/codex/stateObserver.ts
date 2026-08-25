@@ -35,6 +35,7 @@ interface CachedRollout {
   readonly lifecycleLine: string | null
   readonly planLine: string | null
   readonly stageLine: string | null
+  readonly modeLine: string | null
   readonly activityLine: string | null
   readonly goalLines: readonly string[]
   readonly goalHistorySearched: boolean
@@ -151,6 +152,8 @@ export class CodexStateObserver {
       createdAt: new Date(createdMs).toISOString(),
       turnStartedAt: rollout.turnStartedAt,
       activity: turnActive ? rollout.activity : processActive ? 'idle' : 'ended',
+      collaborationMode: rollout.collaborationMode,
+      turnOutcome: rollout.turnOutcome,
       hasSubstantiveActivity: rollout.hasSubstantiveActivity,
       parentSessionId: row.parent_thread_id,
       cwd: row.cwd,
@@ -193,6 +196,8 @@ export class CodexStateObserver {
     let planLine = tailPlan ?? scanned?.planLine ?? (sameTurn ? previous?.planLine ?? null : null)
     const tailStage = lastStageLine(lines)
     let stageLine = tailStage ?? scanned?.stageLine ?? (sameTurn ? previous?.stageLine ?? null : null)
+    const tailMode = lastModeLine(lines)
+    let modeLine = tailMode ?? scanned?.modeLine ?? (sameTurn ? previous?.modeLine ?? null : null)
     const tailActivity = lastActivityLine(lines)
     let activityLine = tailActivity ?? scanned?.activityLine ?? (sameTurn ? previous?.activityLine ?? null : null)
     const tailGoalLines = lastGoalLines(lines)
@@ -231,6 +236,7 @@ export class CodexStateObserver {
     ]
     if (planLine && !planBelongsToLifecycle(planLine, lifecycleLine)) planLine = null
     if (stageLine && !lineBelongsToLifecycle(stageLine, lifecycleLine)) stageLine = null
+    if (modeLine && !lineBelongsToLifecycle(modeLine, lifecycleLine)) modeLine = null
     if (activityLine && !lineBelongsToLifecycle(activityLine, lifecycleLine)) activityLine = null
 
     const tailLines = new Set(lines)
@@ -239,6 +245,7 @@ export class CodexStateObserver {
       lifecycleLine && lifecycleLine !== tailLifecycle ? lifecycleLine : null,
       planLine && planLine !== tailPlan ? planLine : null,
       stageLine && stageLine !== tailStage ? stageLine : null,
+      modeLine && modeLine !== tailMode ? modeLine : null,
       activityLine && activityLine !== tailActivity ? activityLine : null,
       ...goalLines,
       ...inputLines.filter((line) => !tailLines.has(line)),
@@ -259,6 +266,7 @@ export class CodexStateObserver {
       lifecycleLine,
       planLine,
       stageLine,
+      modeLine,
       activityLine,
       goalLines,
       goalHistorySearched,
@@ -317,6 +325,14 @@ function lastStageLine(lines: readonly string[]): string | null {
   return null
 }
 
+function lastModeLine(lines: readonly string[]): string | null {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]
+    if (line && modeLineType(line)) return line
+  }
+  return null
+}
+
 function lastActivityLine(lines: readonly string[]): string | null {
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index]
@@ -330,6 +346,7 @@ interface CurrentTurnAnchors {
   readonly lifecycleLine: string | null
   readonly planLine: string | null
   readonly stageLine: string | null
+  readonly modeLine: string | null
   readonly activityLine: string | null
   readonly goalLines: readonly string[]
   readonly inputLines: readonly string[]
@@ -344,6 +361,7 @@ async function findCurrentTurnAnchors(
   let lifecycleLine: string | null = null
   let planLine: string | null = null
   let stageLine: string | null = null
+  let modeLine: string | null = null
   let activityLine: string | null = null
   let turnStartLine: string | null = null
   const resolved = new Set<string>()
@@ -362,6 +380,7 @@ async function findCurrentTurnAnchors(
     }
     if (!planLine && planLineType(line)) planLine = line
     if (!stageLine && stageLineType(line)) stageLine = line
+    if (!modeLine && modeLineType(line)) modeLine = line
     if (!activityLine && activityLineType(line)) activityLine = line
     const outputId = inputResolutionCallId(line)
     if (outputId) resolved.add(outputId)
@@ -373,6 +392,7 @@ async function findCurrentTurnAnchors(
     lifecycleLine,
     planLine,
     stageLine,
+    modeLine,
     activityLine,
     goalLines,
     inputLines: unresolved.reverse(),
@@ -481,6 +501,11 @@ function planLineType(line: string): boolean {
 function stageLineType(line: string): boolean {
   if (!line.includes('user_message') && !line.includes('SKILL.md')) return false
   return parseRolloutLines([line]).stageHint !== null
+}
+
+function modeLineType(line: string): boolean {
+  if (!line.includes('collaboration_mode')) return false
+  return parseRolloutLines([line]).collaborationMode !== null
 }
 
 function activityLineType(line: string): boolean {

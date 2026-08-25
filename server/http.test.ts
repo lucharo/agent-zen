@@ -29,9 +29,9 @@ describe('bridge mutation protocol', () => {
     await Promise.resolve()
 
     expect(snapshotCalls).toBe(1)
-    resolveSnapshot?.({ protocolVersion: 9 })
-    expect(await (await first).json()).toEqual({ protocolVersion: 9 })
-    expect(await (await second).json()).toEqual({ protocolVersion: 9 })
+    resolveSnapshot?.({ protocolVersion: 10 })
+    expect(await (await first).json()).toEqual({ protocolVersion: 10 })
+    expect(await (await second).json()).toEqual({ protocolVersion: 10 })
 
     expect((await handler(request())).status).toBe(200)
     expect(snapshotCalls).toBe(2)
@@ -43,7 +43,7 @@ describe('bridge mutation protocol', () => {
       snapshot: async () => {
         snapshotCalls += 1
         if (snapshotCalls === 1) throw new Error('observer failed')
-        return { protocolVersion: 9 }
+        return { protocolVersion: 10 }
       },
     } as unknown as AgentZenBridgeService
     const handler = createBridgeRequestHandler({
@@ -63,7 +63,7 @@ describe('bridge mutation protocol', () => {
   test('advertises the current protocol on the lightweight health endpoint', async () => {
     const service = {
       health: () => ({
-        protocolVersion: 9,
+        protocolVersion: 10,
         connection: { connected: true },
         generatedAt: '2026-08-12T08:00:00.000Z',
       }),
@@ -81,7 +81,7 @@ describe('bridge mutation protocol', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      protocolVersion: 9,
+      protocolVersion: 10,
       connection: { connected: true },
       generatedAt: '2026-08-12T08:00:00.000Z',
       runtime: { pid: 4217, version: '0.1.0' },
@@ -93,7 +93,7 @@ describe('bridge mutation protocol', () => {
     const service = {
       setFocus: async () => {
         focusWrites += 1
-        return { protocolVersion: 9 }
+        return { protocolVersion: 10 }
       },
     } as unknown as AgentZenBridgeService
     const handler = createBridgeRequestHandler({
@@ -102,7 +102,7 @@ describe('bridge mutation protocol', () => {
       distDirectory: '/missing',
     })
 
-    const current = await handler(new Request('http://127.0.0.1:5274/api/v9/settings/focus', {
+    const current = await handler(new Request('http://127.0.0.1:5274/api/v10/settings/focus', {
       method: 'PUT',
       headers: { host: '127.0.0.1:5274', 'content-type': 'application/json' },
       body: JSON.stringify({ enabled: true, limit: 2 }),
@@ -125,7 +125,7 @@ describe('native frontend proxy', () => {
       const url = String(input)
       if (url.endsWith('/api/health')) {
         return Response.json({
-          protocolVersion: 9,
+          protocolVersion: 10,
           connection: { connected: true },
           runtime: { pid: 4217, version: '0.1.0' },
         })
@@ -143,14 +143,14 @@ describe('native frontend proxy', () => {
     const health = await handler(new Request('http://127.0.0.1:5275/api/health', {
       headers: { host: '127.0.0.1:5275' },
     }))
-    const mutation = await handler(new Request('http://127.0.0.1:5275/api/v9/settings/focus', {
+    const mutation = await handler(new Request('http://127.0.0.1:5275/api/v10/settings/focus', {
       method: 'PUT',
       headers: { host: '127.0.0.1:5275', 'content-type': 'application/json' },
       body: JSON.stringify({ enabled: true, limit: 2 }),
     }))
 
     expect(await health.json()).toEqual({
-      protocolVersion: 9,
+      protocolVersion: 10,
       connection: { connected: true },
       runtime: { pid: 4217, version: '0.1.0' },
       frontendBuildId: 'frontend-current',
@@ -162,7 +162,7 @@ describe('native frontend proxy', () => {
     })
     expect(fetchUpstream.mock.calls.map(([input]) => String(input))).toEqual([
       'http://127.0.0.1:5274/api/health',
-      'http://127.0.0.1:5274/api/v9/settings/focus',
+      'http://127.0.0.1:5274/api/v10/settings/focus',
     ])
   })
 })

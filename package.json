@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:server": "bun test ./server ./cli",
     "test:daemon": "./scripts/test-daemon-lifecycle.sh",
+    "test:install-interruption": "./scripts/test-install-cli-interruption.sh",
     "test:memory": "./scripts/test-bridge-memory.sh",
     "test:parent-lifecycle": "./scripts/test-bridge-parent-lifecycle.sh",
     "test:native": "./scripts/test-native-contract.sh",

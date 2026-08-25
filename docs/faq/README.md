@@ -72,19 +72,21 @@ _Created: 2026-08-11 · Updated: 2026-08-11 · Verified: 2026-08-11_
 
 ## What puts a session in each Sessions stage?
 
-**Short answer:** Placement is derived, read-only, and evaluated in this precedence order: Wrapping up, Reviewing, attention, then native work. Ideas are human-authored records without a Codex thread.
+**Short answer:** Placement is derived and read-only. The board order is Ideas, Planning, Idle, Running, Needs you, Reviewing, Wrapping up, Wrapped up; Needs you wins the visible lane whenever input is unresolved.
 
 | Stage | Exact qualifying condition |
 | --- | --- |
 | Ideas | A human-created Agent Zen idea; no Codex session exists yet. |
-| Needs you | A prominent board lane for any root session with unresolved native input, including input requested by a child agent. The card still shows its canonical workflow stage. |
-| Planning / Idle | A live turn has just started without substantive work or the session is between turns. |
-| Running | The latest turn is actively working and has visible assistant/tool activity or a native plan. A plan is optional. |
-| Reviewing | The current turn's user request explicitly invokes an allow-listed review command or skill link such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`. |
-| Wrapping up | The current turn's user request explicitly invokes `$wrapup` or `/wrapup`, either as a command or the exact skill link. It overrides Reviewing and plan-derived placement. |
-| Finished | The owning Codex process closes or unloads the rollout, or the thread is archived. The session then leaves the focus board. There is intentionally no Done column or approximate history counter. |
+| Planning | The active turn uses native Codex plan mode. |
+| Idle | The process remains open between turns with no unresolved request. |
+| Running | A default-mode turn is active outside review and wrap-up. |
+| Needs you | Any root session has unresolved native input, including input requested by a child agent. The card still shows its workflow phase. |
+| Reviewing | An explicitly invoked review turn is active. Completion returns it to Idle or Needs you. |
+| Wrapping up | An explicitly invoked `$wrapup` or `/wrapup` turn is active. |
+| Wrapped up | The wrap-up turn completed with no unresolved request while the process or thread remains open. An aborted wrap-up returns to Idle. |
+| Off board | The owning Codex process closes or the thread is archived. |
 
-Attention remains visible on the card: **Working** means the current turn is progressing, **Idle** means the process remains open between turns, and **Needs you** means a native blocking input or approval request is unresolved. Needs you is a board projection rather than another persisted workflow stage, so a blocked review still identifies itself as Reviewing. Empty Kanban lanes collapse to labelled rails. Grid view can group by state and omits empty groups.
+Needs you always wins the visible lane while the card keeps the underlying workflow phase. Empty or manually collapsed Kanban lanes can remain as labelled rails or be hidden in Settings, and the full-lane yellow Needs you treatment can be disabled. Grid view can group by state and omits empty groups.
 
 Mentioning a skill in prose does not move the card. Neither does reading, searching, or discussing a `SKILL.md` path inside an agent tool call. A bare command must be the first non-empty line of the user request. The exact Markdown skill link may appear on that first request line, including after the app's context envelope. Natural-language requests and plan prose remain plan/activity-derived until the user explicitly invokes the workflow. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
 
@@ -97,22 +99,22 @@ Agent Zen never turns a bare marker into invented evidence. If no PR, visual res
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — owned `turn/started` and plan overlays use the same stage model.
 - [Stage tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.test.ts) — marker persistence and precedence.
 
-_Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11_
+_Created: 2026-08-06 · Updated: 2026-08-25 · Verified: 2026-08-25 · Scope/version: Agent Zen 0.1.0, protocol 10_
 
 ## How can I check why a session is in a column?
 
 **Short answer:** `agent-zen explain <session-id-or-title-prefix>` reports the same stage and stable reason that the daemon sent to the UI. `agent-zen sessions --json` lists that decision for every root session.
 
-The daemon classifies each session once and includes `{ stage, reason }` in the snapshot. The browser renders that decision instead of deriving another one locally; the CLI reads the same snapshot rather than parsing rollout files itself. The centred session detail also shows the human-readable stage reason. A protocol mismatch is rejected so an old daemon and new UI or CLI cannot display apparently comparable but structurally different state.
+The daemon classifies each session once and includes `{ stage, reason, needsUser }` in the snapshot. `needsUser` includes unresolved requests from descendant agents, so the browser and CLI agree on root-session attention without reclassifying locally. The centred session detail also shows the human-readable stage reason. A protocol mismatch is rejected so an old daemon and new UI or CLI cannot display apparently comparable but structurally different state.
 
 ### Sources
 
-- [Canonical classification](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — one stage-and-reason decision.
+- [Canonical classification](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — workflow phase, reason, aggregate attention, and focus counting.
 - [Daemon snapshot](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — classified session projection.
 - [CLI session commands](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.ts) — list and explanation output.
 - [UI state](https://github.com/lucharo/agent-zen/blob/main/src/state/store.tsx) — consumes the daemon classification.
 
-_Created: 2026-08-10 · Updated: 2026-08-11 · Verified: 2026-08-11_
+_Created: 2026-08-10 · Updated: 2026-08-25 · Verified: 2026-08-25 · Scope/version: Agent Zen 0.1.0, protocol 10_
 
 ## Does `agent-zen` have CLI verbs and commands?
 
@@ -126,7 +128,7 @@ The remaining top-level commands are `open`, `daemon`, `version`, and `help`. `a
 - [Session commands](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.ts) — human-readable and JSON list and explanation output.
 - [CLI regressions](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.test.ts) — canonical stage, reason, goal, and ambiguous-prefix handling.
 
-_Created: 2026-08-11 · Updated: 2026-08-11 · Verified: 2026-08-11 · Scope/version: Agent Zen 0.1.0, protocol 7_
+_Created: 2026-08-11 · Updated: 2026-08-25 · Verified: 2026-08-25 · Scope/version: Agent Zen 0.1.0, protocol 10_
 
 ## Which Codex sessions count as active, and why did idle ones disappear?
 
@@ -242,7 +244,7 @@ _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 **Short answer:** When enabled, it refuses only a new root-session launch after every slot is occupied. It never kills, pauses, or moves existing work.
 
-Planning / Idle and Running root sessions consume slots while their Codex process remains open. Child agents share their parent's slot. Reviewing and Wrapping up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot. Once admitted, the launch remains one server operation; the browser does not time it out and offer a duplicate retry.
+Planning and Running root sessions consume slots while their Codex process remains open. Child agents share their parent's slot. Idle, Reviewing, Wrapping up, and Wrapped up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot. Once admitted, the launch remains one server operation; the browser does not time it out and offer a duplicate retry.
 
 ### Sources
 
@@ -250,7 +252,20 @@ Planning / Idle and Running root sessions consume slots while their Codex proces
 - [Stage domain](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — active-slot counting rules.
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — serialized enforcement before launch.
 
-_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
+_Created: 2026-08-06 · Updated: 2026-08-25 · Verified: 2026-08-25_
+
+## How are long durations displayed?
+
+**Short answer:** Durations use days from 24 hours and weeks from 7 days, keeping only useful smaller units: `1d 3h 14m` and `1w 1d 3h`.
+
+Seconds and minutes remain compact below one hour. Hours and minutes are shown below one day. Day-scale durations include days, hours, and minutes; week-scale durations include weeks, days, and hours.
+
+### Sources
+
+- [Duration formatter](https://github.com/lucharo/agent-zen/blob/main/src/domain/time.ts) — display thresholds and retained units.
+- [Duration tests](https://github.com/lucharo/agent-zen/blob/main/src/domain/derivation.test.ts) — verified day and week examples.
+
+_Created: 2026-08-25 · Updated: 2026-08-25 · Verified: 2026-08-25 · Scope/version: Agent Zen 0.1.0, protocol 10_
 
 ## Where do Ideas and Logbook notes live, and why were mock ideas visible?
 
@@ -387,10 +402,11 @@ _Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 ## Which earlier visuals are retained?
 
-**Short answer:** The connection diagram, live-demo poster, current stage contract, and Quick Capture screenshot are stored beside this FAQ so they remain discoverable after the session dashboard disappears.
+**Short answer:** The connection diagram, live-demo poster, state-boundary infographic, current stage contract, and Quick Capture screenshot remain in the repository after the session dashboard disappears.
 
 - [Codex connection architecture](2026-08-06-agent-zen-codex-connection.png)
 - [Live Codex demo poster](2026-08-06-agent-zen-live-demo-poster.png)
+- [Session state boundaries](../assets/2026-08-25-agent-zen-state-boundaries.png) and its [reproducible generation prompt](../assets/2026-08-25-agent-zen-state-boundaries.prompt.md)
 - [Current stage contract](2026-08-07-agent-zen-stage-contract.png)
 - [Centred Quick Capture](2026-08-07-agent-zen-quick-capture.png)
 - [Superseded 2-second stage/refresh visual](2026-08-06-agent-zen-stage-refresh.png)
@@ -405,4 +421,4 @@ The poster records the first live bridge demonstration; it is historical evidenc
 - Repository `qa/README.md` — retained screenshots, video, and validation context.
 - Repository `explorations/2026-08-05-codex-zen-directions/README.md` — selected visual direction.
 
-_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-06 · Updated: 2026-08-25 · Verified: 2026-08-25_

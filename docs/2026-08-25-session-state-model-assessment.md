@@ -2,6 +2,10 @@
 
 Status: accepted design contract for [issue #18](https://github.com/lucharo/agent-zen/issues/18). Evidence checked on 2026-08-25 against Codex CLI 0.149.1. This document records the contract; classifier changes belong in a separate tested change.
 
+![Agent Zen state-boundary infographic](assets/2026-08-25-agent-zen-state-boundaries.png)
+
+The diagram shows the implemented boundary: native Codex evidence feeds one ordered classifier, then `Needs you` can override the visible lane without replacing the workflow phase. Its reproducible GenIMG prompt is in [docs/assets/2026-08-25-agent-zen-state-boundaries.prompt.md](assets/2026-08-25-agent-zen-state-boundaries.prompt.md).
+
 ## Intended model
 
 The board vocabulary and visible order are:

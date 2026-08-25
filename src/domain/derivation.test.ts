@@ -3,6 +3,7 @@ import { advancePlan, fixtureSessions } from '@/adapters/fixtureSource'
 import { filterIdeas, groupIdeas } from '@/domain/ideas'
 import {
   activeSessionCount,
+  classifyAgentSessions,
   classifySession,
   currentPlanStep,
   deriveStage,
@@ -32,22 +33,27 @@ describe('deriveStage', () => {
     expect(classifySession(byId('sess-tool-update-docs'))).toEqual({
       stage: null,
       reason: 'session-ended',
+      needsUser: false,
     })
     expect(classifySession(byId('sess-index-threads'))).toEqual({
       stage: 'planning',
-      reason: 'turn-starting',
+      reason: 'plan-mode',
+      needsUser: false,
     })
     expect(classifySession(byId('sess-control-plane'))).toEqual({
       stage: 'running',
-      reason: 'active-plan',
+      reason: 'active-turn',
+      needsUser: false,
     })
     expect(classifySession(byId('sess-harbor-canary'))).toEqual({
       stage: 'reviewing',
       reason: 'explicit-review-invocation',
+      needsUser: true,
     })
     expect(classifySession(byId('sess-retire-dask'))).toEqual({
       stage: 'wrapping-up',
       reason: 'explicit-wrapup-invocation',
+      needsUser: false,
     })
   })
 
@@ -67,18 +73,54 @@ describe('deriveStage', () => {
     expect(deriveStage(byId('sess-control-plane'))).toBe('running')
   })
 
-  it('moves planless sessions to Running once native agent work begins', () => {
+  it('keeps plan-mode sessions in Planning regardless of plan contents', () => {
     const planning = byId('sess-index-threads')
     expect(deriveStage({ ...planning, hasSubstantiveActivity: false })).toBe('planning')
-    expect(deriveStage({ ...planning, hasSubstantiveActivity: true })).toBe('running')
+    expect(deriveStage({ ...planning, hasSubstantiveActivity: true })).toBe('planning')
   })
 
   it('moves non-progressing work out of Running while preserving review and wrap-up stages', () => {
     const running = byId('sess-control-plane')
-    expect(deriveStage({ ...running, activity: 'idle' })).toBe('planning')
-    expect(deriveStage({ ...running, activity: 'awaiting-input' })).toBe('planning')
-    expect(deriveStage({ ...byId('sess-harbor-canary'), activity: 'idle' })).toBe('reviewing')
-    expect(deriveStage({ ...byId('sess-retire-dask'), activity: 'idle' })).toBe('wrapping-up')
+    expect(deriveStage({ ...running, activity: 'idle' })).toBe('idle')
+    expect(deriveStage({ ...running, activity: 'awaiting-input' })).toBe('running')
+    expect(deriveStage({ ...byId('sess-harbor-canary'), activity: 'idle' })).toBe('idle')
+    expect(deriveStage({
+      ...byId('sess-retire-dask'),
+      activity: 'idle',
+      turnOutcome: 'completed',
+    })).toBe('wrapped-up')
+    expect(deriveStage({
+      ...byId('sess-retire-dask'),
+      activity: 'idle',
+      turnOutcome: 'aborted',
+    })).toBe('idle')
+  })
+
+  it('uses native collaboration mode for Planning', () => {
+    const running = byId('sess-control-plane')
+    expect(deriveStage({ ...running, collaborationMode: 'plan' })).toBe('planning')
+    expect(deriveStage({ ...running, collaborationMode: 'default' })).toBe('running')
+  })
+
+  it('does not mark a root Wrapped up while a descendant still needs input', () => {
+    const root = {
+      ...byId('sess-retire-dask'),
+      activity: 'idle' as const,
+      turnOutcome: 'completed' as const,
+    }
+    const child = {
+      ...byId('sess-fixture-sweep'),
+      parentSessionId: root.id,
+      activity: 'awaiting-input' as const,
+    }
+
+    const classified = classifyAgentSessions([root, child])
+
+    expect(classified[0]?.classification).toEqual({
+      stage: 'idle',
+      reason: 'between-turns',
+      needsUser: true,
+    })
   })
 })
 
@@ -93,6 +135,17 @@ describe('activeSessionCount', () => {
     const child = byId('sess-fixture-sweep')
     expect(child.parentSessionId).toBe('sess-control-plane')
     expect(activeSessionCount([child], (s) => deriveStage(s))).toBe(0)
+  })
+
+  it('counts an idle root when a descendant is actively working', () => {
+    const root = { ...byId('sess-control-plane'), activity: 'idle' as const }
+    const child = {
+      ...byId('sess-fixture-sweep'),
+      parentSessionId: root.id,
+      activity: 'working' as const,
+    }
+
+    expect(activeSessionCount([root, child], (session) => deriveStage(session))).toBe(1)
   })
 })
 
@@ -170,6 +223,8 @@ describe('time formatting', () => {
     expect(formatDuration(42 * MINUTE)).toBe('42m')
     expect(formatDuration(2 * HOUR + 14 * MINUTE)).toBe('2h 14m')
     expect(formatDuration(3 * HOUR)).toBe('3h')
+    expect(formatDuration(DAY + 3 * HOUR + 14 * MINUTE)).toBe('1d 3h 14m')
+    expect(formatDuration(8 * DAY + 3 * HOUR + 14 * MINUTE)).toBe('1w 1d 3h')
   })
 
   it('labels both numbers on the session timing line', () => {

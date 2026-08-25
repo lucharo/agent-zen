@@ -22,7 +22,7 @@ The Sessions views remain an agent-authored projection. Human configuration move
 - Replace three theme targets with one `System → Light → Dark` cycling control.
 - Persist theme, current view, layout, grouping, card detail, Ideas folding, project filter, and focus policy in the local bridge settings file at `~/.agent-zen/settings.json`.
 - Collapse Ideas horizontally into a narrow left rail.
-- Give Needs you, Planning / Idle, Running, Reviewing, and Wrapping up distinct symbols in their column headings; collapse empty lanes to labelled rails.
+- Give Planning, Idle, Running, Needs you, Reviewing, Wrapping up, and Wrapped up distinct symbols in their column headings; let Settings keep collapsed lanes as rails or hide them.
 - Keep project discovery behind its own source interface; the live bridge scans configured local roots and reads Git remotes and branches.
 - Automatically register a discovered Git project when it owns a visible active session. Manual registration remains for inactive repositories the user wants as launch targets.
 - Show the current connection status in Settings, with an explicit error if the live bridge is unavailable.

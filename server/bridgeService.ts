@@ -1,7 +1,6 @@
 import {
   activeSessionCount,
-  classifyAgentSession,
-  deriveStage,
+  classifyAgentSessions,
   launchAvailability,
 } from '../src/domain/stage'
 import type {
@@ -45,6 +44,8 @@ interface SessionOverlay {
   readonly turnId?: string | null
   readonly turnStartedAt?: string | null
   readonly activity?: AgentSession['activity']
+  readonly collaborationMode?: AgentSession['collaborationMode']
+  readonly turnOutcome?: AgentSession['turnOutcome']
   readonly hasSubstantiveActivity?: boolean
   readonly endedAt?: string | null
   readonly plan?: Plan | null
@@ -152,8 +153,11 @@ export class AgentZenBridgeService {
     if (newlyObservedIds.length > 0) {
       projects = await this.dependencies.settings.registerProjects(newlyObservedIds)
     }
-    const activeCount = activeSessionCount(sessions, deriveStage)
-    const classifiedSessions = sessions.map(classifyAgentSession)
+    const classifiedSessions = classifyAgentSessions(sessions)
+    const activeCount = activeSessionCount(
+      classifiedSessions,
+      (session) => session.classification.stage,
+    )
     return {
       protocolVersion: BRIDGE_PROTOCOL_VERSION,
       generatedAt: new Date(this.now()).toISOString(),
@@ -396,12 +400,23 @@ export class AgentZenBridgeService {
             ? new Date(turn.startedAt * 1000).toISOString()
             : new Date(this.now()).toISOString(),
         activity: 'working',
+        collaborationMode: null,
         hasSubstantiveActivity: false,
         endedAt: null,
         plan: null,
         planHistory: [],
         pendingRequest: null,
+        turnOutcome: null,
       })
+      return
+    }
+    if (notification.method === 'thread/settings/updated' && isObject(params.settings)) {
+      const collaboration = isObject(params.settings.collaborationMode)
+        ? params.settings.collaborationMode.mode
+        : null
+      if (collaboration === 'plan' || collaboration === 'default') {
+        this.overlays.set(threadId, { ...previous, collaborationMode: collaboration })
+      }
       return
     }
     if (notification.method === 'turn/plan/updated' && Array.isArray(params.plan)) {
@@ -434,13 +449,20 @@ export class AgentZenBridgeService {
         activity: 'idle',
         endedAt: null,
         pendingRequest: null,
+        turnOutcome: isObject(params.turn) && params.turn.status === 'completed'
+          ? 'completed'
+          : 'aborted',
       })
     }
   }
 
   private mergeOverlay(session: AgentSession): AgentSession {
     const overlay = this.overlays.get(session.id)
-    return overlay ? { ...session, ...overlay } : session
+    if (!overlay) return session
+    if (overlay.turnId && session.turnId !== overlay.turnId) {
+      return { ...session, review: null, wrapup: null, ...overlay }
+    }
+    return { ...session, ...overlay }
   }
 
   private withRuntimeOwnership(session: AgentSession): AgentSession {
@@ -480,6 +502,8 @@ function transientSession(
       : startedAt,
     turnStartedAt: startedAt,
     activity: 'working',
+    collaborationMode: 'default',
+    turnOutcome: null,
     hasSubstantiveActivity: false,
     parentSessionId: null,
     cwd: result.thread.cwd,

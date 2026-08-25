@@ -42,6 +42,8 @@ describe('AgentZenSettingsStore', () => {
       kanbanCardDetail: 'titles',
       ideasFolded: false,
       foldedSessionLanes: [],
+      showCollapsedLanes: true,
+      highlightNeedsYou: true,
     })
     expect(JSON.parse(await readFile(settingsPath, 'utf8'))).toMatchObject({
       version: 2,
@@ -69,6 +71,8 @@ describe('AgentZenSettingsStore', () => {
       kanbanCardDetail: 'comments',
       ideasFolded: true,
       foldedSessionLanes: ['planning'],
+      showCollapsedLanes: false,
+      highlightNeedsYou: false,
     })).rejects.toThrow()
     expect((await store.read()).preferences).toBeNull()
 
@@ -103,6 +107,8 @@ describe('AgentZenSettingsStore', () => {
         kanbanCardDetail: 'details',
         ideasFolded: true,
         foldedSessionLanes: ['running'],
+        showCollapsedLanes: false,
+        highlightNeedsYou: true,
       }),
       second.setFocus({ enabled: true, limit: 2 }),
     ])
@@ -141,6 +147,8 @@ describe('AgentZenSettingsStore', () => {
       kanbanCardDetail: 'comments',
       ideasFolded: true,
       foldedSessionLanes: ['planning', 'reviewing'],
+      showCollapsedLanes: false,
+      highlightNeedsYou: false,
     })
 
     const reloaded = new AgentZenSettingsStore({ settingsPath, defaultProjectRoots: [root] })
@@ -156,6 +164,8 @@ describe('AgentZenSettingsStore', () => {
       kanbanCardDetail: 'comments',
       ideasFolded: true,
       foldedSessionLanes: ['planning', 'reviewing'],
+      showCollapsedLanes: false,
+      highlightNeedsYou: false,
     })
     expect(await reloaded.registeredProjects()).toMatchObject([
       { directory: expect.stringContaining('/lucharo/demo'), repository: 'lucharo/demo' },

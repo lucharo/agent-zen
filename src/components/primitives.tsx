@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CircleAlert,
   CircleEllipsis,
+  CirclePause,
   CirclePlay,
   Columns3,
   Eye,
@@ -13,6 +14,7 @@ import {
   List,
   ListTree,
   PackageCheck,
+  Archive,
   Search,
 } from 'lucide-react'
 import type { Stage } from '@/domain/types'
@@ -36,9 +38,11 @@ export function Chevron({ direction = 'down' }: { direction?: 'down' | 'left' | 
 export function StageIcon({ stage }: { stage: Exclude<Stage, 'ideas'> }) {
   const Icon = {
     planning: CircleEllipsis,
+    idle: CirclePause,
     running: CirclePlay,
     reviewing: Eye,
     'wrapping-up': PackageCheck,
+    'wrapped-up': Archive,
   }[stage]
 
   return (

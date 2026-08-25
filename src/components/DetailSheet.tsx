@@ -127,7 +127,7 @@ function SessionDetail({
           ) : (
             <p className={styles.planMeta}>
               {stage === 'planning'
-                ? 'No plan or substantive agent work yet.'
+                ? 'Plan mode is active; no plan has been published.'
                 : 'No plan published. This turn can still be active.'}
             </p>
           )}
@@ -566,15 +566,15 @@ function permissionSummary(requested: Readonly<Record<string, unknown>>): string
 }
 
 function attentionSuffix(session: ClassifiedAgentSession): string {
+  if (session.classification.needsUser) return ' · Needs you'
   if (session.activity === 'working') return ' · Working'
-  if (session.activity === 'awaiting-input') return ' · Needs you'
   if (session.activity === 'idle') return ' · Idle'
   return ''
 }
 
 function activityLabel(session: ClassifiedAgentSession): string {
+  if (session.classification.needsUser) return 'Needs your attention'
   if (session.activity === 'working') return 'Working on current turn'
-  if (session.activity === 'awaiting-input') return 'Needs your input'
   if (session.activity === 'idle') return 'Between turns'
   return 'Ended'
 }

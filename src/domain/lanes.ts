@@ -3,19 +3,23 @@ import type { ClassifiedAgentSession, SessionStage } from './stage'
 export type SessionLane = 'needs-you' | SessionStage
 
 export const SESSION_LANES: readonly SessionLane[] = [
-  'needs-you',
   'planning',
+  'idle',
   'running',
+  'needs-you',
   'reviewing',
   'wrapping-up',
+  'wrapped-up',
 ] as const
 
 export const SESSION_LANE_LABELS: Record<SessionLane, string> = {
   'needs-you': 'Needs you',
-  planning: 'Planning / Idle',
+  planning: 'Planning',
+  idle: 'Idle',
   running: 'Running',
   reviewing: 'Reviewing',
   'wrapping-up': 'Wrapping up',
+  'wrapped-up': 'Wrapped up',
 }
 
 export interface LaneEntry {
@@ -25,9 +29,6 @@ export interface LaneEntry {
 }
 
 export function sessionLane(entry: LaneEntry): SessionLane {
-  if (
-    entry.session.activity === 'awaiting-input'
-    || entry.children.some((child) => child.activity === 'awaiting-input')
-  ) return 'needs-you'
+  if (entry.session.classification.needsUser) return 'needs-you'
   return entry.stage
 }

@@ -56,6 +56,7 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
     foldedLaneSignature,
     state.ideasFolded,
     state.kanbanGroupBy,
+    state.showCollapsedLanes,
     updateBoardEdges,
   ])
 
@@ -109,7 +110,7 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
         onKeyDown={onKeyDown}
         onScroll={updateBoardEdges}
       >
-        <section
+        {state.ideasFolded && !state.showCollapsedLanes ? null : <section
           className={styles.column}
           data-folded={state.ideasFolded}
           aria-label={STAGE_LABELS.ideas}
@@ -179,19 +180,21 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
               </ul>
             </ScrollableColumn>
           )}
-        </section>
+        </section>}
 
         {SESSION_LANES.map((lane, laneIndex) => {
           const entries = filtered.filter((entry) => sessionLane(entry) === lane)
           const groups = groupSessions(entries, state.kanbanGroupBy === 'project')
           const empty = entries.length === 0
           const folded = empty || state.foldedSessionLanes.includes(lane)
+          if (folded && !state.showCollapsedLanes) return null
           return (
             <section
               className={styles.column}
               data-lane={lane}
               data-empty={empty}
               data-folded={folded}
+              data-highlight={lane === 'needs-you' && state.highlightNeedsYou}
               key={lane}
               aria-label={SESSION_LANE_LABELS[lane]}
             >

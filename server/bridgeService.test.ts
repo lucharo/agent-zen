@@ -162,7 +162,35 @@ describe('AgentZenBridgeService ownership', () => {
 
     expect((await service.snapshot()).sessions[0]?.classification).toEqual({
       stage: 'running',
-      reason: 'substantive-activity',
+      reason: 'active-turn',
+      needsUser: false,
+    })
+  })
+
+  test('does not publish Wrapped up while a descendant still needs input', async () => {
+    const client = new FakeClient()
+    const root = {
+      ...activeExternalSession('thread-root'),
+      activity: 'idle' as const,
+      turnOutcome: 'completed' as const,
+      wrapup: { checksPassed: null, checksTotal: null },
+    }
+    const child = {
+      ...activeExternalSession('thread-child'),
+      activity: 'awaiting-input' as const,
+      parentSessionId: root.id,
+    }
+    const service = new AgentZenBridgeService({
+      ...dependencies(client),
+      observer: { snapshot: async () => [root, child] },
+    })
+
+    const snapshot = await service.snapshot()
+
+    expect(snapshot.sessions.find((session) => session.id === root.id)?.classification).toEqual({
+      stage: 'idle',
+      reason: 'between-turns',
+      needsUser: true,
     })
   })
 
@@ -396,6 +424,108 @@ describe('AgentZenBridgeService ownership', () => {
       turnId: 'turn-new',
       activity: 'working',
       endedAt: null,
+    })
+  })
+
+  test('clears the previous collaboration mode when a new turn starts', async () => {
+    const client = new FakeClient()
+    const service = new AgentZenBridgeService(dependencies(client))
+    await service.start()
+    await service.launch({ projectId: project.id, prompt: 'Plan the work' })
+
+    client.notify({
+      method: 'thread/settings/updated',
+      params: {
+        threadId: 'thread-owned',
+        settings: { collaborationMode: { mode: 'plan' } },
+      },
+    })
+    expect((await service.snapshot()).sessions[0]?.classification.stage).toBe('planning')
+
+    client.notify({
+      method: 'turn/completed',
+      params: { threadId: 'thread-owned', turn: { id: 'turn-owned', status: 'completed' } },
+    })
+    client.notify({
+      method: 'turn/started',
+      params: { threadId: 'thread-owned', turn: { id: 'turn-default' } },
+    })
+
+    expect((await service.snapshot()).sessions[0]).toMatchObject({
+      turnId: 'turn-default',
+      collaborationMode: null,
+      classification: { stage: 'running', reason: 'active-turn', needsUser: false },
+    })
+  })
+
+  test('hides stale observer workflow signals until it catches up with the new turn', async () => {
+    const client = new FakeClient()
+    let observed: AgentSession[] = []
+    const base = dependencies(client)
+    const service = new AgentZenBridgeService({
+      ...base,
+      observer: { snapshot: async () => observed },
+    })
+    await service.start()
+    await service.launch({ projectId: project.id, prompt: 'Continue the work' })
+
+    observed = [{
+      ...activeExternalSession('thread-owned'),
+      turnId: 'turn-previous',
+      review: { visualChecked: true, prReady: null, openNotes: null, pullRequest: null },
+    }]
+    client.notify({
+      method: 'turn/started',
+      params: { threadId: 'thread-owned', turn: { id: 'turn-current' } },
+    })
+
+    expect((await service.snapshot()).sessions[0]).toMatchObject({
+      turnId: 'turn-current',
+      review: null,
+      wrapup: null,
+      classification: { stage: 'running', reason: 'active-turn', needsUser: false },
+    })
+
+    observed = [{
+      ...activeExternalSession('thread-owned'),
+      turnId: 'turn-current',
+      review: { visualChecked: true, prReady: null, openNotes: null, pullRequest: null },
+    }]
+
+    expect((await service.snapshot()).sessions[0]).toMatchObject({
+      turnId: 'turn-current',
+      review: { visualChecked: true, prReady: null, openNotes: null, pullRequest: null },
+      classification: { stage: 'reviewing', reason: 'explicit-review-invocation', needsUser: false },
+    })
+  })
+
+  test('preserves collaboration mode received while turn start is pending', async () => {
+    const client = new FakeClient()
+    const originalRequest = client.request.bind(client)
+    client.request = async <T>(method: string, params?: unknown): Promise<T> => {
+      if (method === 'turn/start') {
+        client.notify({
+          method: 'turn/started',
+          params: { threadId: 'thread-owned', turn: { id: 'turn-owned' } },
+        })
+        client.notify({
+          method: 'thread/settings/updated',
+          params: {
+            threadId: 'thread-owned',
+            settings: { collaborationMode: { mode: 'plan' } },
+          },
+        })
+      }
+      return originalRequest<T>(method, params)
+    }
+    const service = new AgentZenBridgeService(dependencies(client))
+    await service.start()
+
+    await service.launch({ projectId: project.id, prompt: 'Plan the work' })
+
+    expect((await service.snapshot()).sessions[0]).toMatchObject({
+      collaborationMode: 'plan',
+      classification: { stage: 'planning', reason: 'plan-mode', needsUser: false },
     })
   })
 

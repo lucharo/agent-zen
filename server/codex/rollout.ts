@@ -5,6 +5,8 @@ import type {
   SessionActivity,
   SessionGoal,
   SessionGoalStatus,
+  SessionCollaborationMode,
+  SessionTurnOutcome,
 } from '../../src/domain/types'
 
 export interface RolloutSnapshot {
@@ -18,6 +20,8 @@ export interface RolloutSnapshot {
   readonly planHistory: readonly PlanRevision[]
   readonly goal: SessionGoal | null
   readonly stageHint: 'reviewing' | 'wrapping-up' | null
+  readonly collaborationMode: SessionCollaborationMode | null
+  readonly turnOutcome: SessionTurnOutcome | null
   readonly pendingInputCallIds: readonly string[]
 }
 
@@ -49,6 +53,8 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
   let endedAt: string | null = null
   let latestUserMessage: string | null = null
   let currentStageHint: RolloutSnapshot['stageHint'] = null
+  let collaborationMode: SessionCollaborationMode | null = null
+  let turnOutcome: SessionTurnOutcome | null = null
   let plan: Plan | null = null
   let planHistory: PlanRevision[] = []
   let goal: SessionGoal | null = null
@@ -74,11 +80,14 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
       endedAt = null
       latestUserMessage = null
       currentStageHint = null
+      collaborationMode = null
+      turnOutcome = null
       plan = null
       planHistory = []
       pendingInputCalls.clear()
       continue
     }
+    collaborationMode = collaborationModeFromRecord(record) ?? collaborationMode
     if (record.type === 'event_msg' && payload?.type === 'user_message') {
       latestUserMessage = stringValue(payload.message)
       const explicit = stageHintFromMessage(latestUserMessage)
@@ -91,6 +100,7 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     ) {
       activity = 'ended'
       endedAt = timestamp
+      turnOutcome = payload.type === 'task_complete' ? 'completed' : 'aborted'
       pendingInputCalls.clear()
       continue
     }
@@ -128,8 +138,22 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     planHistory,
     goal,
     stageHint: currentStageHint,
+    collaborationMode,
+    turnOutcome,
     pendingInputCallIds: [...pendingInputCalls],
   }
+}
+
+function collaborationModeFromRecord(record: RolloutRecord): SessionCollaborationMode | null {
+  const payload = record.payload
+  if (!payload) return null
+  const direct = isObject(payload.collaboration_mode) ? payload.collaboration_mode.mode : null
+  const settings = isObject(payload.thread_settings) ? payload.thread_settings : null
+  const nested = settings && isObject(settings.collaboration_mode)
+    ? settings.collaboration_mode.mode
+    : null
+  const mode = direct ?? nested
+  return mode === 'plan' || mode === 'default' ? mode : null
 }
 
 function goalToolCallFromRecord(record: RolloutRecord): GoalToolCall | null {
