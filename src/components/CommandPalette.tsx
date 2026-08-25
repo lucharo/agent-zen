@@ -35,6 +35,9 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   const listRef = useRef<HTMLUListElement>(null)
+  const sessionGroupBy = state.sessionLayout === 'kanban' && state.kanbanGroupBy === 'state'
+    ? 'none'
+    : state.kanbanGroupBy
 
   useEffect(() => {
     if (open) {
@@ -92,12 +95,16 @@ export function CommandPalette({
       },
       {
         id: 'do-kanban-group',
-        label: state.kanbanGroupBy === 'project' ? 'Stop grouping sessions by project' : 'Group sessions by project',
+        label: sessionGroupBy === 'project'
+          ? 'Stop grouping sessions by project'
+          : sessionGroupBy === 'state'
+            ? 'Stop grouping sessions by state'
+            : 'Group sessions by project',
         group: 'Do',
         run: () =>
           dispatch({
             type: 'set-kanban-group-by',
-            groupBy: state.kanbanGroupBy === 'project' ? 'none' : 'project',
+            groupBy: sessionGroupBy !== 'none' ? 'none' : 'project',
           }),
       },
       {
@@ -170,7 +177,7 @@ export function CommandPalette({
     }))
 
     return [...go, ...doCommands, ...sessions, ...ideas]
-  }, [state, dispatch, board, projectById, availableProjects, onOpenSession, onOpenIdea, onOpenCapture, onOpenSettings])
+  }, [state, sessionGroupBy, dispatch, board, projectById, availableProjects, onOpenSession, onOpenIdea, onOpenCapture, onOpenSettings])
 
   const needle = query.trim().toLowerCase()
   const results = needle

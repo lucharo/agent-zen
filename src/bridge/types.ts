@@ -7,7 +7,7 @@ import type {
   SessionRequestId,
 } from '@/domain/types'
 
-export const BRIDGE_PROTOCOL_VERSION = 7
+export const BRIDGE_PROTOCOL_VERSION = 9
 export const BRIDGE_MUTATION_PATH = `/api/v${BRIDGE_PROTOCOL_VERSION}`
 
 export interface BridgeConnectionStatus {

@@ -77,13 +77,14 @@ _Created: 2026-08-11 · Updated: 2026-08-11 · Verified: 2026-08-11_
 | Stage | Exact qualifying condition |
 | --- | --- |
 | Ideas | A human-created Agent Zen idea; no Codex session exists yet. |
-| Planning / Idle | A live turn has just started without substantive work, the session is between turns, or ordinary work is blocked on native input. |
+| Needs you | A prominent board lane for any root session with unresolved native input, including input requested by a child agent. The card still shows its canonical workflow stage. |
+| Planning / Idle | A live turn has just started without substantive work or the session is between turns. |
 | Running | The latest turn is actively working and has visible assistant/tool activity or a native plan. A plan is optional. |
 | Reviewing | The current turn's user request explicitly invokes an allow-listed review command or skill link such as `$visual-review`, `/roborev-review`, or `$webapp-agent-demo`. |
 | Wrapping up | The current turn's user request explicitly invokes `$wrapup` or `/wrapup`, either as a command or the exact skill link. It overrides Reviewing and plan-derived placement. |
 | Finished | The owning Codex process closes or unloads the rollout, or the thread is archived. The session then leaves the focus board. There is intentionally no Done column or approximate history counter. |
 
-Attention remains visible on the card: **Working** means the current turn is progressing, **Idle** means the process remains open between turns, and **Needs you** means a native blocking input or approval request is unresolved. Reviewing and Wrapping up retain their workflow columns when idle or blocked; ordinary work returns to Planning / Idle so the Running column contains only progressing turns.
+Attention remains visible on the card: **Working** means the current turn is progressing, **Idle** means the process remains open between turns, and **Needs you** means a native blocking input or approval request is unresolved. Needs you is a board projection rather than another persisted workflow stage, so a blocked review still identifies itself as Reviewing. Empty Kanban lanes collapse to labelled rails. Grid view can group by state and omits empty groups.
 
 Mentioning a skill in prose does not move the card. Neither does reading, searching, or discussing a `SKILL.md` path inside an agent tool call. A bare command must be the first non-empty line of the user request. The exact Markdown skill link may appear on that first request line, including after the app's context envelope. Natural-language requests and plan prose remain plan/activity-derived until the user explicitly invokes the workflow. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
 
@@ -257,7 +258,7 @@ _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 The browser data schema is version 4 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Older browser-owned choices are copied once into the bridge, then browser storage is reduced to a project cache needed by local Ideas, Ideas themselves, and Logbook notes. A separate theme key remains only to avoid a light-theme flash before React connects; bridge settings correct it on startup.
 
-The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, the cumulative Title, Description, and Comments card choice, Ideas folding, focus enablement, focus limit, project discovery roots, and registered project directories. Agent Zen-owned thread identity is in memory only and does not survive a daemon restart.
+The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, the cumulative Title, Description, and Comments card choice, Ideas and session-lane folding, focus enablement, focus limit, project discovery roots, and registered project directories. Agent Zen-owned thread identity is in memory only and does not survive a daemon restart.
 
 Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross-machine sync is not implemented.
 
@@ -305,7 +306,7 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 **Short answer:** Sessions switches between Kanban and Grid. Title is always shown. Description and Comments are cumulative card controls, so Comments also turns Description on.
 
-Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner. Grid rows wrap and centre independently, so a short final row does not cling to the left edge. Title cards are `260 × 184px`; description cards are `260 × 252px`; comment cards use a taller `260 × 360px` frame for the labelled Logbook excerpts. The default keeps stage, project, attention state, goal presence, subagent count, labelled timing, and native plan position. Description adds the current step or review and wrap-up summary. Comments adds the two newest human Logbook notes and keeps Description on. Cards reveal repository, branch, worktree, model, effort, Codex version, goal objective, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card.
+Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner, and an edge fade marks more lanes off-screen. Grid rows wrap from a shared left edge. Title cards are `260 × 184px`; description cards are `260 × 252px`; comment cards use a taller `260 × 360px` frame for the labelled Logbook excerpts. The default keeps stage, project, attention state, goal presence, subagent count, labelled timing, and native plan position. Description adds the current step or review and wrap-up summary. Comments adds the two newest human Logbook notes and keeps Description on. Cards reveal repository, branch, worktree, model, effort, Codex version, goal objective, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card; Grid also supports Group by State and hides empty groups.
 
 ### Sources
 

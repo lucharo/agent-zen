@@ -109,6 +109,13 @@ test('the board owns horizontal scrolling while columns own vertical scrolling',
   const box = await running.boundingBox()
   expect(box).not.toBeNull()
 
+  const headerGap = await running.evaluate((region) => {
+    const header = region.querySelector('header')?.getBoundingClientRect()
+    const card = region.querySelector<HTMLElement>('[data-card-id]')?.closest('li')?.getBoundingClientRect()
+    return header && card ? Math.round(card.top - header.bottom) : null
+  })
+  expect(headerGap).toBe(8)
+
   await page.mouse.move((box?.x ?? 0) + 80, (box?.y ?? 0) + 180)
   await page.mouse.wheel(0, 360)
   await expect.poll(() => running.evaluate((region) => {
@@ -137,7 +144,8 @@ test('the session grid uses one compact card size with content anchored at the t
 
   const titleCards = await page.locator('[data-card-id]').evaluateAll((nodes) =>
     nodes.map((node) => {
-      const bounds = node.getBoundingClientRect()
+      const shell = node.closest('li')!
+      const bounds = shell.getBoundingClientRect()
       const stage = node.querySelector('span')?.getBoundingClientRect()
       return {
         width: bounds.width,
@@ -165,16 +173,16 @@ test('the session grid uses one compact card size with content anchored at the t
       right: bounds.right - row.at(-1)!.right,
     }))
   })
-  expect(rowMargins.every((row) => Math.abs(row.left - row.right) <= 1)).toBe(true)
+  expect(rowMargins.every((row) => Math.abs(row.left) <= 1)).toBe(true)
 
   await page.getByRole('button', { name: 'Description' }).click()
   const detailHeights = await page.locator('[data-card-id]').evaluateAll((nodes) =>
-    nodes.map((node) => node.getBoundingClientRect().height),
+    nodes.map((node) => node.closest('li')!.getBoundingClientRect().height),
   )
   expect(new Set(detailHeights)).toEqual(new Set([252]))
 })
 
-test('the session grid keeps narrow rows centred instead of clinging left', async ({ page }) => {
+test('the session grid keeps narrow rows on a consistent left reading edge', async ({ page }) => {
   await page.setViewportSize({ width: 655, height: 1_222 })
   await routeSnapshot(page, snapshot)
   await page.goto('/')
@@ -202,8 +210,8 @@ test('the session grid keeps narrow rows centred instead of clinging left', asyn
   expect(layout.gridWidth).toBe(623)
   expect(new Set(layout.cardWidths)).toEqual(new Set([260]))
   expect(layout.rowMargins).toHaveLength(4)
-  expect(layout.rowMargins.every((row) => Math.abs(row.left - row.right) <= 1)).toBe(true)
-  expect(layout.rowMargins.every((row) => row.left > 40)).toBe(true)
+  expect(layout.rowMargins.every((row) => Math.abs(row.left) <= 1)).toBe(true)
+  expect(layout.rowMargins.every((row) => row.right > 40)).toBe(true)
 })
 
 test('the wide toolbar stays bounded and shortcut hints remain contextual', async ({ page }) => {

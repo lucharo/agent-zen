@@ -33,7 +33,7 @@ Derive the board stage locally:
 
 A prose mention is not an invocation. Neither is a skill path found inside an agent's tool input: searches, diagnostics and helper reads cannot promote the workflow stage. Bare commands are read only from the first non-empty user-request line; exact Markdown skill links are accepted on that line after a recognised app context envelope. A marker persists for the current turn, and wrap-up has precedence over review. The next native `task_started` event resets the current plan and semantic stage marker.
 
-Attention remains explicit on cards. `working`, `idle`, and `awaiting-input` render as Working, Idle, and Needs you. Reviewing and Wrapping up retain their semantic workflow columns while idle or blocked. Ordinary idle or input-blocked work returns to Planning / Idle so Running means the turn is progressing. Native `request_user_input` call ids are correlated with their outputs. Agent Zen-owned sessions answer supported App Server user-input, command, file-change, and exact permission requests directly; unknown request types stay visible and interruptible but fall back to the native Codex client.
+Attention remains explicit on cards. `working`, `idle`, and `awaiting-input` render as Working, Idle, and Needs you. The board projects any root with unresolved input, including input requested by a child agent, into a prominent Needs you lane while preserving and showing its canonical workflow stage. Ordinary idle work returns to Planning / Idle so Running means the turn is progressing. Empty Kanban lanes collapse to labelled rails; Grid can group by state and omits empty groups. Native `request_user_input` call ids are correlated with their outputs. Agent Zen-owned sessions answer supported App Server user-input, command, file-change, and exact permission requests directly; unknown request types stay visible and interruptible but fall back to the native Codex client.
 
 The Kanban is read-only. Agent Zen does not persist human stage overrides. Supported session control is a separate controller action and the resulting Codex state flows back through the same source.
 
@@ -47,7 +47,7 @@ Every snapshot carries a bridge protocol version and one canonical `{ stage, rea
 
 The rollout observer keeps the latest lifecycle, explicit goal, and native plan records as bounded anchors when a long active turn grows past the ordinary tail window. A goal is accepted only from a successful `create_goal`, `update_goal`, or `get_goal` result matched to its tool call id. Quoted examples and diagnostic output do not create a goal. The observer does not infer a second goal or plan, or ask the agent to republish either one.
 
-The observer also keeps a bounded substantive-activity anchor and unresolved input-request anchors. A long working planless turn therefore remains Running, and a request that fell outside the ordinary tail remains Needs you until its matching response arrives in Planning / Idle or its preserved review/wrap-up stage.
+The observer also keeps a bounded substantive-activity anchor and unresolved input-request anchors. A long working planless turn therefore remains Running, and a request that fell outside the ordinary tail remains in the Needs you lane until its matching response arrives; its canonical Planning / Idle, Reviewing, or Wrapping up stage is retained.
 
 The web client requests `/api/snapshot` every second. The observer reuses rollout parses when file size and modification time are unchanged; a separate one-second UI clock updates elapsed-time labels without rescanning Codex.
 

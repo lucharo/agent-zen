@@ -7,9 +7,10 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
-import { SESSION_STAGES, STAGE_LABELS, type Idea, type Stage } from '@/domain/types'
+import { SESSION_LANES, SESSION_LANE_LABELS, sessionLane } from '@/domain/lanes'
+import { STAGE_LABELS, type Idea } from '@/domain/types'
 import { useAgentZen, type BoardSession } from '@/state/store'
-import { Chevron, StageIcon } from './primitives'
+import { Chevron, LaneIcon } from './primitives'
 import { QuickLogbook } from './QuickLogbook'
 import { SessionCard } from './SessionCard'
 import styles from './KanbanView.module.css'
@@ -24,10 +25,39 @@ export interface KanbanViewProps {
 export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: KanbanViewProps) {
   const { state, dispatch, board, now, availableProjects, logbookFor } = useAgentZen()
   const boardRef = useRef<HTMLDivElement>(null)
+  const [boardEdges, setBoardEdges] = useState({ left: false, right: false })
 
   const filtered = state.projectFilter
     ? board.filter((entry) => entry.session.projectId === state.projectFilter)
     : board
+  const laneSignature = filtered.map((entry) => `${entry.session.id}:${sessionLane(entry)}`).join('|')
+  const foldedLaneSignature = state.foldedSessionLanes.join('|')
+
+  const updateBoardEdges = useCallback(() => {
+    const node = boardRef.current
+    if (!node) return
+    const maxScroll = node.scrollWidth - node.clientWidth
+    const next = {
+      left: node.scrollLeft > 1,
+      right: maxScroll - node.scrollLeft > 1,
+    }
+    setBoardEdges((current) => (
+      current.left === next.left && current.right === next.right ? current : next
+    ))
+  }, [])
+
+  useLayoutEffect(() => {
+    updateBoardEdges()
+    window.addEventListener('resize', updateBoardEdges)
+    return () => window.removeEventListener('resize', updateBoardEdges)
+  }, [
+    ideas.length,
+    laneSignature,
+    foldedLaneSignature,
+    state.ideasFolded,
+    state.kanbanGroupBy,
+    updateBoardEdges,
+  ])
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
@@ -51,7 +81,7 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
     if (event.key === 'ArrowUp') target = columnCards[row - 1]
     if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
       const step = event.key === 'ArrowRight' ? 1 : -1
-      for (let next = column + step; next >= 0 && next < 5; next += step) {
+      for (let next = column + step; next >= 0 && next <= SESSION_LANES.length; next += step) {
         const candidates = byColumn.get(next)
         if (candidates?.length) {
           target = candidates[Math.min(row, candidates.length - 1)]
@@ -67,12 +97,17 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
   }, [])
 
   return (
-    <div className={styles.wrap}>
+    <div
+      className={styles.wrap}
+      data-overflow-left={boardEdges.left}
+      data-overflow-right={boardEdges.right}
+    >
       <div
         className={styles.board}
         data-ideas-folded={state.ideasFolded}
         ref={boardRef}
         onKeyDown={onKeyDown}
+        onScroll={updateBoardEdges}
       >
         <section
           className={styles.column}
@@ -146,31 +181,51 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
           )}
         </section>
 
-        {SESSION_STAGES.map((stage, stageIndex) => {
-          const entries = filtered.filter((entry) => entry.stage === stage)
+        {SESSION_LANES.map((lane, laneIndex) => {
+          const entries = filtered.filter((entry) => sessionLane(entry) === lane)
           const groups = groupSessions(entries, state.kanbanGroupBy === 'project')
+          const empty = entries.length === 0
+          const folded = empty || state.foldedSessionLanes.includes(lane)
           return (
             <section
               className={styles.column}
-              data-stage={stage}
-              key={stage}
-              aria-label={STAGE_LABELS[stage]}
+              data-lane={lane}
+              data-empty={empty}
+              data-folded={folded}
+              key={lane}
+              aria-label={SESSION_LANE_LABELS[lane]}
             >
               <header className={styles.columnHead}>
-                <span className={styles.stageMark}>
-                  <StageIcon stage={stage} />
-                  <span className="visuallyHidden">Codex</span>
-                </span>
-                <h2 className={styles.columnTitle}>{STAGE_LABELS[stage]}</h2>
+                <button
+                  type="button"
+                  className={styles.fold}
+                  data-folded={folded}
+                  aria-label={folded
+                    ? `Expand ${SESSION_LANE_LABELS[lane]}`
+                    : `Collapse ${SESSION_LANE_LABELS[lane]}`}
+                  aria-expanded={!folded}
+                  disabled={empty}
+                  onClick={() => dispatch({ type: 'toggle-session-lane-fold', lane })}
+                  title={empty
+                    ? `${SESSION_LANE_LABELS[lane]} is empty`
+                    : folded
+                    ? `Expand ${SESSION_LANE_LABELS[lane]}`
+                    : `Collapse ${SESSION_LANE_LABELS[lane]}`}
+                >
+                  {empty ? null : <Chevron direction={folded ? 'right' : 'left'} />}
+                  <span className={styles.stageMark}>
+                    <LaneIcon lane={lane} />
+                    <span className="visuallyHidden">Codex</span>
+                  </span>
+                </button>
+                <h2 className={styles.columnTitle}>{SESSION_LANE_LABELS[lane]}</h2>
                 <span className={styles.count}>
                   <span aria-hidden="true">{entries.length}</span>
                   <span className="visuallyHidden">{entries.length} sessions</span>
                 </span>
               </header>
-              <ScrollableColumn contentKey={entries.length === 0 ? 'empty' : 'filled'}>
-                {entries.length === 0 ? (
-                  <p className={styles.empty}>{emptyLabel(stage)}</p>
-                ) : (
+              {folded ? null : (
+                <ScrollableColumn contentKey={`${lane}:${entries.length}`}>
                   <div className={styles.groups}>
                     {groups.map((group) => (
                       <section className={styles.projectGroup} key={group.key}>
@@ -187,19 +242,20 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
                               entry={entry}
                               now={now}
                               onOpen={onOpenSession}
-                              columnIndex={stageIndex + 1}
+                              columnIndex={laneIndex + 1}
                               cardIndex={index}
                               detail={state.kanbanCardDetail}
                               comments={logbookFor(entry.session.id)}
                               showProject={state.kanbanGroupBy !== 'project'}
+                              showStage={lane === 'needs-you'}
                             />
                           ))}
                         </ul>
                       </section>
                     ))}
                   </div>
-                )}
-              </ScrollableColumn>
+                </ScrollableColumn>
+              )}
             </section>
           )
         })}
@@ -272,17 +328,4 @@ function groupSessions(entries: readonly BoardSession[], byProject: boolean) {
 function projectName(projects: readonly { id: string; name: string }[], projectId: string | null) {
   if (!projectId) return 'No project'
   return projects.find((project) => project.id === projectId)?.name ?? 'No project'
-}
-
-function emptyLabel(stage: Stage): string {
-  switch (stage) {
-    case 'planning':
-      return 'Nothing starting or idle'
-    case 'running':
-      return 'Nothing in flight'
-    case 'reviewing':
-      return 'Nothing to review'
-    default:
-      return 'Nothing closing out'
-  }
 }

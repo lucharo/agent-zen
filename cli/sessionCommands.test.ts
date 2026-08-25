@@ -11,7 +11,7 @@ function snapshot(): BridgeSnapshot {
     .filter((session) => !session.endedAt)
     .map(classifyAgentSession)
   return {
-    protocolVersion: 7,
+    protocolVersion: 9,
     generatedAt: '2026-08-10T17:00:00.000Z',
     connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
     sessions,
@@ -47,7 +47,7 @@ describe('session CLI commands', () => {
     const value = JSON.parse(output.join('')) as Record<string, unknown>
     expect(value).toEqual({
       generatedAt: '2026-08-10T17:00:00.000Z',
-      protocolVersion: 7,
+      protocolVersion: 9,
       sessions: [
         {
           id: 'sess-index-threads',
@@ -99,7 +99,7 @@ describe('session CLI commands', () => {
 
     expect(JSON.parse(output.join(''))).toEqual({
       generatedAt: '2026-08-10T17:00:00.000Z',
-      protocolVersion: 7,
+      protocolVersion: 9,
       session: {
         id: 'sess-control-plane',
         threadId: '019e21b0-3d54-7f18-8a77-1c0be4d2f905',

@@ -12,7 +12,7 @@ This is not a throughput dashboard. It is an active shelf for choosing what to c
 
 - Shows one card per root Codex session, with child agents contained inside it.
 - Reads native Codex goals, plans, turns, session names, projects, branches and worktrees without asking the agent to maintain another ledger.
-- Projects sessions into Planning / Idle, Running, Reviewing and Wrapping up. Running means the turn is progressing; Idle and Needs you return ordinary work to the first column.
+- Projects sessions into Needs you, Planning / Idle, Running, Reviewing and Wrapping up. Needs you is a prominent attention lane without changing the session's canonical workflow stage; empty lanes collapse to slim rails.
 - Offers a compact grid when the Kanban columns are too much.
 - Keeps Ideas as a human-owned space before planning, plus a private Logbook attached to each session. Cards can show those comments without mixing them into Codex state.
 - Leaves the session board read-only. Agent Zen observes Codex; it does not become a second workflow authority.
@@ -73,6 +73,8 @@ The loopback Bun service combines two native sources:
 ACP and hooks are not required. Existing sessions remain read-only. Goals and plans are optional: a successful Codex goal-tool result becomes the session's explicit goal, while substantive work can be Running before an agent creates a plan. Every native plan replacement is reflected without creating a second task database. See [ADR-0002](docs/adr/0002-native-codex-connection.md) for the exact stage and ownership contract.
 
 The browser refreshes the snapshot every second. UI preferences, registered projects and the optional focus limit live in `~/.agent-zen/settings.json`. Ideas and the human-only Logbook remain local browser data.
+
+The Sessions board puts **Needs you** first, collapses empty lanes automatically, and lets any populated lane be folded. In Grid view, grouping by state omits empty groups.
 
 ## Native macOS shell
 

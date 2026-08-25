@@ -28,8 +28,9 @@ import {
   classifyAgentSession,
   launchAvailability,
   type ClassifiedAgentSession,
+  type SessionStage,
 } from '@/domain/stage'
-import type { LogbookNote, Project, Stage } from '@/domain/types'
+import type { LogbookNote, Project } from '@/domain/types'
 import {
   loadState,
   resolveTheme,
@@ -41,7 +42,7 @@ import { reducer, type Action } from './reducer'
 
 export interface BoardSession {
   readonly session: ClassifiedAgentSession
-  readonly stage: Stage
+  readonly stage: SessionStage
   readonly project: Project | null
   readonly children: readonly ClassifiedAgentSession[]
 }
@@ -289,7 +290,7 @@ export function AgentZenProvider({
       .filter((s) => !s.parentSessionId)
       .map((session) => ({
         session,
-        stage: stageOf(session) as Stage,
+        stage: stageOf(session) as SessionStage,
         project: projectById(session.projectId),
         children: live.filter((c) => c.parentSessionId === session.id),
       }))

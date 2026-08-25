@@ -7,6 +7,7 @@ import type {
   ThemeChoice,
   View,
 } from './types'
+import { SESSION_LANES, type SessionLane } from './lanes'
 
 export interface UiPreferences {
   readonly theme: ThemeChoice
@@ -18,6 +19,7 @@ export interface UiPreferences {
   readonly kanbanGroupBy: KanbanGroupBy
   readonly kanbanCardDetail: KanbanCardDetail
   readonly ideasFolded: boolean
+  readonly foldedSessionLanes: readonly SessionLane[]
 }
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -30,6 +32,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   kanbanGroupBy: 'none',
   kanbanCardDetail: 'titles',
   ideasFolded: false,
+  foldedSessionLanes: [],
 }
 
 export function selectUiPreferences(preferences: UiPreferences): UiPreferences {
@@ -43,6 +46,7 @@ export function selectUiPreferences(preferences: UiPreferences): UiPreferences {
     kanbanGroupBy: preferences.kanbanGroupBy,
     kanbanCardDetail: preferences.kanbanCardDetail,
     ideasFolded: preferences.ideasFolded,
+    foldedSessionLanes: preferences.foldedSessionLanes,
   }
 }
 
@@ -56,9 +60,14 @@ export function normaliseUiPreferences(value: unknown): UiPreferences | null {
     ideaGroupBy: oneOf(preferences.ideaGroupBy, ['created', 'project'], 'created'),
     ideaLayout: oneOf(preferences.ideaLayout, ['grid', 'list'], 'grid'),
     sessionLayout: oneOf(preferences.sessionLayout, ['kanban', 'grid'], 'kanban'),
-    kanbanGroupBy: oneOf(preferences.kanbanGroupBy, ['none', 'project'], 'none'),
+    kanbanGroupBy: oneOf(preferences.kanbanGroupBy, ['none', 'project', 'state'], 'none'),
     kanbanCardDetail: oneOf(preferences.kanbanCardDetail, ['titles', 'details', 'comments'], 'titles'),
     ideasFolded: preferences.ideasFolded === true,
+    foldedSessionLanes: Array.isArray(preferences.foldedSessionLanes)
+      ? [...new Set(preferences.foldedSessionLanes.filter(
+          (lane): lane is SessionLane => SESSION_LANES.includes(lane as SessionLane),
+        ))]
+      : [],
   }
 }
 

@@ -46,7 +46,7 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 7,
+  protocolVersion: 9,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
   sessions: [],
@@ -175,12 +175,21 @@ describe('the board', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
-  it('shows five columns and marks only the agent-backed ones as Codex', () => {
+  it('shows Ideas plus five session lanes and collapses empty lanes', () => {
     mount()
 
-    for (const name of ['Ideas', 'Planning / Idle', 'Running', 'Reviewing', 'Wrapping up']) {
+    for (const name of ['Ideas', 'Needs you', 'Planning / Idle', 'Running', 'Reviewing', 'Wrapping up']) {
       expect(column(name)).toBeInTheDocument()
     }
+
+    expect(column('Needs you')).toHaveAttribute('data-empty', 'false')
+    expect(column('Reviewing')).toHaveAttribute('data-empty', 'true')
+    expect(within(column('Reviewing')).queryByText('Nothing to review')).toBeNull()
+    expect(within(column('Reviewing')).getByRole('button', { name: 'Expand Reviewing' }))
+      .toBeDisabled()
+    expect(within(column('Reviewing')).getByRole('button', { name: 'Expand Reviewing' }))
+      .toHaveAttribute('title', 'Reviewing is empty')
+    expect(column('Reviewing').querySelector('svg.lucide-chevron-right')).toBeNull()
 
     // The mark lives in the column title, never on a card.
     const runningHeader = column('Running').querySelector('header')
@@ -194,6 +203,9 @@ describe('the board', () => {
 
     expect(within(column('Planning / Idle')).getByText('Index local Codex threads')).toBeInTheDocument()
     expect(within(column('Running')).getByText('Revise calm control plane')).toBeInTheDocument()
+    expect(within(column('Needs you')).getByText('Harbor canary review')).toBeInTheDocument()
+    expect(within(column('Needs you')).getByText('Reviewing · acm')).toBeInTheDocument()
+    expect(within(column('Reviewing')).queryByText('Harbor canary review')).toBeNull()
     expect(within(column('Running')).queryByText(/Generate three new mockups/)).toBeNull()
     expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
     expect(within(column('Running')).getByText('3 / 5')).toBeInTheDocument()
@@ -226,6 +238,33 @@ describe('the board', () => {
     )
   })
 
+  it('folds, persists, and restores a populated session lane', async () => {
+    const storage = createMemoryStorage()
+    const first = mount(storage)
+    const { user } = first
+    const planning = column('Planning / Idle')
+    expect(within(planning).getByText('Index local Codex threads')).toBeInTheDocument()
+
+    await user.click(within(planning).getByRole('button', {
+      name: 'Collapse Planning / Idle',
+      expanded: true,
+    }))
+
+    expect(column('Planning / Idle')).toHaveAttribute('data-folded', 'true')
+    expect(within(column('Planning / Idle')).queryByText('Index local Codex threads')).toBeNull()
+
+    first.unmount()
+    mount(storage)
+    expect(column('Planning / Idle')).toHaveAttribute('data-folded', 'true')
+
+    await user.click(within(column('Planning / Idle')).getByRole('button', {
+      name: 'Expand Planning / Idle',
+      expanded: false,
+    }))
+
+    expect(within(column('Planning / Idle')).getByText('Index local Codex threads')).toBeInTheDocument()
+  })
+
   it('does not invent a history count from the observer window', () => {
     mount()
     expect(screen.queryByRole('region', { name: 'Done' })).toBeNull()
@@ -246,6 +285,7 @@ describe('navigation', () => {
       kanbanGroupBy: 'project',
       kanbanCardDetail: 'details',
       ideasFolded: true,
+      foldedSessionLanes: ['planning'],
     })
     const user = userEvent.setup({ document })
     render(
@@ -495,8 +535,9 @@ describe('navigation', () => {
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by project' }), 'acm')
 
-    expect(within(column('Reviewing')).getByText('Harbor canary review')).toBeInTheDocument()
-    expect(within(column('Running')).getByText('Nothing in flight')).toBeInTheDocument()
+    expect(within(column('Needs you')).getByText('Harbor canary review')).toBeInTheDocument()
+    expect(column('Running')).toHaveAttribute('data-empty', 'true')
+    expect(within(column('Running')).queryByText('Nothing in flight')).toBeNull()
   })
 
   it('toggles the backlog between grid and list', async () => {
@@ -574,6 +615,46 @@ describe('navigation', () => {
 
     expect(within(grid).getByText('42m total · 7m current turn')).toBeInTheDocument()
     expect(within(grid).getByText('3 / 5')).toBeInTheDocument()
+  })
+
+  it('groups the session grid by populated board lane and restores that choice after Kanban', async () => {
+    const { user } = mount()
+    const layout = screen.getByRole('group', { name: 'Session layout' })
+
+    await user.click(within(layout).getByRole('button', { name: 'Grid' }))
+    const groupBy = screen.getByRole('combobox', { name: 'Group sessions by' })
+    await user.selectOptions(groupBy, 'state')
+
+    const grid = screen.getByRole('region', { name: 'Session grid' })
+    expect(within(grid).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent))
+      .toEqual(['Needs you', 'Planning / Idle', 'Running', 'Wrapping up'])
+    expect(within(grid).queryByRole('heading', { name: 'Reviewing' })).toBeNull()
+    expect(within(grid).getByText('Harbor canary review')).toBeInTheDocument()
+    expect(within(grid).getByText('Reviewing · acm')).toBeInTheDocument()
+
+    await user.click(within(layout).getByRole('button', { name: 'Kanban' }))
+    expect(screen.getByRole('combobox', { name: 'Group sessions by' })).toHaveValue('none')
+    await user.click(within(layout).getByRole('button', { name: 'Grid' }))
+    expect(screen.getByRole('combobox', { name: 'Group sessions by' })).toHaveValue('state')
+  })
+
+  it('lets the command palette enable project grouping from Kanban when Grid stores state grouping', async () => {
+    const storage = seedTestState(createMemoryStorage())
+    const persisted = JSON.parse(storage.getItem(STORAGE_KEY)!)
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      ...persisted,
+      sessionLayout: 'kanban',
+      kanbanGroupBy: 'state',
+    }))
+    const { user } = mount(storage)
+
+    expect(screen.getByRole('combobox', { name: 'Group sessions by' })).toHaveValue('none')
+    await user.keyboard('{Meta>}k{/Meta}')
+    const palette = screen.getByRole('dialog', { name: 'Command palette' })
+    await user.type(within(palette).getByLabelText('Search or jump to'), 'group sessions by project')
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByRole('combobox', { name: 'Group sessions by' })).toHaveValue('project')
   })
 })
 

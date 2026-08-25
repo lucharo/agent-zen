@@ -12,6 +12,10 @@
   color: var(--accent);
 }
 
+.stageIcon[data-stage='needs-you'] {
+  color: var(--focus-ink);
+}
+
 /* --- Select ------------------------------------------------------------- */
 
 .select {

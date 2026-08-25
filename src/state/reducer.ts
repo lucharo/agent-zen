@@ -10,6 +10,7 @@ import type {
   View,
 } from '@/domain/types'
 import type { UiPreferences } from '@/domain/preferences'
+import type { SessionLane } from '@/domain/lanes'
 import { newId, type PersistedState } from './persistence'
 
 export interface CaptureDraft {
@@ -30,6 +31,7 @@ export type Action =
   | { type: 'set-kanban-group-by'; groupBy: KanbanGroupBy }
   | { type: 'set-kanban-card-detail'; detail: KanbanCardDetail }
   | { type: 'toggle-ideas-fold' }
+  | { type: 'toggle-session-lane-fold'; lane: SessionLane }
   | { type: 'set-active-limit-enabled'; enabled: boolean }
   | { type: 'set-active-limit'; limit: number }
   | { type: 'sync-ui-preferences'; preferences: UiPreferences }
@@ -73,6 +75,14 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
 
     case 'toggle-ideas-fold':
       return { ...state, ideasFolded: !state.ideasFolded }
+
+    case 'toggle-session-lane-fold':
+      return {
+        ...state,
+        foldedSessionLanes: state.foldedSessionLanes.includes(action.lane)
+          ? state.foldedSessionLanes.filter((lane) => lane !== action.lane)
+          : [...state.foldedSessionLanes, action.lane],
+      }
 
     case 'set-active-limit-enabled':
       return { ...state, activeLimitEnabled: action.enabled }

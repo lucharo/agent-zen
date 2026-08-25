@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
   CircleEllipsis,
   CirclePlay,
   Columns3,
@@ -15,6 +16,7 @@ import {
   Search,
 } from 'lucide-react'
 import type { Stage } from '@/domain/types'
+import type { SessionLane } from '@/domain/lanes'
 import styles from './primitives.module.css'
 
 export function CodexMark({ title = 'Codex' }: { title?: string }) {
@@ -48,6 +50,21 @@ export function StageIcon({ stage }: { stage: Exclude<Stage, 'ideas'> }) {
       aria-hidden="true"
     />
   )
+}
+
+export function LaneIcon({ lane }: { lane: SessionLane }) {
+  if (lane === 'needs-you') {
+    return (
+      <CircleAlert
+        className={styles.stageIcon}
+        data-stage={lane}
+        size={16}
+        strokeWidth={1.7}
+        aria-hidden="true"
+      />
+    )
+  }
+  return <StageIcon stage={lane} />
 }
 
 export function SearchIcon() {

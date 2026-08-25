@@ -30,7 +30,7 @@ test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
     await route.fulfill({ response, json: latestSnapshot })
   })
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Running' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Running', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /Quick capture/ })).toBeVisible()
   await expectAccessible(page, 'Sessions Kanban')
 

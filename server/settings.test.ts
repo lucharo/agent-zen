@@ -41,6 +41,7 @@ describe('AgentZenSettingsStore', () => {
       kanbanGroupBy: 'none',
       kanbanCardDetail: 'titles',
       ideasFolded: false,
+      foldedSessionLanes: [],
     })
     expect(JSON.parse(await readFile(settingsPath, 'utf8'))).toMatchObject({
       version: 2,
@@ -67,6 +68,7 @@ describe('AgentZenSettingsStore', () => {
       kanbanGroupBy: 'project',
       kanbanCardDetail: 'comments',
       ideasFolded: true,
+      foldedSessionLanes: ['planning'],
     })).rejects.toThrow()
     expect((await store.read()).preferences).toBeNull()
 
@@ -100,6 +102,7 @@ describe('AgentZenSettingsStore', () => {
         kanbanGroupBy: 'project',
         kanbanCardDetail: 'details',
         ideasFolded: true,
+        foldedSessionLanes: ['running'],
       }),
       second.setFocus({ enabled: true, limit: 2 }),
     ])
@@ -134,9 +137,10 @@ describe('AgentZenSettingsStore', () => {
       ideaGroupBy: 'project',
       ideaLayout: 'list',
       sessionLayout: 'grid',
-      kanbanGroupBy: 'project',
+      kanbanGroupBy: 'state',
       kanbanCardDetail: 'comments',
       ideasFolded: true,
+      foldedSessionLanes: ['planning', 'reviewing'],
     })
 
     const reloaded = new AgentZenSettingsStore({ settingsPath, defaultProjectRoots: [root] })
@@ -148,9 +152,10 @@ describe('AgentZenSettingsStore', () => {
       ideaGroupBy: 'project',
       ideaLayout: 'list',
       sessionLayout: 'grid',
-      kanbanGroupBy: 'project',
+      kanbanGroupBy: 'state',
       kanbanCardDetail: 'comments',
       ideasFolded: true,
+      foldedSessionLanes: ['planning', 'reviewing'],
     })
     expect(await reloaded.registeredProjects()).toMatchObject([
       { directory: expect.stringContaining('/lucharo/demo'), repository: 'lucharo/demo' },

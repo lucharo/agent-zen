@@ -45,6 +45,9 @@ export function Toolbar({
   const { state, dispatch, activeCount, availableProjects } = useAgentZen()
   const [tooltipsDismissed, setTooltipsDismissed] = useState(false)
   const onIdeas = state.view === 'ideas'
+  const sessionGroupBy = state.sessionLayout === 'kanban' && state.kanbanGroupBy === 'state'
+    ? 'none'
+    : state.kanbanGroupBy
 
   const setView = (view: View) => dispatch({ type: 'set-view', view })
 
@@ -147,13 +150,14 @@ export function Toolbar({
           <Select
             label="Group sessions by"
             prefix="Group by:"
-            value={state.kanbanGroupBy}
+            value={sessionGroupBy}
             onChange={(value) =>
               dispatch({ type: 'set-kanban-group-by', groupBy: value as KanbanGroupBy })
             }
             options={[
               { value: 'none', label: 'None' },
               { value: 'project', label: 'Project' },
+              ...(state.sessionLayout === 'grid' ? [{ value: 'state', label: 'State' }] : []),
             ]}
           />
           <div className={styles.segmented} role="group" aria-label="Card fields">
