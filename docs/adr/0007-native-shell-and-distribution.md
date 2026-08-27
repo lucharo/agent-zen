@@ -2,7 +2,7 @@
 
 - Status: Accepted, personal development build verified; notarisation pending
 - Date: 2026-08-06
-- Updated: 2026-08-12
+- Updated: 2026-08-27
 
 ## Outcome
 
@@ -20,7 +20,9 @@ Agent Zen has a small AppKit and WKWebView shell with genuine macOS menu command
 - Closing hides one retained AppKit window, releases its WebView after the close event, and never deallocates the window during AppKit's close animation.
 - `bun run build:macos` compiles the web assets, Swift shell, and Bun bridge into `build/Agent Zen.app`.
 - Signing automatically prefers Developer ID Application, then Apple Development. The Bun bridge is signed first with its JavaScriptCore JIT entitlements, followed by the AppKit executable and outer bundle; the final bundle is verified. With no identity, the script creates an ad-hoc build and prints a warning.
-- The distribution sequence is: Apple-signed personal-Mac test, hardened Developer ID build, notarisation, then optional Mac App Store work.
+Mac App Store work remains optional and separate.
+- The managed package should install `Agent Zen.app` in `/Applications` and preserve the native shell's local bridge behavior. If the launch-at-login daemon and CLI are included, their system and per-user install paths, upgrade behavior, rollback, and uninstall contract must be explicit rather than reusing a developer's `~/.local` layout implicitly.
+lucharo.agent-zen`, the expected app version, the signed package contents, and any managed daemon files. A failed audit may trigger reinstall; the pilot therefore has to prove that reinstall is idempotent and does not replace browser-owned Ideas or Logbook data.
 
 ## Verified boundary
 
@@ -34,9 +36,12 @@ The same-day performance regression showed six overlapping menu requests reading
 
 An Apple Developer account is necessary but not sufficient: a certificate and its private key must be installed on the build Mac. A notarised Developer ID build is the preferred first distribution because Mac App Store sandboxing would require a separate access design for Codex stores, repositories, Git, and subprocess control.
 
+Agent Zen should use a signed flat PKG because it needs a deterministic `/Applications` install and may also need managed launch-at-login files. 
+
 ## Consequences
 
 - The web app remains fully functional and advertises `C`, not `Command-N`, for capture.
 - The 2026-08-11 foreground shell was verified on the personal Mac. The current accessory-launch and retained-window changes have build, contract-test, layout-test, and review evidence only; a future cold installed test must not be replaced by compilation.
 - Menu-bar and window UI share one web application and one bridge, avoiding a second state model.
 - Mac App Store packaging is deliberately postponed until the local-file and process permission contract is explicit.
+

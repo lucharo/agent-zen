@@ -467,12 +467,17 @@ export function stageHintFromMessage(message: string | null): RolloutSnapshot['s
   const semanticLine = line.startsWith('>') ? '' : line.replace(/`[^`]*`/g, '')
   const linked = stageHintFromSkillLink(semanticLine)
   if (linked) return linked
-  const trailingWrapup = /(?:^|[\s,;:])[\/$]wrapup(?:\s+(?:pls|please))?[.!?]*$/i.exec(semanticLine)
+  const wrapupToken = /(?:^|[\s,;:])[\/$]wrapup(?=[\s,.!?;:]|$)/i.exec(semanticLine)
+  const wrapupTokenIndex = wrapupToken
+    ? wrapupToken.index + wrapupToken[0].search(/[\/$]/)
+    : -1
   if (
     /^[\/$]wrapup(?:\s|$)/i.test(semanticLine) ||
-    (trailingWrapup && !linkIsDiscussedRatherThanInvoked(
-      semanticLine.slice(0, trailingWrapup.index).trim(),
-    ))
+    (wrapupToken &&
+      !commandTokenIsQuoted(semanticLine, wrapupTokenIndex) &&
+      !linkIsDiscussedRatherThanInvoked(
+        semanticLine.slice(0, wrapupToken.index).trim(),
+      ))
   ) {
     return 'wrapping-up'
   }
@@ -504,7 +509,24 @@ function linkIsDiscussedRatherThanInvoked(before: string): boolean {
   return /\b(?:do not|don't|dont)\s+(?:invoke|run|use|start)\b/i.test(before) ||
     /\b(?:not invoking|not running|not using|not starting|never invoke|never run|avoid invoking|avoid running)\b/i.test(before) ||
     /^\s*(?:why|how)\s+(?:does|is|can|could|would)\b/i.test(before) ||
-    /\b(?:example|quoted?|literal|classification|misclassif(?:y|ied|ication)?|marker)\b/i.test(before)
+    /\b(?:example|quoted?|literal|classification|misclassif(?:y|ied|ication)?|marker|mention(?:ed|ing)?|discuss(?:ed|ing)?|reference(?:d|ing)?)\b/i.test(before)
+}
+
+function commandTokenIsQuoted(line: string, tokenIndex: number): boolean {
+  let quote: "'" | '"' | null = null
+  for (let index = 0; index < tokenIndex; index += 1) {
+    const character = line[index]
+    if (character !== "'" && character !== '"') continue
+    if (index > 0 && line[index - 1] === '\\') continue
+    if (
+      character === "'" &&
+      /[a-z0-9]/i.test(line[index - 1] ?? '') &&
+      /[a-z0-9]/i.test(line[index + 1] ?? '')
+    ) continue
+    if (quote === character) quote = null
+    else if (quote === null) quote = character
+  }
+  return quote !== null
 }
 
 function requestBody(message: string): string {

@@ -88,7 +88,7 @@ _Created: 2026-08-11 · Updated: 2026-08-11 · Verified: 2026-08-11_
 
 Needs you always wins the visible lane while the card keeps the underlying workflow phase. Empty or manually collapsed Kanban lanes can remain as labelled rails or be hidden in Settings, and the full-lane yellow Needs you treatment can be disabled. Grid view can group by state and omits empty groups.
 
-Mentioning a skill in prose does not move the card. Neither does reading, searching, or discussing a `SKILL.md` path inside an agent tool call. A bare command must be the first non-empty line of the user request. The exact Markdown skill link may appear on that first request line, including after the app's context envelope. Natural-language requests and plan prose remain plan/activity-derived until the user explicitly invokes the workflow. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
+Mentioning a skill in prose does not move the card. Neither does reading, searching, or discussing a `SKILL.md` path inside an agent tool call. An explicit `$wrapup` or `/wrapup` token may start the first request line or follow a short acknowledgement on it; any following words are ordinary command arguments, so `$wrapup pls` is not a separate command. Quoted, negated, or explanatory uses remain discussion rather than invocation. The exact Markdown skill link may also appear on that first request line, including after the app's context envelope. Natural-language requests and plan prose remain plan/activity-derived until the user explicitly invokes the workflow. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
 
 Agent Zen never turns a bare marker into invented evidence. If no PR, visual result, note count, or wrap-up check count was observed, the card says only “Review in progress” or “Wrapup in progress”.
 
@@ -99,7 +99,22 @@ Agent Zen never turns a bare marker into invented evidence. If no PR, visual res
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — owned `turn/started` and plan overlays use the same stage model.
 - [Stage tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.test.ts) — marker persistence and precedence.
 
-_Created: 2026-08-06 · Updated: 2026-08-25 · Verified: 2026-08-25 · Scope/version: Agent Zen 0.1.0, protocol 10_
+_Created: 2026-08-06 · Updated: 2026-08-27 · Verified: 2026-08-27 · Scope/version: Agent Zen 0.1.0, protocol 10_
+
+## Why did a completed `$wrapup` session remain in Idle?
+
+**Short answer:** Current Codex recorded the user's invocation as a `response_item` user message, while Agent Zen's bounded-tail stage index only admitted the older `event_msg.user_message` shape. The full parser and live observer therefore disagreed, and the completed turn fell back to Idle.
+
+The parser now accepts current Codex user response items, and the bounded observer uses the same classification path before an old command record falls out of its normal tail. Command recognition treats `$wrapup` as the command token and following text as arguments; it does not special-case `pls`.
+
+### Sources
+
+- [Rollout parser](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.ts) — current user-message shape and explicit command-token classification.
+- [Bounded observer](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — stage-anchor admission and recovery.
+- [Regression tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.test.ts) — command arguments, quoted discussion, and negated invocation coverage.
+- [Observer regression](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.test.ts) — completed wrap-up retained outside the bounded tail.
+
+_Created: 2026-08-27 · Updated: 2026-08-27 · Verified: 2026-08-27 · Scope/version: Codex current rollout records, Agent Zen 0.1.0_
 
 ## How can I check why a session is in a column?
 
@@ -319,19 +334,20 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## How do Sessions layouts, dense columns, and card detail work?
 
-**Short answer:** Sessions switches between Kanban and Grid. Title is always shown. Description and Comments are cumulative card controls, so Comments also turns Description on.
+**Short answer:** Sessions switches between Kanban and Grid. Grid is centred by default, and **Constrain column width** keeps both layouts readable on wide displays. Title is always shown. Description and Comments are cumulative card controls, so Comments also turns Description on.
 
-Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner, and an edge fade marks more lanes off-screen. Grid rows wrap from a shared left edge. Title cards are `260 × 184px`; description cards are `260 × 252px`; comment cards use a taller `260 × 360px` frame for the labelled Logbook excerpts. The default keeps stage, project, attention state, goal presence, subagent count, labelled timing, and native plan position. Description adds the current step or review and wrap-up summary. Comments adds the two newest human Logbook notes and keeps Description on. Cards reveal repository, branch, worktree, model, effort, Codex version, goal objective, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card; Grid also supports Group by State and hides empty groups.
+Horizontal trackpad gestures over a Kanban column bubble to the board, while vertical gestures remain with that column. The page itself never becomes a second horizontal scroll owner, and an edge fade marks more lanes off-screen. Grid rows centre inside a `1088px` readable-width container; disabling the setting expands them across the available viewport. In Kanban, the same setting caps each expanded lane at `420px` while preserving horizontal overflow and centring when the visible lanes fit. Title cards are `260 × 184px`; description cards are `260 × 252px`; comment cards use a taller `260 × 360px` frame for the labelled Logbook excerpts. The default keeps stage, project, attention state, goal presence, subagent count, labelled timing, and native plan position. Description adds the current step or review and wrap-up summary. Comments adds the two newest human Logbook notes and keeps Description on. Cards reveal repository, branch, worktree, model, effort, Codex version, goal objective, and IDs after a 1.2-second hover delay. Keyboard focus reveals the same information immediately. Group by Project works in both layouts without duplicating the project label on each card; Grid also supports Group by State and hides empty groups.
 
 ### Sources
 
 - [Kanban view](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.tsx) — counts, overflow detection, grouping, and detail mode.
 - [Kanban styles](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.module.css) — fixed headers and scroll affordance.
 - [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — stage-labelled root-session projection.
+- [Settings](https://github.com/lucharo/agent-zen/blob/main/src/components/SettingsDialog.tsx) — persisted readable-width control.
 - [Scroll regression](https://github.com/lucharo/agent-zen/blob/main/qa/e2e/session-scroll.spec.ts) — one horizontal owner and two-axis wheel routing.
 - [Session card styles](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionCard.module.css) — delayed hover and immediate focus disclosure.
 
-_Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11_
+_Created: 2026-08-06 · Updated: 2026-08-27 · Verified: 2026-08-27_
 
 ## What does Quick Capture create?
 
@@ -372,9 +388,19 @@ _Created: 2026-08-06 · Updated: 2026-08-12 · Runtime performance verified: 202
 
 ## How should the native app be distributed?
 
-**Short answer:** The Apple-signed personal-Mac test works. Next ship a hardened and notarised Developer ID build. Treat the Mac App Store as a later distribution target.
+
 
 `bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. It signs the compiled Bun bridge with the required JavaScriptCore JIT entitlements before signing and verifying the outer app. The personal Mac currently has Apple Development and Apple Distribution identities, but not the `Developer ID Application` identity required for a notarised outside-the-Mac-App-Store release.
+
+The concrete release path is:
+
+1. Obtain Developer ID Application and Developer ID Installer identities, including their private keys, on the release Mac.
+2. Produce an architecture-appropriate hardened app, sign every nested executable, then build a signed flat PKG that installs `Agent Zen.app` in `/Applications` and explicitly defines any CLI, daemon, launch-at-login, upgrade, rollback, and uninstall paths.
+3. Submit the deliverable with `notarytool`, staple the accepted ticket, and verify it with `codesign`, `pkgutil`, and `spctl`.
+4. 
+5. 
+
+PKG is the best fit here because Agent Zen may install more than one managed path. 
 
 The Mac App Store requires sandboxing. Agent Zen needs deliberate entitlements and user-granted access for local Codex stores, repositories, Git, and subprocess control, so that work should be designed and tested rather than added as a packaging afterthought.
 
@@ -384,7 +410,7 @@ The Mac App Store requires sandboxing. Agent Zen needs deliberate entitlements a
 - [Apple certificates overview](https://developer.apple.com/help/account/certificates/certificates-overview/) — certificate types and management.
 - [Apple notarisation guidance](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) — Developer ID notarisation requirement.
 
-_Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11_
+
 
 ## What does project onboarding do?
 

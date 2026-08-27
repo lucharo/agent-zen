@@ -345,7 +345,7 @@ test('retains a completed wrap-up invocation outside the bounded rollout tail', 
         payload: {
           type: 'message',
           role: 'user',
-          content: [{ type: 'input_text', text: 'Thanks for the fixes, $wrapup pls' }],
+          content: [{ type: 'input_text', text: 'Thanks for the fixes, $wrapup close everything out' }],
         },
       }),
       oversizedReasoning('2026-08-06T12:00:02.000Z'),

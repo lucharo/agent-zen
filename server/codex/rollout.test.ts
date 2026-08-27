@@ -548,7 +548,7 @@ describe('parseRolloutLines', () => {
     expect(result.stageHint).toBe('wrapping-up')
   })
 
-  test('recognises an explicit wrapup invocation from current Codex user response items', () => {
+  test('treats text after an embedded wrapup token as ordinary command arguments', () => {
     const result = parseRolloutLines([
       line({ timestamp: '2026-08-27T14:48:45.691Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-wrapup' } }),
       line({
@@ -557,7 +557,7 @@ describe('parseRolloutLines', () => {
         payload: {
           type: 'message',
           role: 'user',
-          content: [{ type: 'input_text', text: 'Thanks for the fixes, $wrapup pls' }],
+          content: [{ type: 'input_text', text: 'Thanks for the fixes, $wrapup close everything out' }],
         },
       }),
       line({ timestamp: '2026-08-27T15:18:16.265Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-wrapup' } }),
@@ -592,6 +592,22 @@ describe('parseRolloutLines', () => {
         payload: {
           type: 'user_message',
           message: 'Sometimes I mention $wrapup while explaining the stage, but I am not invoking it.',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('does not treat quoted wrapup commands as invocations', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-27T16:48:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-quoted-wrapup' } }),
+      line({
+        timestamp: '2026-08-27T16:48:01.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'Wait, but "$wrapup pls" is not a special command; it is the same as "$wrapup".',
         },
       }),
     ])
