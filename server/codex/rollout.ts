@@ -506,7 +506,7 @@ function stageHintFromSkillLink(line: string): RolloutSnapshot['stageHint'] {
 }
 
 function linkIsDiscussedRatherThanInvoked(before: string): boolean {
-  return /\b(?:do not|don't|dont|not|never)\s*$/i.test(before) ||
+  return /\b(?:do not|don't|dont|not|never)(?:\s+(?:ever|[a-z]+ly)){0,2}\s*$/i.test(before) ||
     /\b(?:do not|don't|dont)\s+(?:invoke|run|use|start)\b/i.test(before) ||
     /\b(?:not invoking|not running|not using|not starting|never invoke|never run|avoid invoking|avoid running)\b/i.test(before) ||
     /^\s*(?:why|how)\s+(?:does|is|can|could|would)\b/i.test(before) ||

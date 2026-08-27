@@ -633,19 +633,22 @@ describe('parseRolloutLines', () => {
   })
 
   test('does not treat a directly negated wrapup token with arguments as an invocation', () => {
-    const snapshot = parseRolloutLines([
-      line({ timestamp: '2026-08-27T16:49:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-direct-negation' } }),
-      line({
-        timestamp: '2026-08-27T16:49:01.000Z',
-        type: 'event_msg',
-        payload: {
-          type: 'user_message',
-          message: "Please don't $wrapup yet",
-        },
-      }),
-    ])
+    for (const message of [
+      "Please don't $wrapup yet",
+      "Please don't ever $wrapup",
+      'Do not automatically $wrapup',
+    ]) {
+      const snapshot = parseRolloutLines([
+        line({ timestamp: '2026-08-27T16:49:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-direct-negation' } }),
+        line({
+          timestamp: '2026-08-27T16:49:01.000Z',
+          type: 'event_msg',
+          payload: { type: 'user_message', message },
+        }),
+      ])
 
-    expect(snapshot.stageHint).toBeNull()
+      expect(snapshot.stageHint).toBeNull()
+    }
   })
 
   test('does not treat a quoted standalone command later in prose as an invocation', () => {
