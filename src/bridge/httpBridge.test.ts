@@ -15,6 +15,7 @@ const preferences = {
   foldedSessionLanes: ['planning'],
   showCollapsedLanes: false,
   highlightNeedsYou: false,
+  constrainBoardWidth: false,
 } as const
 
 afterEach(() => vi.unstubAllGlobals())

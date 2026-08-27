@@ -46,6 +46,15 @@
   overflow-x: auto;
 }
 
+.board[data-constrain-width='true'] {
+  justify-content: safe center;
+}
+
+.board[data-constrain-width='true'] .column:not([data-folded='true']):not([data-empty='true']) {
+  flex: 0 1 420px;
+  max-width: 420px;
+}
+
 .column {
   display: flex;
   flex-direction: column;

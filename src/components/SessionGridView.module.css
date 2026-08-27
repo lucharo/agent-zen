@@ -18,7 +18,13 @@
 }
 
 .group {
+  width: 100%;
   min-width: 0;
+}
+
+.scroller[data-constrain-width='true'] .group {
+  max-width: 1088px;
+  margin-inline: auto;
 }
 
 .groupHead {
@@ -51,7 +57,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: start;
-  justify-content: flex-start;
+  justify-content: center;
   gap: var(--space-4);
 }
 

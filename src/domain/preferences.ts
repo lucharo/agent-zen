@@ -22,6 +22,7 @@ export interface UiPreferences {
   readonly foldedSessionLanes: readonly SessionLane[]
   readonly showCollapsedLanes: boolean
   readonly highlightNeedsYou: boolean
+  readonly constrainBoardWidth: boolean
 }
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -37,6 +38,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   foldedSessionLanes: [],
   showCollapsedLanes: true,
   highlightNeedsYou: true,
+  constrainBoardWidth: true,
 }
 
 export function selectUiPreferences(preferences: UiPreferences): UiPreferences {
@@ -53,6 +55,7 @@ export function selectUiPreferences(preferences: UiPreferences): UiPreferences {
     foldedSessionLanes: preferences.foldedSessionLanes,
     showCollapsedLanes: preferences.showCollapsedLanes,
     highlightNeedsYou: preferences.highlightNeedsYou,
+    constrainBoardWidth: preferences.constrainBoardWidth,
   }
 }
 
@@ -76,6 +79,7 @@ export function normaliseUiPreferences(value: unknown): UiPreferences | null {
       : [],
     showCollapsedLanes: preferences.showCollapsedLanes !== false,
     highlightNeedsYou: preferences.highlightNeedsYou !== false,
+    constrainBoardWidth: preferences.constrainBoardWidth !== false,
   }
 }
 

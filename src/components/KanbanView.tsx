@@ -106,6 +106,7 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
       <div
         className={styles.board}
         data-ideas-folded={state.ideasFolded}
+        data-constrain-width={state.constrainBoardWidth}
         ref={boardRef}
         onKeyDown={onKeyDown}
         onScroll={updateBoardEdges}

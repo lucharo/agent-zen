@@ -220,16 +220,19 @@ describe('the board', () => {
   it('can hide collapsed lanes and disable the Needs you lane highlight', async () => {
     const { user } = mount()
     expect(column('Needs you')).toHaveAttribute('data-highlight', 'true')
+    expect(column('Ideas').parentElement).toHaveAttribute('data-constrain-width', 'true')
 
     await user.keyboard('{Meta>},{/Meta}')
     const settings = screen.getByRole('dialog', { name: 'Settings' })
     await user.click(within(settings).getByRole('switch', { name: 'Show collapsed lanes' }))
     await user.click(within(settings).getByRole('switch', { name: 'Highlight Needs you' }))
+    await user.click(within(settings).getByRole('switch', { name: 'Constrain column width' }))
     await user.click(within(settings).getByRole('button', { name: 'Close settings' }))
 
     expect(screen.queryByRole('region', { name: 'Idle' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Reviewing' })).toBeNull()
     expect(column('Needs you')).toHaveAttribute('data-highlight', 'false')
+    expect(column('Ideas').parentElement).toHaveAttribute('data-constrain-width', 'false')
 
     await user.click(within(column('Planning')).getByRole('button', { name: 'Collapse Planning' }))
     expect(screen.queryByRole('region', { name: 'Planning' })).toBeNull()
@@ -306,6 +309,7 @@ describe('navigation', () => {
       foldedSessionLanes: ['planning'],
       showCollapsedLanes: false,
       highlightNeedsYou: false,
+      constrainBoardWidth: false,
     })
     const user = userEvent.setup({ document })
     render(
@@ -624,6 +628,7 @@ describe('navigation', () => {
     await user.click(gridButton)
 
     const grid = screen.getByRole('region', { name: 'Session grid' })
+    expect(grid.querySelector('[data-constrain-width]')).toHaveAttribute('data-constrain-width', 'true')
     expect(within(grid).getByText('Revise calm control plane')).toBeInTheDocument()
     expect(within(grid).getByText('Running · agent-zen')).toBeInTheDocument()
     expect(within(grid).queryByRole('button', { name: /Sweep board fixtures into tests/ })).toBeNull()

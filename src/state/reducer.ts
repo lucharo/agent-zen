@@ -34,6 +34,7 @@ export type Action =
   | { type: 'toggle-session-lane-fold'; lane: SessionLane }
   | { type: 'set-show-collapsed-lanes'; value: boolean }
   | { type: 'set-highlight-needs-you'; value: boolean }
+  | { type: 'set-constrain-board-width'; value: boolean }
   | { type: 'set-active-limit-enabled'; enabled: boolean }
   | { type: 'set-active-limit'; limit: number }
   | { type: 'sync-ui-preferences'; preferences: UiPreferences }
@@ -91,6 +92,9 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
 
     case 'set-highlight-needs-you':
       return { ...state, highlightNeedsYou: action.value }
+
+    case 'set-constrain-board-width':
+      return { ...state, constrainBoardWidth: action.value }
 
     case 'set-active-limit-enabled':
       return { ...state, activeLimitEnabled: action.enabled }

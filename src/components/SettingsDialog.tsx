@@ -72,6 +72,12 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
               checked={state.highlightNeedsYou}
               onChange={(value) => dispatch({ type: 'set-highlight-needs-you', value })}
             />
+            <PreferenceSwitch
+              label="Constrain column width"
+              description="Keep boards centred and columns at a readable width."
+              checked={state.constrainBoardWidth}
+              onChange={(value) => dispatch({ type: 'set-constrain-board-width', value })}
+            />
           </div>
         </section>
 

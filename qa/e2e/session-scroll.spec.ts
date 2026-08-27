@@ -182,7 +182,7 @@ test('the session grid uses one compact card size with content anchored at the t
   expect(new Set(detailHeights)).toEqual(new Set([252]))
 })
 
-test('the session grid keeps narrow rows on a consistent left reading edge', async ({ page }) => {
+test('the session grid centres narrow rows within the readable-width grid', async ({ page }) => {
   await page.setViewportSize({ width: 655, height: 1_222 })
   await routeSnapshot(page, snapshot)
   await page.goto('/')
@@ -210,8 +210,8 @@ test('the session grid keeps narrow rows on a consistent left reading edge', asy
   expect(layout.gridWidth).toBe(623)
   expect(new Set(layout.cardWidths)).toEqual(new Set([260]))
   expect(layout.rowMargins).toHaveLength(4)
-  expect(layout.rowMargins.every((row) => Math.abs(row.left) <= 1)).toBe(true)
-  expect(layout.rowMargins.every((row) => row.right > 40)).toBe(true)
+  expect(layout.rowMargins.every((row) => Math.abs(row.left - row.right) <= 1)).toBe(true)
+  expect(layout.rowMargins.every((row) => row.left > 40)).toBe(true)
 })
 
 test('the wide toolbar stays bounded and shortcut hints remain contextual', async ({ page }) => {

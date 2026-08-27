@@ -24,7 +24,7 @@ export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
           <p>Codex sessions appear here when they enter planning.</p>
         </div>
       ) : (
-        <div className={styles.scroller}>
+        <div className={styles.scroller} data-constrain-width={state.constrainBoardWidth}>
           {groups.map((group) => (
             <div className={styles.group} key={group.key}>
               {state.kanbanGroupBy !== 'none' ? (
