@@ -88,8 +88,9 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
       continue
     }
     collaborationMode = collaborationModeFromRecord(record) ?? collaborationMode
-    if (record.type === 'event_msg' && payload?.type === 'user_message') {
-      latestUserMessage = stringValue(payload.message)
+    const userMessage = userMessageFromRecord(record)
+    if (userMessage !== null) {
+      latestUserMessage = userMessage
       const explicit = stageHintFromMessage(latestUserMessage)
       currentStageHint = mergeStageHint(currentStageHint, explicit)
       continue
@@ -142,6 +143,27 @@ export function parseRolloutLines(lines: readonly string[]): RolloutSnapshot {
     turnOutcome,
     pendingInputCallIds: [...pendingInputCalls],
   }
+}
+
+function userMessageFromRecord(record: RolloutRecord): string | null {
+  const payload = record.payload
+  if (record.type === 'event_msg' && payload?.type === 'user_message') {
+    return stringValue(payload.message)
+  }
+  if (
+    record.type !== 'response_item' ||
+    payload?.type !== 'message' ||
+    payload.role !== 'user' ||
+    !Array.isArray(payload.content)
+  ) {
+    return null
+  }
+  const text = payload.content.flatMap((item) => (
+    isObject(item) && item.type === 'input_text' && typeof item.text === 'string'
+      ? [item.text]
+      : []
+  )).join('\n')
+  return text || null
 }
 
 function collaborationModeFromRecord(record: RolloutRecord): SessionCollaborationMode | null {
@@ -445,7 +467,15 @@ export function stageHintFromMessage(message: string | null): RolloutSnapshot['s
   const semanticLine = line.startsWith('>') ? '' : line.replace(/`[^`]*`/g, '')
   const linked = stageHintFromSkillLink(semanticLine)
   if (linked) return linked
-  if (/^[\/$]wrapup(?:\s|$)/i.test(semanticLine)) return 'wrapping-up'
+  const trailingWrapup = /(?:^|[\s,;:])[\/$]wrapup(?:\s+(?:pls|please))?[.!?]*$/i.exec(semanticLine)
+  if (
+    /^[\/$]wrapup(?:\s|$)/i.test(semanticLine) ||
+    (trailingWrapup && !linkIsDiscussedRatherThanInvoked(
+      semanticLine.slice(0, trailingWrapup.index).trim(),
+    ))
+  ) {
+    return 'wrapping-up'
+  }
   if (
     /^[\/$](?:[a-z0-9]+-)*review(?:-[a-z0-9]+)*(?:\s|$)/i.test(semanticLine) ||
     /^[\/$]webapp-agent-demo(?:\s|$)/i.test(semanticLine)

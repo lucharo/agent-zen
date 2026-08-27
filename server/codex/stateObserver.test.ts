@@ -339,7 +339,15 @@ test('retains a completed wrap-up invocation outside the bounded rollout tail', 
     rolloutPath,
     [
       JSON.stringify({ timestamp: '2026-08-06T12:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-1' } }),
-      JSON.stringify({ timestamp: '2026-08-06T12:00:01.000Z', type: 'event_msg', payload: { type: 'user_message', message: '$wrapup' } }),
+      JSON.stringify({
+        timestamp: '2026-08-27T14:48:45.914Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'Thanks for the fixes, $wrapup pls' }],
+        },
+      }),
       oversizedReasoning('2026-08-06T12:00:02.000Z'),
       JSON.stringify({ timestamp: '2026-08-06T12:00:03.000Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-1' } }),
     ].join('\n') + '\n',

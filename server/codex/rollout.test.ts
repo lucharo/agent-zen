@@ -548,6 +548,25 @@ describe('parseRolloutLines', () => {
     expect(result.stageHint).toBe('wrapping-up')
   })
 
+  test('recognises an explicit wrapup invocation from current Codex user response items', () => {
+    const result = parseRolloutLines([
+      line({ timestamp: '2026-08-27T14:48:45.691Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-wrapup' } }),
+      line({
+        timestamp: '2026-08-27T14:48:45.914Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'Thanks for the fixes, $wrapup pls' }],
+        },
+      }),
+      line({ timestamp: '2026-08-27T15:18:16.265Z', type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-wrapup' } }),
+    ])
+
+    expect(result.stageHint).toBe('wrapping-up')
+    expect(result.turnOutcome).toBe('completed')
+  })
+
   test('treats the explicit webapp demo validation skill as review work', () => {
     const snapshot = parseRolloutLines([
       line({ timestamp: '2026-08-06T10:00:00.000Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-3' } }),
@@ -573,6 +592,23 @@ describe('parseRolloutLines', () => {
         payload: {
           type: 'user_message',
           message: 'Sometimes I mention $wrapup while explaining the stage, but I am not invoking it.',
+        },
+      }),
+    ])
+
+    expect(snapshot.stageHint).toBeNull()
+  })
+
+  test('does not treat a negated trailing wrapup command as an invocation', () => {
+    const snapshot = parseRolloutLines([
+      line({ timestamp: '2026-08-27T14:48:45.691Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-negated-wrapup' } }),
+      line({
+        timestamp: '2026-08-27T14:48:45.914Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'Please do not run $wrapup pls' }],
         },
       }),
     ])

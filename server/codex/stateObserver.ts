@@ -499,7 +499,11 @@ function planLineType(line: string): boolean {
 }
 
 function stageLineType(line: string): boolean {
-  if (!line.includes('user_message') && !line.includes('SKILL.md')) return false
+  if (
+    !line.includes('user_message') &&
+    !line.includes('SKILL.md') &&
+    !line.includes('"role":"user"')
+  ) return false
   return parseRolloutLines([line]).stageHint !== null
 }
 
