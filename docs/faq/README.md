@@ -377,6 +377,8 @@ The menu says **Connected · Updating sessions…** as soon as that health check
 
 The earlier personal-Mac Apple Development build was cold-launched from `/Applications`: its embedded bridge connected to Codex, the window and menu-bar companion appeared, and macOS exposed the `Command-N` and `Command-,` menu commands. The current shell starts as an accessory app and becomes foreground only after an explicit Open or Quick Capture action.
 
+A bare Swift executable launched directly from Terminal is not equivalent evidence. It can create an AppKit window and load a localhost web UI even when `spctl` rejects both that executable and the packaged app. That is useful for a development preview, but it does not prove that Finder, LaunchServices, or managed-device policy will accept an installed `.app` bundle.
+
 ### Sources
 
 - [Native shell](https://github.com/lucharo/agent-zen/blob/main/native/AgentZenApp.swift) — menus, WKWebView, bridge ownership, and menu-bar status.
@@ -384,7 +386,7 @@ The earlier personal-Mac Apple Development build was cold-launched from `/Applic
 - [Frontend proxy tests](https://github.com/lucharo/agent-zen/blob/main/server/http.test.ts) — stable packaged origin, exact build identity, and daemon API forwarding.
 - [ADR-0006](../adr/0006-browser-keyboard-and-accessibility.md) — keyboard and accessibility contract.
 
-_Created: 2026-08-06 · Updated: 2026-08-12 · Runtime performance verified: 2026-08-12 · Current accessory AppKit lifecycle deliberately not launched_
+_Created: 2026-08-06 · Updated: 2026-08-28 · Verified: 2026-08-28 · Runtime performance verified: 2026-08-12 · Current accessory AppKit lifecycle deliberately not launched_
 
 ## How should the native app be distributed?
 
