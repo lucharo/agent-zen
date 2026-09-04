@@ -98,7 +98,7 @@ describe('Agent Zen daemon contract', () => {
   test('does not call a daemon stopped while its old pid still serves HTTP', () => {
     expect(hasManagedDaemonStopped(
       { loaded: false, state: null, pid: null },
-      { reachable: true, pid: 4217, version: '0.1.0', protocolVersion: 10, codexConnected: true },
+      { reachable: true, pid: 4217, version: '0.1.0', protocolVersion: 11, codexConnected: true },
       4217,
     )).toBe(false)
     expect(hasManagedDaemonStopped(
@@ -108,7 +108,7 @@ describe('Agent Zen daemon contract', () => {
     )).toBe(true)
     expect(hasManagedDaemonStopped(
       { loaded: false, state: null, pid: null },
-      { reachable: true, pid: 9001, version: '0.1.0', protocolVersion: 10, codexConnected: true },
+      { reachable: true, pid: 9001, version: '0.1.0', protocolVersion: 11, codexConnected: true },
       4217,
     )).toBe(true)
   })
@@ -117,13 +117,13 @@ describe('Agent Zen daemon contract', () => {
     expect(parseDaemonHealth({
       connection: { connected: false },
       generatedAt: '2026-08-10T13:00:00.000Z',
-      protocolVersion: 10,
+      protocolVersion: 11,
       runtime: { pid: 4217, version: '0.1.0' },
     })).toEqual({
       reachable: true,
       pid: 4217,
       version: '0.1.0',
-      protocolVersion: 10,
+      protocolVersion: 11,
       codexConnected: false,
     })
     expect(parseDaemonHealth({ connection: { connected: true } })).toEqual({
@@ -167,7 +167,7 @@ describe('Agent Zen daemon contract', () => {
       reachable: true,
       pid: 4217,
       version: '0.1.0',
-      protocolVersion: 10,
+      protocolVersion: 11,
       codexConnected: true,
     }
     const missingPlist = { plistExists: false, overrideEnabled: true }

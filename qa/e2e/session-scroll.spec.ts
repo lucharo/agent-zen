@@ -56,6 +56,7 @@ const snapshot: BridgeSnapshot = {
   protocolVersion: BRIDGE_PROTOCOL_VERSION,
   generatedAt: '2026-08-07T10:00:00.000Z',
   connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
+  backends: [],
   sessions: [
     ...Array.from({ length: 8 }, (_, index) => classifyAgentSession(session(index + 1))),
     classifyAgentSession({

@@ -102,7 +102,7 @@ describe('bridge mutation protocol', () => {
       distDirectory: '/missing',
     })
 
-    const current = await handler(new Request('http://127.0.0.1:5274/api/v10/settings/focus', {
+    const current = await handler(new Request('http://127.0.0.1:5274/api/v11/settings/focus', {
       method: 'PUT',
       headers: { host: '127.0.0.1:5274', 'content-type': 'application/json' },
       body: JSON.stringify({ enabled: true, limit: 2 }),
@@ -143,7 +143,7 @@ describe('native frontend proxy', () => {
     const health = await handler(new Request('http://127.0.0.1:5275/api/health', {
       headers: { host: '127.0.0.1:5275' },
     }))
-    const mutation = await handler(new Request('http://127.0.0.1:5275/api/v10/settings/focus', {
+    const mutation = await handler(new Request('http://127.0.0.1:5275/api/v11/settings/focus', {
       method: 'PUT',
       headers: { host: '127.0.0.1:5275', 'content-type': 'application/json' },
       body: JSON.stringify({ enabled: true, limit: 2 }),
@@ -162,7 +162,7 @@ describe('native frontend proxy', () => {
     })
     expect(fetchUpstream.mock.calls.map(([input]) => String(input))).toEqual([
       'http://127.0.0.1:5274/api/health',
-      'http://127.0.0.1:5274/api/v10/settings/focus',
+      'http://127.0.0.1:5274/api/v11/settings/focus',
     ])
   })
 })

@@ -154,13 +154,23 @@ export type PendingSessionRequest =
       readonly detail: string | null
     }
 
+/** The coding agents Agent Zen can observe. Each has its own read-only backend. */
+export type AgentKind = 'codex' | 'claude'
+
+export const AGENT_KINDS: readonly AgentKind[] = ['codex', 'claude'] as const
+
+export const AGENT_LABELS: Record<AgentKind, string> = {
+  codex: 'Codex',
+  claude: 'Claude Code',
+}
+
 export interface AgentSession {
   readonly id: string
-  /** Codex `session_meta.id`, i.e. the rollout thread id. */
+  /** The agent's own session id: the Codex rollout thread id, or the Claude Code session id. */
   readonly threadId: string
   readonly title: string
-  readonly agent: 'codex'
-  /** Whether Agent Zen owns the controlling app-server connection for this thread. */
+  readonly agent: AgentKind
+  /** Whether Agent Zen owns the controlling connection for this session. */
   readonly source: 'owned' | 'external'
   readonly model: string
   readonly reasoningEffort: string | null

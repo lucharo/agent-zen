@@ -31,6 +31,7 @@ const EMPTY: BridgeSnapshot = {
     userAgent: null,
     error: null,
   },
+  backends: [],
   sessions: [],
   focus: {
     enabled: false,

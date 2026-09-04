@@ -46,9 +46,10 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 10,
+  protocolVersion: 11,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
+  backends: [],
   sessions: [],
   focus: {
     enabled: false,
@@ -844,6 +845,7 @@ describe('session detail', () => {
     const snapshot: BridgeSnapshot = {
       ...disconnectedSnapshot,
       connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
+      backends: [],
       sessions: [owned],
       preferences: selectUiPreferences(createInitialState(NOW)),
       projects: SEED_PROJECTS,
@@ -884,6 +886,7 @@ describe('session detail', () => {
     const snapshot: BridgeSnapshot = {
       ...disconnectedSnapshot,
       connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
+      backends: [],
       sessions: [{
         ...running,
         classification: {

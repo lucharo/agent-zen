@@ -2,6 +2,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { AgentZenBridgeService } from './bridgeService'
 import { CodexAppServerClient } from './codex/appServerClient'
+import { CodexBackend } from './codex/codexBackend'
 import { CodexStateObserver } from './codex/stateObserver'
 import { createBridgeRequestHandler, createFrontendProxyRequestHandler } from './http'
 import { AgentZenSettingsStore } from './settings'
@@ -49,7 +50,10 @@ if (upstreamBridgeUrl && frontendBuildId) {
         repository,
       })),
   })
-  const service = new AgentZenBridgeService({ settings, observer, client })
+  const service = new AgentZenBridgeService({
+    settings,
+    backends: [new CodexBackend({ client, observer })],
+  })
   await service.start()
   requestHandler = createBridgeRequestHandler({
     service,
