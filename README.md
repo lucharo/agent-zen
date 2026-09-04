@@ -1,6 +1,6 @@
 # Agent Zen
 
-Agent Zen is a calm, local view of the Codex sessions already running on your Mac. It answers a few practical questions: what is active, what project does it belong to, what is the agent doing now, and which sessions actually need your attention?
+Agent Zen is a calm, local view of the Codex and Claude Code sessions already running on your Mac. It answers a few practical questions: what is active, what project does it belong to, what is the agent doing now, and which sessions actually need your attention?
 
 It exists because pen and paper is surprisingly good at managing agent work. A small page has edges. It makes you choose. The trouble starts after launching the sessions: the paper no longer knows which ones are still alive, which plan changed, or where the worktree went. Agent Zen keeps the useful constraint and adds back that missing visibility.
 
@@ -10,12 +10,12 @@ This is not a throughput dashboard. It is an active shelf for choosing what to c
 
 ## What it does
 
-- Shows one card per root Codex session, with child agents contained inside it.
-- Reads native Codex goals, plans, turns, session names, projects, branches and worktrees without asking the agent to maintain another ledger.
+- Shows one card per root agent session, with Codex child agents contained inside their parent.
+- Reads native Codex goals, plans and turns plus Claude Code tasks and session state without asking either agent to maintain another ledger.
 - Projects sessions into Planning, Idle, Running, Needs you, Reviewing, Wrapping up and Wrapped up. Needs you wins the visible lane without erasing the workflow phase; collapsed lanes can remain as rails or be hidden.
 - Offers a compact grid when the Kanban columns are too much.
-- Keeps Ideas as a human-owned space before planning, plus a private Logbook attached to each session. Cards can show those comments without mixing them into Codex state.
-- Leaves the session board read-only. Agent Zen observes Codex; it does not become a second workflow authority.
+- Keeps Ideas as a human-owned space before planning, plus a private Logbook attached to each session. Cards can show those comments without mixing them into agent state.
+- Leaves the session board read-only. Agent Zen observes both agents; supported control remains limited to Codex sessions launched by Agent Zen.
 
 Finished or archived sessions leave the active board. There is deliberately no Done column competing for attention.
 
@@ -63,16 +63,18 @@ Several tools informed it:
 
 These are influences, not dependencies or claims of feature parity. The product boundary came from the paper workflow: unlimited capture, a deliberately small active horizon, and no obligation to react to every session just because it is visible.
 
-## How the Codex connection works
+## How the agent connections work
 
-The loopback Bun service combines two native sources:
+The loopback Bun service merges two isolated backends:
 
-1. It observes active Codex processes, `~/.codex/state_5.sqlite`, and the matching rollout JSONL files. That is how sessions started in Codex Desktop, terminals or worktrees remain visible.
-2. It owns one bundled `codex app-server --stdio` child for supported control of sessions launched through this Agent Zen process.
+1. **Codex:** observes active processes, `~/.codex/state_5.sqlite`, and matching rollout JSONL files, while one bundled `codex app-server --stdio` child controls sessions launched through this Agent Zen process.
+2. **Claude Code:** reads the stock CLI's live registry under `~/.claude/sessions`, matching project transcripts, and task files. It does not install hooks, edit settings, wrap the CLI, or change how Claude starts.
 
-ACP and hooks are not required. Existing sessions remain read-only. Goals and plans are optional: a successful Codex goal-tool result becomes the session's explicit goal, while substantive work can be Running before an agent creates a plan. Every native plan replacement is reflected without creating a second task database. See [ADR-0002](docs/adr/0002-native-codex-connection.md) for the exact stage and ownership contract.
+ACP and hooks are not required. Existing Codex sessions and every Claude session remain read-only. Goals and plans are optional: a successful Codex goal-tool result becomes the session's explicit goal, while Claude task files project into the same current-plan shape. See [ADR-0002](docs/adr/0002-native-codex-connection.md) for Codex ownership and [ADR-0009](docs/adr/0009-claude-code-observer-and-agent-backends.md) for the multi-agent boundary.
 
 The browser refreshes the snapshot every second. UI preferences, registered projects and the optional focus limit live in `~/.agent-zen/settings.json`. Ideas and the human-only Logbook remain local browser data.
+
+The agent toggles change only what is drawn. Planning and Running root sessions from both backends still count toward the focus limit, so hiding Claude cannot make a full board appear to have a free Codex launch slot.
 
 The Sessions board follows the accepted state order, collapses empty lanes automatically, and lets any populated lane be folded. In Grid view, grouping by state omits empty groups.
 

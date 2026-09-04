@@ -510,7 +510,7 @@ function unique(values: readonly string[]): string[] {
 }
 
 function printHelp(): void {
-  console.log(`Agent Zen ${packageJson.version} - a calm local board for Codex sessions
+  console.log(`Agent Zen ${packageJson.version} - a calm local board for coding-agent sessions
 
 Usage:
   agent-zen <command>

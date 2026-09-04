@@ -4,20 +4,19 @@ import type { AgentKind, AgentSession } from '@/domain/types'
  * The one seam between Agent Zen and a coding agent.
  *
  * Everything above this interface is agent-agnostic; everything below it knows
- * about Codex. Two rules keep the seam honest:
+ * about a particular agent. Two rules keep the seam honest:
  *
  *  1. It is **read-only**. There is no write method, because agent state is not
  *     ours to write. Ideas, projects and Logbook notes live in Agent Zen's own
  *     store, never here. Supported steering and turn control belong
- *     in a separate controller boundary when the live transport is added.
+ *     in a separate controller boundary when a backend supports it.
  *  2. It is **snapshot + subscribe**, not hooks. Hooks are at best an
  *     additional nudge to re-read; the transport is a poll or a stream over
- *     Codex's own persisted thread state.
+ *     each agent's own persisted session state.
  *
  * The fixture implementation in `fixtureSource.ts` satisfies this interface in
- * full. Replacing it with the bundled Codex app-server means implementing the
- * same three members against that protocol and changing one line in
- * `createSessionSource()`.
+ * full. The live bridge exposes the same shape after merging its agent
+ * backends.
  */
 export interface SessionSource {
   /** The agents this source can report on. */

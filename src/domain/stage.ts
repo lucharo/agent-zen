@@ -38,9 +38,9 @@ export interface ClassifiedAgentSession extends AgentSession {
 /**
  * Where a session sits on the board, or `null` once it has left the focus surface.
  *
- * A thread whose Codex process is gone leaves the board entirely. Between-turn
+ * A session whose owning process is gone leaves the board entirely. Between-turn
  * work is Idle, while aggregate root-and-descendant attention is published as
- * a separate Needs you signal. Every placement is derived from Codex-owned
+ * a separate Needs you signal. Every placement is derived from agent-owned
  * state: wrapup, review, attention, then native work activity. The Kanban is a
  * projection, not an editor, so no local override can silently contradict the
  * session that produced it.

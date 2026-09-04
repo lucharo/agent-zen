@@ -38,7 +38,7 @@ export class FocusLimitReachedError extends Error {
  * The only launch seam in Agent Zen.
  *
  * The queue is load-bearing: two clicks arriving together must not both observe
- * the same final free slot. Existing Codex work is never interrupted here.
+ * the same final free slot. Existing agent work is never interrupted here.
  */
 export class LaunchCoordinator {
   private queue: Promise<void> = Promise.resolve()
