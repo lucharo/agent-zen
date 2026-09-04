@@ -448,11 +448,12 @@ _Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
 
 ## Which earlier visuals are retained?
 
-**Short answer:** The connection diagram, live-demo poster, state-boundary infographic, current stage contract, and Quick Capture screenshot remain in the repository after the session dashboard disappears.
+**Short answer:** The connection diagram, live-demo poster, state-boundary infographic, dual-agent integration review, current stage contract, and Quick Capture screenshot remain in the repository after the session dashboard disappears.
 
 - [Codex connection architecture](2026-08-06-agent-zen-codex-connection.png)
 - [Live Codex demo poster](2026-08-06-agent-zen-live-demo-poster.png)
 - [Session state boundaries](../assets/2026-08-25-agent-zen-state-boundaries.png) and its [reproducible generation prompt](../assets/2026-08-25-agent-zen-state-boundaries.prompt.md)
+- [Codex and Claude integration review](../../explorations/2026-09-04-claude-integration-review/README.md) and its [dual-agent boundary diagram](../assets/2026-09-04-agent-zen-dual-agent-boundary.png)
 - [Current stage contract](2026-08-07-agent-zen-stage-contract.png)
 - [Centred Quick Capture](2026-08-07-agent-zen-quick-capture.png)
 - [Superseded 2-second stage/refresh visual](2026-08-06-agent-zen-stage-refresh.png)
@@ -467,4 +468,4 @@ The poster records the first live bridge demonstration; it is historical evidenc
 - Repository `qa/README.md` — retained screenshots, video, and validation context.
 - Repository `explorations/2026-08-05-codex-zen-directions/README.md` — selected visual direction.
 
-_Created: 2026-08-06 · Updated: 2026-08-25 · Verified: 2026-08-25_
+_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
