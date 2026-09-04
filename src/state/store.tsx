@@ -308,6 +308,10 @@ export function AgentZenProvider({
     const availableProjects = [...projectCatalog.values()]
       .filter((project) => relevantProjectIds.has(project.id))
       .sort((left, right) => left.name.localeCompare(right.name))
+    const backendStatuses = bridgeSnapshot?.backends ?? []
+    const codexControllerReady = !bridge
+      || backendStatuses.length === 0
+      || backendStatuses.some((backend) => backend.agent === 'codex' && backend.connected)
 
     return {
       state,
@@ -319,8 +323,9 @@ export function AgentZenProvider({
         activeCount,
         state.activeLimitEnabled,
         state.activeLimit,
+        codexControllerReady,
       ),
-      backends: bridgeSnapshot?.backends ?? [],
+      backends: backendStatuses,
       sourceMode: bridge ? 'live' : sessionSource.mode,
       sourceLabel: bridgeSnapshot?.connection.label ?? sessionSource.label,
       sourceReady: bridgeReady,

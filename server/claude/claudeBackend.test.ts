@@ -220,6 +220,24 @@ describe('transcript', () => {
     expect(snapshot.turnId).toBe('unicode')
     expect(snapshot.latestPrompt?.endsWith('🙂 boundary')).toBe(true)
   })
+
+  test('skips an oversized record and resumes at the next complete line', async () => {
+    const home = await claudeHome()
+    const path = join(home, 'projects', '-repo', 'session-a.jsonl')
+    const oversizedPrompt = humanPrompt('x'.repeat(2048), { uuid: 'too-large' })
+    await writeFile(path, oversizedPrompt)
+    const reader = new ClaudeTranscriptReader({ maxRecordBytes: 1024 })
+
+    expect((await reader.read(path)).turnId).toBeNull()
+
+    await appendFile(path, `\n${humanPrompt('After the large result', { uuid: 'after-large' })}\n`)
+
+    const snapshot = await reader.read(path)
+
+    expect(snapshot.turnId).toBe('after-large')
+    expect(snapshot.firstPrompt).toBe('After the large result')
+    expect(snapshot.latestPrompt).toBe('After the large result')
+  })
 })
 
 describe('ClaudeBackend', () => {
@@ -386,7 +404,7 @@ describe('ClaudeBackend', () => {
     })
   })
 
-  test('keeps readable Claude sessions when one transcript fails', async () => {
+  test('keeps registry-confirmed Claude sessions when one transcript fails', async () => {
     const home = await claudeHome()
     await writeFile(join(home, 'sessions', '4242.json'), registryEntry())
     await writeFile(join(home, 'sessions', '4243.json'), registryEntry({ pid: 4243, sessionId: 'session-b' }))
@@ -406,7 +424,14 @@ describe('ClaudeBackend', () => {
       },
     })
 
-    expect((await backend.observe()).map((session) => session.id)).toEqual(['session-b'])
+    const sessions = await backend.observe()
+    expect(sessions.map((session) => session.id).sort()).toEqual(['session-a', 'session-b'])
+    expect(sessions.find((session) => session.id === 'session-a')).toMatchObject({
+      activity: 'working',
+      title: 'agent-zen-ef',
+      turnId: null,
+    })
+    expect(classifySession(sessions.find((session) => session.id === 'session-a')!).stage).toBe('running')
     expect(backend.status()).toMatchObject({
       connected: true,
       error: expect.stringContaining('1 Claude Code session could not be read'),

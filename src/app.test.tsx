@@ -1019,6 +1019,40 @@ describe('settings and limits', () => {
     expect(within(detail).getByText(/Focus limit reached: 3 of 2/)).toBeInTheDocument()
   })
 
+  it('disables launch when Claude is connected but the Codex controller is unavailable', async () => {
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      connection: { connected: true, label: 'Claude Code · local observer', userAgent: 'Claude Code', error: null },
+      backends: [
+        { agent: 'codex', connected: false, label: 'Codex unavailable', userAgent: null, error: 'offline' },
+        { agent: 'claude', connected: true, label: 'Claude Code · local observer', userAgent: 'Claude Code', error: null },
+      ],
+      preferences: selectUiPreferences(createInitialState(NOW)),
+      projects: SEED_PROJECTS,
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={seedTestState(createMemoryStorage())}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await user.click(within(column('Ideas')).getByText('Session dashboard'))
+
+    const detail = screen.getByRole('dialog')
+    expect(within(detail).getByRole('button', { name: 'Launch session' })).toBeDisabled()
+    expect(within(detail).getByText('Codex is unavailable, so Agent Zen cannot launch a session.')).toBeInTheDocument()
+  })
+
   it('registers a discovered local project through the quiet onboarding flow', async () => {
     const { user, storage } = mount()
 

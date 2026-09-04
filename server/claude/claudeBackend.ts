@@ -18,6 +18,11 @@ export interface ClaudeBackendOptions {
   readonly now?: () => number
 }
 
+interface ClaudeSessionObservation {
+  readonly session: AgentSession
+  readonly transcriptUnreadable: boolean
+}
+
 /**
  * Claude Code as a read-only agent backend.
  *
@@ -84,8 +89,10 @@ export class ClaudeBackend implements AgentBackend {
     }
     const version = entries.find((entry) => entry.version)?.version ?? null
     const results = await Promise.allSettled(entries.map((entry) => this.toSession(entry, projects)))
-    const sessions = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
-    const unreadableCount = results.length - sessions.length
+    const observations = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+    const sessions = observations.map((observation) => observation.session)
+    const unreadableCount = results.filter((result) => result.status === 'rejected').length
+      + observations.filter((observation) => observation.transcriptUnreadable).length
     const warnings = [
       processRejections.length > 0 ? processRejectionMessage(processRejections.length) : null,
       unreadableCount > 0
@@ -104,13 +111,22 @@ export class ClaudeBackend implements AgentBackend {
 
   async close(): Promise<void> {}
 
-  private async toSession(entry: ClaudeRegistryEntry, projects: readonly Project[]): Promise<AgentSession> {
+  private async toSession(
+    entry: ClaudeRegistryEntry,
+    projects: readonly Project[],
+  ): Promise<ClaudeSessionObservation> {
     const transcriptPath = await this.transcriptPath(entry.sessionId)
-    const [transcript, plan, origin] = await Promise.all([
-      transcriptPath ? this.transcripts.read(transcriptPath) : null,
+    const transcriptResult = transcriptPath
+      ? await this.transcripts.read(transcriptPath).then(
+          (transcript) => ({ transcript, unreadable: false }),
+          () => ({ transcript: null, unreadable: true }),
+        )
+      : { transcript: null, unreadable: false }
+    const [plan, origin] = await Promise.all([
       this.taskPlan(entry.sessionId),
       this.origin(entry.cwd),
     ])
+    const transcript = transcriptResult.transcript
     const repository = normaliseGitHubRepository(origin)
     const project = resolveProject(projects, entry.cwd, repository)
     const activity = entry.status === 'busy'
@@ -122,44 +138,47 @@ export class ClaudeBackend implements AgentBackend {
     const stageHint = transcript?.stageHint ?? null
 
     return {
-      id: entry.sessionId,
-      threadId: entry.sessionId,
-      turnId: transcript?.turnId ?? null,
-      title: sessionTitle(entry, transcript),
-      agent: 'claude',
-      source: 'external',
-      model: transcript?.model ?? 'claude',
-      reasoningEffort: null,
-      cliVersion: entry.version ?? transcript?.cliVersion ?? null,
-      createdAt: new Date(entry.startedAt).toISOString(),
-      turnStartedAt: transcript?.turnStartedAt
-        ?? (activity === 'working' ? new Date(entry.statusUpdatedAt).toISOString() : null),
-      activity,
-      collaborationMode: transcript?.collaborationMode ?? 'default',
-      turnOutcome: activity === 'idle' && hasSubstantiveActivity ? 'completed' : null,
-      hasSubstantiveActivity,
-      parentSessionId: null,
-      cwd: entry.cwd,
-      repository,
-      branch: transcript?.branch ?? null,
-      worktree: entry.cwd,
-      projectId: project?.id ?? null,
-      plan,
-      planHistory: [],
-      goal: null,
-      review: stageHint === 'reviewing'
-        ? { visualChecked: null, prReady: null, openNotes: null, pullRequest: null }
-        : null,
-      wrapup: stageHint === 'wrapping-up' ? { checksPassed: null, checksTotal: null } : null,
-      pendingRequest: activity === 'awaiting-input'
-        ? {
-            kind: 'unsupported',
-            requestId: entry.statusUpdatedAt,
-            title: 'Claude Code needs you in its terminal',
-            detail: entry.waitingFor,
-          }
-        : null,
-      endedAt: null,
+      transcriptUnreadable: transcriptResult.unreadable,
+      session: {
+        id: entry.sessionId,
+        threadId: entry.sessionId,
+        turnId: transcript?.turnId ?? null,
+        title: sessionTitle(entry, transcript),
+        agent: 'claude',
+        source: 'external',
+        model: transcript?.model ?? 'claude',
+        reasoningEffort: null,
+        cliVersion: entry.version ?? transcript?.cliVersion ?? null,
+        createdAt: new Date(entry.startedAt).toISOString(),
+        turnStartedAt: transcript?.turnStartedAt
+          ?? (activity === 'working' ? new Date(entry.statusUpdatedAt).toISOString() : null),
+        activity,
+        collaborationMode: transcript?.collaborationMode ?? 'default',
+        turnOutcome: activity === 'idle' && hasSubstantiveActivity ? 'completed' : null,
+        hasSubstantiveActivity,
+        parentSessionId: null,
+        cwd: entry.cwd,
+        repository,
+        branch: transcript?.branch ?? null,
+        worktree: entry.cwd,
+        projectId: project?.id ?? null,
+        plan,
+        planHistory: [],
+        goal: null,
+        review: stageHint === 'reviewing'
+          ? { visualChecked: null, prReady: null, openNotes: null, pullRequest: null }
+          : null,
+        wrapup: stageHint === 'wrapping-up' ? { checksPassed: null, checksTotal: null } : null,
+        pendingRequest: activity === 'awaiting-input'
+          ? {
+              kind: 'unsupported',
+              requestId: entry.statusUpdatedAt,
+              title: 'Claude Code needs you in its terminal',
+              detail: entry.waitingFor,
+            }
+          : null,
+        endedAt: null,
+      },
     }
   }
 

@@ -678,7 +678,9 @@ function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }
             <p className={styles.deferred}>Link this idea to a registered project before launching.</p>
           ) : !launchAvailability.allowed ? (
             <p className={styles.deferred}>
-              Focus limit reached: {activeCount} of {state.activeLimit} slots are occupied. Capturing ideas still works.
+              {launchAvailability.reason === 'controller-unavailable'
+                ? 'Codex is unavailable, so Agent Zen cannot launch a session.'
+                : `Focus limit reached: ${activeCount} of ${state.activeLimit} slots are occupied. Capturing ideas still works.`}
             </p>
           ) : deferred ? (
             <p className={styles.deferred}>{deferred}</p>

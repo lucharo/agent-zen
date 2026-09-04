@@ -174,14 +174,23 @@ interface CachedTranscript {
   readonly modifiedAt: number
   /** Byte offset up to which whole lines have been folded in. */
   readonly parsedTo: number
+  /** The cached offset is inside a record that exceeded the configured bound. */
+  readonly discardingRecord: boolean
   readonly snapshot: ClaudeTranscriptSnapshot
 }
 
 const READ_CHUNK_BYTES = 1024 * 1024
+const MAX_TRANSCRIPT_RECORD_BYTES = 4 * 1024 * 1024
+
+export interface ClaudeTranscriptReaderOptions {
+  readonly maxRecordBytes?: number
+}
 
 /** Incremental reader: parses each transcript once, then only appended bytes. */
 export class ClaudeTranscriptReader {
   private readonly cache = new Map<string, CachedTranscript>()
+
+  constructor(private readonly options: ClaudeTranscriptReaderOptions = {}) {}
 
   async read(filePath: string): Promise<ClaudeTranscriptSnapshot> {
     const metadata = await stat(filePath).catch(() => null)
@@ -193,6 +202,8 @@ export class ClaudeTranscriptReader {
     const resumable = cached && cached.parsedTo <= metadata.size ? cached : null
     let snapshot = resumable?.snapshot ?? EMPTY_TRANSCRIPT
     let position = resumable?.parsedTo ?? 0
+    let discardingRecord = resumable?.discardingRecord ?? false
+    const maxRecordBytes = this.options.maxRecordBytes ?? MAX_TRANSCRIPT_RECORD_BYTES
     const handle = await open(filePath, 'r')
     try {
       let carry = Buffer.alloc(0)
@@ -201,17 +212,37 @@ export class ClaudeTranscriptReader {
         const bytes = Buffer.alloc(length)
         const { bytesRead } = await handle.read(bytes, 0, length, position)
         if (bytesRead === 0) break
-        const block = carry.length > 0
-          ? Buffer.concat([carry, bytes.subarray(0, bytesRead)])
-          : bytes.subarray(0, bytesRead)
+        const block = bytes.subarray(0, bytesRead)
         let lineStart = 0
-        let lineEnd = block.indexOf(0x0a, lineStart)
-        while (lineEnd >= 0) {
-          snapshot = applyTranscriptRecord(snapshot, block.subarray(lineStart, lineEnd).toString('utf8'))
-          lineStart = lineEnd + 1
-          lineEnd = block.indexOf(0x0a, lineStart)
+        if (discardingRecord) {
+          const discardedEnd = block.indexOf(0x0a)
+          if (discardedEnd < 0) {
+            position += bytesRead
+            continue
+          }
+          discardingRecord = false
+          lineStart = discardedEnd + 1
         }
-        carry = block.subarray(lineStart)
+        while (lineStart < block.length) {
+          const lineEnd = block.indexOf(0x0a, lineStart)
+          if (lineEnd < 0) {
+            const tail = block.subarray(lineStart)
+            if (carry.length + tail.length > maxRecordBytes) {
+              carry = Buffer.alloc(0)
+              discardingRecord = true
+            } else {
+              carry = carry.length > 0 ? Buffer.concat([carry, tail]) : tail
+            }
+            break
+          }
+          const segment = block.subarray(lineStart, lineEnd)
+          if (carry.length + segment.length <= maxRecordBytes) {
+            const line = carry.length > 0 ? Buffer.concat([carry, segment]) : segment
+            snapshot = applyTranscriptRecord(snapshot, line.toString('utf8'))
+          }
+          carry = Buffer.alloc(0)
+          lineStart = lineEnd + 1
+        }
         position += bytesRead
       }
       const parsedTo = position - carry.length
@@ -219,6 +250,7 @@ export class ClaudeTranscriptReader {
         size: metadata.size,
         modifiedAt: metadata.mtimeMs,
         parsedTo,
+        discardingRecord,
         snapshot,
       })
     } finally {

@@ -157,7 +157,7 @@ export function activeSessionCount<T extends AgentSession>(
 
 export interface LaunchAvailability {
   readonly allowed: boolean
-  readonly reason: 'limit-disabled' | 'slot-available' | 'limit-reached'
+  readonly reason: 'limit-disabled' | 'slot-available' | 'limit-reached' | 'controller-unavailable'
 }
 
 /**
@@ -168,7 +168,9 @@ export function launchAvailability(
   active: number,
   enabled: boolean,
   limit: number,
+  controllerReady = true,
 ): LaunchAvailability {
+  if (!controllerReady) return { allowed: false, reason: 'controller-unavailable' }
   if (!enabled) return { allowed: true, reason: 'limit-disabled' }
   if (active < limit) return { allowed: true, reason: 'slot-available' }
   return { allowed: false, reason: 'limit-reached' }
