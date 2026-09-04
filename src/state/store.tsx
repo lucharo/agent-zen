@@ -286,16 +286,18 @@ export function AgentZenProvider({
     const stageOf = (session: ClassifiedAgentSession) => session.classification.stage
 
     const live = sessions.filter((s) => stageOf(s) !== null)
-    const board: BoardSession[] = live
+    // Focus counts every agent; the visibility toggle only decides what is drawn.
+    const activeCount = activeSessionCount(live, stageOf)
+    const visible = live.filter((s) => state.visibleAgents.includes(s.agent))
+    const board: BoardSession[] = visible
       .filter((s) => !s.parentSessionId)
       .map((session) => ({
         session,
         stage: stageOf(session) as SessionStage,
         project: projectById(session.projectId),
-        children: live.filter((c) => c.parentSessionId === session.id),
+        children: visible.filter((c) => c.parentSessionId === session.id),
       }))
 
-    const activeCount = activeSessionCount(live, stageOf)
     const relevantProjectIds = new Set([
       ...live.flatMap((session) => (session.projectId ? [session.projectId] : [])),
       ...state.ideas.flatMap((idea) => (idea.projectId ? [idea.projectId] : [])),
@@ -308,7 +310,7 @@ export function AgentZenProvider({
     return {
       state,
       dispatch,
-      sessions,
+      sessions: sessions.filter((s) => state.visibleAgents.includes(s.agent)),
       board,
       activeCount,
       launchAvailability: launchAvailability(

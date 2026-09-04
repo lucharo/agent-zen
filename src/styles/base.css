@@ -69,6 +69,15 @@ ol {
   background: var(--accent-soft);
 }
 
+/* Claude Code's mark is an inline spark, tinted through currentColor like the Codex one. */
+.claudeMark {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  flex: none;
+  opacity: 0.6;
+}
+
 /* The real Codex menu-bar template asset, tinted through currentColor. */
 .codexMark {
   display: inline-block;

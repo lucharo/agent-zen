@@ -16,6 +16,7 @@ const preferences = {
   showCollapsedLanes: false,
   highlightNeedsYou: false,
   constrainBoardWidth: false,
+  visibleAgents: ['codex', 'claude'],
 } as const
 
 afterEach(() => vi.unstubAllGlobals())

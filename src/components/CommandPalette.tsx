@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { STAGE_LABELS } from '@/domain/types'
+import { AGENT_KINDS, AGENT_LABELS, STAGE_LABELS } from '@/domain/types'
 import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { Overlay } from './primitives'
@@ -130,6 +130,14 @@ export function CommandPalette({
             detail: state.kanbanCardDetail === 'titles' ? 'details' : 'titles',
           }),
       },
+      ...AGENT_KINDS.map((agent) => ({
+        id: `do-agent-${agent}`,
+        label: state.visibleAgents.includes(agent)
+          ? `Hide ${AGENT_LABELS[agent]} sessions`
+          : `Show ${AGENT_LABELS[agent]} sessions`,
+        group: 'Do' as const,
+        run: () => dispatch({ type: 'toggle-agent-visibility', agent }),
+      })),
       ...(['system', 'light', 'dark'] as const).map((theme) => ({
         id: `do-theme-${theme}`,
         label: `Theme: ${theme[0]!.toUpperCase()}${theme.slice(1)}`,

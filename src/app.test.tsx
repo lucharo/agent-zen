@@ -311,6 +311,7 @@ describe('navigation', () => {
       showCollapsedLanes: false,
       highlightNeedsYou: false,
       constrainBoardWidth: false,
+      visibleAgents: ['codex', 'claude'],
     })
     const user = userEvent.setup({ document })
     render(

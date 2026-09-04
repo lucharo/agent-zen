@@ -17,15 +17,34 @@ import {
   Archive,
   Search,
 } from 'lucide-react'
-import type { Stage } from '@/domain/types'
+import { AGENT_LABELS, type AgentKind, type Stage } from '@/domain/types'
 import type { SessionLane } from '@/domain/lanes'
 import styles from './primitives.module.css'
 
 export function CodexMark({ title = 'Codex' }: { title?: string }) {
+  return <AgentMark agent="codex" title={title} />
+}
+
+/** The agent behind a session: Codex's own template asset, or a spark for Claude Code. */
+export function AgentMark({ agent, title }: { agent: AgentKind; title?: string }) {
+  const label = title ?? AGENT_LABELS[agent]
+  if (agent === 'claude') {
+    return (
+      <>
+        <svg className="claudeMark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path
+            fill="currentColor"
+            d="M12 1.5c.55 0 1 .45 1 1v6.09l4.3-4.3a1 1 0 1 1 1.41 1.42L14.41 10H20.5a1 1 0 1 1 0 2h-6.09l4.3 4.3a1 1 0 0 1-1.41 1.41L13 13.41V19.5a1 1 0 1 1-2 0v-6.09l-4.3 4.3a1 1 0 0 1-1.41-1.41L9.59 12H3.5a1 1 0 1 1 0-2h6.09l-4.3-4.3A1 1 0 0 1 6.7 4.3L11 8.59V2.5c0-.55.45-1 1-1Z"
+          />
+        </svg>
+        <span className="visuallyHidden">{label}</span>
+      </>
+    )
+  }
   return (
     <>
       <span className="codexMark" aria-hidden="true" />
-      <span className="visuallyHidden">{title}</span>
+      <span className="visuallyHidden">{label}</span>
     </>
   )
 }

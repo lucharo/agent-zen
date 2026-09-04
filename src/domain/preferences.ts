@@ -1,11 +1,13 @@
-import type {
-  IdeaGroupBy,
-  IdeaLayout,
-  KanbanCardDetail,
-  KanbanGroupBy,
-  SessionLayout,
-  ThemeChoice,
-  View,
+import {
+  type AgentKind,
+  type IdeaGroupBy,
+  type IdeaLayout,
+  type KanbanCardDetail,
+  type KanbanGroupBy,
+  type SessionLayout,
+  type ThemeChoice,
+  type View,
+  AGENT_KINDS,
 } from './types'
 import { SESSION_LANES, type SessionLane } from './lanes'
 
@@ -23,6 +25,8 @@ export interface UiPreferences {
   readonly showCollapsedLanes: boolean
   readonly highlightNeedsYou: boolean
   readonly constrainBoardWidth: boolean
+  /** Which agents' sessions the board shows. Never empty; hidden agents still count toward focus. */
+  readonly visibleAgents: readonly AgentKind[]
 }
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -39,6 +43,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   showCollapsedLanes: true,
   highlightNeedsYou: true,
   constrainBoardWidth: true,
+  visibleAgents: AGENT_KINDS,
 }
 
 export function selectUiPreferences(preferences: UiPreferences): UiPreferences {
@@ -56,6 +61,7 @@ export function selectUiPreferences(preferences: UiPreferences): UiPreferences {
     showCollapsedLanes: preferences.showCollapsedLanes,
     highlightNeedsYou: preferences.highlightNeedsYou,
     constrainBoardWidth: preferences.constrainBoardWidth,
+    visibleAgents: preferences.visibleAgents,
   }
 }
 
@@ -80,7 +86,14 @@ export function normaliseUiPreferences(value: unknown): UiPreferences | null {
     showCollapsedLanes: preferences.showCollapsedLanes !== false,
     highlightNeedsYou: preferences.highlightNeedsYou !== false,
     constrainBoardWidth: preferences.constrainBoardWidth !== false,
+    visibleAgents: normaliseVisibleAgents(preferences.visibleAgents),
   }
+}
+
+export function normaliseVisibleAgents(value: unknown): readonly AgentKind[] {
+  if (!Array.isArray(value)) return AGENT_KINDS
+  const agents = AGENT_KINDS.filter((agent) => value.includes(agent))
+  return agents.length > 0 ? agents : AGENT_KINDS
 }
 
 function oneOf<const T extends string>(
