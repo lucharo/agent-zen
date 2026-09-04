@@ -219,7 +219,6 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
                   {empty ? null : <Chevron direction={folded ? 'right' : 'left'} />}
                   <span className={styles.stageMark}>
                     <LaneIcon lane={lane} />
-                    <span className="visuallyHidden">Codex</span>
                   </span>
                 </button>
                 <h2 className={styles.columnTitle}>{SESSION_LANE_LABELS[lane]}</h2>

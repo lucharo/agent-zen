@@ -37,7 +37,9 @@ test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
   if (process.env.AGENT_ZEN_REQUIRE_LIVE === '1') {
     await page.keyboard.press('Meta+,')
     const liveSettings = page.getByRole('dialog', { name: 'Settings' })
-    await expect(liveSettings.getByText(/Live Codex/)).toBeVisible()
+    await expect(liveSettings.getByText('Live', { exact: true })).toBeVisible()
+    await expect(liveSettings.getByText('Codex', { exact: true })).toBeVisible()
+    await expect(liveSettings.getByText('Claude Code', { exact: true })).toBeVisible()
     await expect(liveSettings.getByRole('alert')).toHaveCount(0)
     await page.keyboard.press('Escape')
   }
@@ -89,4 +91,6 @@ test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
   const darkSettings = page.getByRole('dialog', { name: 'Settings' })
   await expect(darkSettings).toHaveCSS('opacity', '1')
   await expectAccessible(page, 'Settings dark theme')
+
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
 })

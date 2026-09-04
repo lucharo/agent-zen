@@ -126,9 +126,9 @@ describe('deriveStage', () => {
 
 describe('activeSessionCount', () => {
   it('counts root planning and running sessions only', () => {
-    // Five session cards are on the board; two consume a slot. The child agent
-    // runs inside its parent's, and reviewing/wrapping up wait on a human.
-    expect(activeSessionCount(sessions, (s) => deriveStage(s))).toBe(2)
+    // Six root session cards are on the board; three consume a slot. The child
+    // agent runs inside its parent's, and reviewing/wrapping up wait on a human.
+    expect(activeSessionCount(sessions, (s) => deriveStage(s))).toBe(3)
   })
 
   it('does not count a child agent separately from its parent', () => {

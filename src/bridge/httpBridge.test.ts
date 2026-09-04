@@ -16,6 +16,7 @@ const preferences = {
   showCollapsedLanes: false,
   highlightNeedsYou: false,
   constrainBoardWidth: false,
+  visibleAgents: ['codex', 'claude'],
 } as const
 
 afterEach(() => vi.unstubAllGlobals())
@@ -45,6 +46,7 @@ describe('bridge compatibility', () => {
     const staleSnapshot = {
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Old bridge', userAgent: null, error: null },
+      backends: [],
       sessions: [{ id: 'stale-session', projectId: null }],
       focus: {
         enabled: false,
@@ -69,9 +71,10 @@ describe('bridge compatibility', () => {
 
   it('persists UI preferences through the local settings endpoint', async () => {
     const snapshot: BridgeSnapshot = {
-      protocolVersion: 10,
+      protocolVersion: 11,
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
+      backends: [],
       sessions: [],
       focus: {
         enabled: false,
@@ -90,7 +93,7 @@ describe('bridge compatibility', () => {
     await bridge.setPreferences(preferences)
 
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:9999/api/v10/settings/preferences',
+      'http://127.0.0.1:9999/api/v11/settings/preferences',
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify(preferences),
@@ -101,9 +104,10 @@ describe('bridge compatibility', () => {
 
   it('answers an owned Codex request through the local bridge', async () => {
     const snapshot: BridgeSnapshot = {
-      protocolVersion: 10,
+      protocolVersion: 11,
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Live Codex', userAgent: null, error: null },
+      backends: [],
       sessions: [],
       focus: {
         enabled: false,
@@ -128,7 +132,7 @@ describe('bridge compatibility', () => {
     })
 
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:9999/api/v10/sessions/thread-owned/respond',
+      'http://127.0.0.1:9999/api/v11/sessions/thread-owned/respond',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ requestId: 41, kind: 'approval', decision: 'accept' }),
@@ -155,6 +159,7 @@ describe('bridge compatibility', () => {
       protocolVersion: 3,
       generatedAt: new Date().toISOString(),
       connection: { connected: true, label: 'Old bridge', userAgent: null, error: null },
+      backends: [],
       sessions: [],
       focus: {
         enabled: false,
@@ -170,7 +175,7 @@ describe('bridge compatibility', () => {
 
     await expect(bridge.setFocus(true, 2)).rejects.toThrow(/different builds/i)
     expect(fetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:9999/api/v10/settings/focus',
+      'http://127.0.0.1:9999/api/v11/settings/focus',
       expect.objectContaining({ method: 'PUT' }),
     )
   })

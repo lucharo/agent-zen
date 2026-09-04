@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react'
-import type {
-  IdeaGroupBy,
-  IdeaLayout,
-  KanbanGroupBy,
-  SessionLayout,
-  ThemeChoice,
-  View,
+import {
+  AGENT_KINDS,
+  AGENT_LABELS,
+  type IdeaGroupBy,
+  type IdeaLayout,
+  type KanbanGroupBy,
+  type SessionLayout,
+  type ThemeChoice,
+  type View,
 } from '@/domain/types'
 import { MessageSquareText, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import {
+  AgentMark,
   BoardIcon,
   DetailsIcon,
   GridIcon,
@@ -200,6 +203,31 @@ export function Toolbar({
             >
               <MessageSquareText size={14} strokeWidth={1.7} aria-hidden="true" />
             </button>
+          </div>
+          <div className={styles.segmented} role="group" aria-label="Agents">
+            {AGENT_KINDS.map((agent) => {
+              const visible = state.visibleAgents.includes(agent)
+              const last = visible && state.visibleAgents.length === 1
+              return (
+                <button
+                  key={agent}
+                  type="button"
+                  className={styles.segment}
+                  data-selected={visible}
+                  aria-pressed={visible}
+                  aria-label={`${AGENT_LABELS[agent]} sessions`}
+                  data-tooltip={last
+                    ? `${AGENT_LABELS[agent]} · at least one agent stays visible`
+                    : `${visible ? 'Hide' : 'Show'} ${AGENT_LABELS[agent]} sessions`}
+                  aria-disabled={last || undefined}
+                  onClick={() => {
+                    if (!last) dispatch({ type: 'toggle-agent-visibility', agent })
+                  }}
+                >
+                  <AgentMark agent={agent} title="" />
+                </button>
+              )
+            })}
           </div>
         </>
       )}

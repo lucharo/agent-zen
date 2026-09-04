@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { CodexSessionSource } from '@/adapters/CodexSessionSource'
+import type { SessionSource } from '@/adapters/SessionSource'
 import { createFixtureSessionSource } from '@/adapters/fixtureSource'
 import type {
   ProjectCandidate,
@@ -18,6 +18,7 @@ import type {
 import { createFixtureProjectDiscoverySource } from '@/adapters/fixtureProjectSource'
 import type { AgentZenBridge } from '@/bridge/httpBridge'
 import type {
+  BridgeBackendStatus,
   BridgeSnapshot,
   LaunchSessionResponse,
   SessionRequestResponse,
@@ -54,8 +55,9 @@ export interface AgentZenValue {
   readonly board: readonly BoardSession[]
   readonly activeCount: number
   readonly launchAvailability: ReturnType<typeof launchAvailability>
-  readonly agent: CodexSessionSource['agent']
-  readonly sourceMode: CodexSessionSource['mode']
+  /** Per-agent connection state from the bridge; empty for the fixture source. */
+  readonly backends: readonly BridgeBackendStatus[]
+  readonly sourceMode: SessionSource['mode']
   readonly sourceLabel: string
   readonly sourceReady: boolean
   readonly connectionError: string | null
@@ -86,7 +88,7 @@ const AgentZenContext = createContext<AgentZenValue | null>(null)
 
 export interface AgentZenProviderProps {
   children: ReactNode
-  source?: CodexSessionSource
+  source?: SessionSource
   projectSource?: ProjectDiscoverySource
   bridge?: AgentZenBridge
   /** Frozen clock for tests. When set, no interval is started. */
@@ -286,16 +288,18 @@ export function AgentZenProvider({
     const stageOf = (session: ClassifiedAgentSession) => session.classification.stage
 
     const live = sessions.filter((s) => stageOf(s) !== null)
-    const board: BoardSession[] = live
+    // Focus counts every agent; the visibility toggle only decides what is drawn.
+    const activeCount = activeSessionCount(live, stageOf)
+    const visible = live.filter((s) => state.visibleAgents.includes(s.agent))
+    const board: BoardSession[] = visible
       .filter((s) => !s.parentSessionId)
       .map((session) => ({
         session,
         stage: stageOf(session) as SessionStage,
         project: projectById(session.projectId),
-        children: live.filter((c) => c.parentSessionId === session.id),
+        children: visible.filter((c) => c.parentSessionId === session.id),
       }))
 
-    const activeCount = activeSessionCount(live, stageOf)
     const relevantProjectIds = new Set([
       ...live.flatMap((session) => (session.projectId ? [session.projectId] : [])),
       ...state.ideas.flatMap((idea) => (idea.projectId ? [idea.projectId] : [])),
@@ -304,19 +308,26 @@ export function AgentZenProvider({
     const availableProjects = [...projectCatalog.values()]
       .filter((project) => relevantProjectIds.has(project.id))
       .sort((left, right) => left.name.localeCompare(right.name))
+    const backendStatuses = bridgeSnapshot?.backends ?? []
+    const codexControllerReady = !bridge || Boolean(
+      bridgeReady
+      && bridgeSnapshot?.connection.connected
+      && backendStatuses.some((backend) => backend.agent === 'codex' && backend.connected),
+    )
 
     return {
       state,
       dispatch,
-      sessions,
+      sessions: sessions.filter((s) => state.visibleAgents.includes(s.agent)),
       board,
       activeCount,
       launchAvailability: launchAvailability(
         activeCount,
         state.activeLimitEnabled,
         state.activeLimit,
+        codexControllerReady,
       ),
-      agent: sessionSource.agent,
+      backends: backendStatuses,
       sourceMode: bridge ? 'live' : sessionSource.mode,
       sourceLabel: bridgeSnapshot?.connection.label ?? sessionSource.label,
       sourceReady: bridgeReady,
@@ -357,15 +368,15 @@ export function AgentZenProvider({
         return result
       },
       interruptSession: async (threadId) => {
-        if (!bridge) throw new Error('The fixture source cannot control Codex.')
+        if (!bridge) throw new Error('The fixture source cannot control sessions.')
         await bridge.interrupt(threadId)
       },
       steerSession: async (threadId, prompt) => {
-        if (!bridge) throw new Error('The fixture source cannot control Codex.')
+        if (!bridge) throw new Error('The fixture source cannot control sessions.')
         await bridge.steer(threadId, prompt)
       },
       respondToSession: async (threadId, response) => {
-        if (!bridge) throw new Error('The fixture source cannot control Codex.')
+        if (!bridge) throw new Error('The fixture source cannot control sessions.')
         await bridge.respond(threadId, response)
       },
     }

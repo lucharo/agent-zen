@@ -45,6 +45,7 @@ describe('AgentZenSettingsStore', () => {
       showCollapsedLanes: true,
       highlightNeedsYou: true,
       constrainBoardWidth: true,
+      visibleAgents: ['codex', 'claude'],
     })
     expect(JSON.parse(await readFile(settingsPath, 'utf8'))).toMatchObject({
       version: 2,
@@ -75,6 +76,7 @@ describe('AgentZenSettingsStore', () => {
       showCollapsedLanes: false,
       highlightNeedsYou: false,
       constrainBoardWidth: false,
+      visibleAgents: ['codex', 'claude'],
     })).rejects.toThrow()
     expect((await store.read()).preferences).toBeNull()
 
@@ -112,6 +114,7 @@ describe('AgentZenSettingsStore', () => {
         showCollapsedLanes: false,
         highlightNeedsYou: true,
         constrainBoardWidth: true,
+        visibleAgents: ['codex', 'claude'],
       }),
       second.setFocus({ enabled: true, limit: 2 }),
     ])
@@ -153,6 +156,7 @@ describe('AgentZenSettingsStore', () => {
       showCollapsedLanes: false,
       highlightNeedsYou: false,
       constrainBoardWidth: false,
+      visibleAgents: ['codex', 'claude'],
     })
 
     const reloaded = new AgentZenSettingsStore({ settingsPath, defaultProjectRoots: [root] })
@@ -171,6 +175,7 @@ describe('AgentZenSettingsStore', () => {
       showCollapsedLanes: false,
       highlightNeedsYou: false,
       constrainBoardWidth: false,
+      visibleAgents: ['codex', 'claude'],
     })
     expect(await reloaded.registeredProjects()).toMatchObject([
       { directory: expect.stringContaining('/lucharo/demo'), repository: 'lucharo/demo' },

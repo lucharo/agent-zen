@@ -3,15 +3,9 @@ import {
   classifyAgentSessions,
   launchAvailability,
 } from '../src/domain/stage'
+import { AGENT_LABELS, type AgentKind, type AgentSession } from '../src/domain/types'
 import type {
-  AgentSession,
-  PendingSessionRequest,
-  Plan,
-  PlanRevision,
-  PlanStep,
-  SessionApprovalDecision,
-} from '../src/domain/types'
-import type {
+  BridgeConnectionStatus,
   BridgeSnapshot,
   LaunchSessionPayload,
   LaunchSessionResponse,
@@ -19,13 +13,9 @@ import type {
 } from '../src/bridge/types'
 import { BRIDGE_PROTOCOL_VERSION } from '../src/bridge/types'
 import type { UiPreferences } from '../src/domain/preferences'
-import type { AppServerNotification, CodexAppServerClient } from './codex/appServerClient'
-import type { CodexStateObserver } from './codex/stateObserver'
-import {
-  FocusLimitReachedError,
-  LaunchCoordinator,
-  type LaunchRequest,
-} from './domain/focusPolicy'
+import type { AgentBackend, BackendStatus, SessionController } from './backends/types'
+import { CodexBackend, type CodexClient, type CodexObserver } from './codex/codexBackend'
+import { FocusLimitReachedError, LaunchCoordinator } from './domain/focusPolicy'
 import type { AgentZenSettingsStore } from './settings'
 
 type BridgeSettings = Pick<
@@ -33,110 +23,46 @@ type BridgeSettings = Pick<
   'read' | 'registeredProjects' | 'discoverProjects' | 'setFocus' | 'setPreferences' | 'registerProjects'
 >
 
-type BridgeObserver = Pick<CodexStateObserver, 'snapshot'>
-
-type BridgeClient = Pick<
-  CodexAppServerClient,
-  'connect' | 'request' | 'respond' | 'subscribe' | 'close' | 'isConnected' | 'connectionGeneration'
->
-
-interface SessionOverlay {
-  readonly turnId?: string | null
-  readonly turnStartedAt?: string | null
-  readonly activity?: AgentSession['activity']
-  readonly collaborationMode?: AgentSession['collaborationMode']
-  readonly turnOutcome?: AgentSession['turnOutcome']
-  readonly hasSubstantiveActivity?: boolean
-  readonly endedAt?: string | null
-  readonly plan?: Plan | null
-  readonly planHistory?: readonly PlanRevision[]
-  readonly pendingRequest?: PendingSessionRequest | null
-}
-
-interface ThreadStartResult {
-  readonly thread: {
-    readonly id: string
-    readonly cwd: string
-    readonly createdAt: number
-    readonly gitInfo?: {
-      readonly branch?: string | null
-      readonly originUrl?: string | null
-    } | null
-  }
-  readonly model: string
-  readonly reasoningEffort?: string | null
-}
-
-interface TurnStartResult {
-  readonly turn: { readonly id: string; readonly startedAt?: number | null }
-}
-
-interface ThreadListResult {
-  readonly data?: readonly {
-    readonly id?: string
-    readonly name?: string | null
-  }[]
-}
-
 export interface BridgeServiceDependencies {
   readonly settings: BridgeSettings
-  readonly observer: BridgeObserver
-  readonly client: BridgeClient
   readonly now?: () => number
+  /** Every agent the bridge should merge. Defaults to one Codex backend built from `client` + `observer`. */
+  readonly backends?: readonly AgentBackend[]
+  readonly observer?: CodexObserver
+  readonly client?: CodexClient
 }
 
+/**
+ * The agent-agnostic bridge. It merges every backend's sessions into one board,
+ * classifies them once, and routes the few supported control calls to the
+ * backend that owns the session.
+ */
 export class AgentZenBridgeService {
-  private readonly overlays = new Map<string, SessionOverlay>()
-  private readonly transientSessions = new Map<string, AgentSession>()
-  private readonly ownedThreads = new Map<string, number>()
+  private readonly backends: readonly AgentBackend[]
+  private readonly backendFailures = new Map<AgentKind, string>()
   private readonly launchCoordinator: LaunchCoordinator
-  private connection: BridgeSnapshot['connection'] = {
-    connected: false,
-    label: 'Connecting to Codex…',
-    userAgent: null,
-    error: null,
-  }
 
   constructor(private readonly dependencies: BridgeServiceDependencies) {
-    dependencies.client.subscribe((notification) => this.onNotification(notification))
+    this.backends = dependencies.backends ?? [defaultCodexBackend(dependencies)]
     this.launchCoordinator = new LaunchCoordinator({
-      getSessions: () => this.sessions(),
+      getSessions: () => this.sessions(true),
       getFocus: async () => (await dependencies.settings.read()).focus,
-      launch: (request) => this.launchWithCodex(request),
+      launch: (request) => this.launchController().launch(request),
     })
   }
 
   async start(): Promise<void> {
-    try {
-      const previousGeneration = this.dependencies.client.connectionGeneration
-      const initialized = await this.dependencies.client.connect()
-      if (
-        previousGeneration > 0 &&
-        this.dependencies.client.connectionGeneration !== previousGeneration
-      ) {
-        this.ownedThreads.clear()
-        this.overlays.clear()
-        this.transientSessions.clear()
+    await Promise.all(this.backends.map(async (backend) => {
+      try {
+        await backend.start()
+        this.backendFailures.delete(backend.agent)
+      } catch (error) {
+        this.backendFailures.set(backend.agent, errorMessage(error))
       }
-      const userAgent = typeof initialized.userAgent === 'string' ? initialized.userAgent : 'Codex app-server'
-      this.connection = {
-        connected: true,
-        label: 'Live Codex · app-server control + local observer',
-        userAgent,
-        error: null,
-      }
-    } catch (error) {
-      this.connection = {
-        connected: false,
-        label: 'Codex connection unavailable',
-        userAgent: null,
-        error: error instanceof Error ? error.message : String(error),
-      }
-    }
+    }))
   }
 
   async snapshot(): Promise<BridgeSnapshot> {
-    if (!this.dependencies.client.isConnected) await this.start()
     const [settings, projectCandidates, sessions] = await Promise.all([
       this.dependencies.settings.read(),
       this.dependencies.settings.discoverProjects(),
@@ -158,10 +84,12 @@ export class AgentZenBridgeService {
       classifiedSessions,
       (session) => session.classification.stage,
     )
+    const backends = this.backendStatuses()
     return {
       protocolVersion: BRIDGE_PROTOCOL_VERSION,
       generatedAt: new Date(this.now()).toISOString(),
-      connection: this.connection,
+      connection: aggregateConnection(backends),
+      backends,
       sessions: classifiedSessions,
       focus: {
         ...settings.focus,
@@ -174,10 +102,12 @@ export class AgentZenBridgeService {
     }
   }
 
-  health(): Pick<BridgeSnapshot, 'protocolVersion' | 'connection' | 'generatedAt'> {
+  health(): Pick<BridgeSnapshot, 'protocolVersion' | 'connection' | 'backends' | 'generatedAt'> {
+    const backends = this.backendStatuses()
     return {
       protocolVersion: BRIDGE_PROTOCOL_VERSION,
-      connection: this.connection,
+      connection: aggregateConnection(backends),
+      backends,
       generatedAt: new Date(this.now()).toISOString(),
     }
   }
@@ -211,270 +141,78 @@ export class AgentZenBridgeService {
     })
   }
 
-  async interrupt(threadId: string): Promise<void> {
-    const session = await this.controllableSession(threadId)
-    if (!session.turnId) throw new Error('This session has no active turn to interrupt.')
-    await this.dependencies.client.request('turn/interrupt', {
-      threadId,
-      turnId: session.turnId,
-    })
+  async interrupt(sessionId: string): Promise<void> {
+    const controller = await this.controllerFor(sessionId)
+    await controller.interrupt(sessionId)
   }
 
-  async steer(threadId: string, prompt: string): Promise<void> {
-    const session = await this.controllableSession(threadId)
-    if (!session.turnId) throw new Error('This session has no active turn to steer.')
-    const text = prompt.trim()
-    if (!text) throw new Error('A steering message is required.')
-    await this.dependencies.client.request('turn/steer', {
-      threadId,
-      expectedTurnId: session.turnId,
-      input: [{ type: 'text', text, text_elements: [] }],
-    })
+  async steer(sessionId: string, prompt: string): Promise<void> {
+    const controller = await this.controllerFor(sessionId)
+    await controller.steer(sessionId, prompt)
   }
 
-  async respond(threadId: string, response: SessionRequestResponse): Promise<void> {
-    await this.controllableSession(threadId)
-    const previous = this.overlays.get(threadId) ?? {}
-    const pending = previous.pendingRequest
-    if (!pending || pending.requestId !== response.requestId) {
-      throw new Error('This Codex request is no longer pending.')
-    }
-    await this.dependencies.client.respond(response.requestId, nativeResponse(pending, response))
-    this.overlays.set(threadId, {
-      ...previous,
-      activity: 'working',
-      pendingRequest: null,
-    })
+  async respond(sessionId: string, response: SessionRequestResponse): Promise<void> {
+    const controller = await this.controllerFor(sessionId)
+    await controller.respond(sessionId, response)
   }
 
-  close(): Promise<void> {
-    return this.dependencies.client.close()
+  async close(): Promise<void> {
+    await Promise.all(this.backends.map((backend) => backend.close()))
   }
 
-  private async sessions(): Promise<AgentSession[]> {
-    const observed = await this.dependencies.observer.snapshot()
-    const catalogNames = await this.catalogNames(observed.map((session) => session.id))
-    const ids = new Set(observed.map((session) => session.id))
-    for (const id of ids) this.transientSessions.delete(id)
-    const merged = observed.map((session) => this.withRuntimeOwnership(this.mergeOverlay({
-      ...session,
-      title: catalogNames.get(session.id) ?? session.title,
-    })))
-    for (const transient of this.transientSessions.values()) {
-      if (!ids.has(transient.id)) merged.push(this.withRuntimeOwnership(this.mergeOverlay(transient)))
-    }
-    return merged
+  private async sessions(failClosed = false): Promise<AgentSession[]> {
+    const observed = await Promise.all(this.backends.map(async (backend) => {
+      try {
+        const sessions = await backend.observe()
+        this.backendFailures.delete(backend.agent)
+        return sessions
+      } catch (error) {
+        const message = errorMessage(error)
+        this.backendFailures.set(backend.agent, message)
+        if (failClosed) {
+          throw new Error(`Could not verify active ${AGENT_LABELS[backend.agent]} sessions: ${message}`)
+        }
+        return []
+      }
+    }))
+    return observed
+      .flat()
       .filter((session) => session.endedAt === null)
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
   }
 
-  private async catalogNames(threadIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
-    if (!this.connection.connected || threadIds.length === 0) return new Map()
-    try {
-      const result = await this.dependencies.client.request<ThreadListResult>('thread/list', {
-        limit: 100,
-        useStateDbOnly: true,
-      })
-      const wanted = new Set(threadIds)
-      const entries = (result.data ?? []).flatMap((thread): [string, string][] => {
-        if (typeof thread.id !== 'string' || !wanted.has(thread.id) || typeof thread.name !== 'string') {
-          return []
-        }
-        const name = compactTitle(thread.name)
-        return name ? [[thread.id, name]] : []
-      })
-      return new Map(entries)
-    } catch {
-      // Catalog metadata must never hide the live board.
-      return new Map()
-    }
-  }
-
-  private async launchWithCodex(request: LaunchRequest): Promise<LaunchSessionResponse> {
-    if (!this.connection.connected) {
-      await this.start()
-      if (!this.connection.connected) throw new Error(this.connection.error ?? 'Codex is unavailable.')
-    }
-    let threadId: string | null = null
-    try {
-      const thread = await this.dependencies.client.request<ThreadStartResult>('thread/start', {
-        cwd: request.cwd,
-        model: request.model ?? undefined,
-      })
-      threadId = thread.thread.id
-      const startedAt = new Date(this.now()).toISOString()
-      this.ownedThreads.set(threadId, this.dependencies.client.connectionGeneration)
-      this.transientSessions.set(threadId, transientSession(thread, request, startedAt))
-      const turn = await this.dependencies.client.request<TurnStartResult>('turn/start', {
-        threadId,
-        input: [{ type: 'text', text: request.prompt, text_elements: [] }],
-        model: request.model ?? undefined,
-        effort: request.effort ?? undefined,
-      })
-      const previous = this.overlays.get(threadId) ?? {}
-      this.overlays.set(threadId, {
-        ...previous,
-        turnId: turn.turn.id,
-        turnStartedAt: turn.turn.startedAt
-          ? new Date(turn.turn.startedAt * 1000).toISOString()
-          : startedAt,
-        activity: 'working',
-        hasSubstantiveActivity: false,
-        endedAt: null,
-      })
-      return { threadId, turnId: turn.turn.id }
-    } catch (error) {
-      if (threadId) {
-        await this.dependencies.client.request('thread/archive', { threadId }).catch(() => undefined)
-        this.ownedThreads.delete(threadId)
-        this.transientSessions.delete(threadId)
-        this.overlays.delete(threadId)
+  private backendStatuses(): BackendStatus[] {
+    return this.backends.map((backend) => {
+      const failure = this.backendFailures.get(backend.agent)
+      if (!failure) return backend.status()
+      return {
+        agent: backend.agent,
+        connected: false,
+        label: `${AGENT_LABELS[backend.agent]} unavailable`,
+        userAgent: null,
+        error: failure,
       }
-      throw error
-    }
+    })
   }
 
-  private async controllableSession(threadId: string): Promise<AgentSession> {
-    if (!this.ownsThreadInCurrentConnection(threadId)) {
-      throw new Error('This session is visible but controlled by another Codex process.')
-    }
-    const session = (await this.sessions()).find((candidate) => candidate.id === threadId)
-    if (!session) throw new Error('Session not found.')
-    return session
+  /** Launches are Codex-only: it is the one agent with a supported launch surface. */
+  private launchController(): SessionController {
+    const controller = this.backendFor('codex')?.controller
+    if (!controller) throw new Error('Codex is not available to launch a session.')
+    return controller
   }
 
-  private onNotification(notification: AppServerNotification): void {
-    if (!notification.params || typeof notification.params !== 'object') return
-    const params = notification.params as Record<string, unknown>
-    const threadId = typeof params.threadId === 'string'
-      ? params.threadId
-      : typeof params.conversationId === 'string'
-        ? params.conversationId
-        : null
-    if (!threadId) return
-    // The bundled app-server may report lifecycle events for threads created by
-    // another Codex process. Those threads belong to the read-only observer;
-    // applying a runtime overlay here can hide a newer external turn behind a
-    // stale completion event.
-    if (!this.ownsThreadInCurrentConnection(threadId)) return
-    const previous = this.overlays.get(threadId) ?? {}
-
-    const pendingRequest = pendingSessionRequest(notification)
-    if (pendingRequest) {
-      this.overlays.set(threadId, {
-        ...previous,
-        activity: 'awaiting-input',
-        hasSubstantiveActivity: true,
-        pendingRequest,
-      })
-      return
-    }
-    if (notification.method === 'serverRequest/resolved') {
-      const requestId = params.requestId
-      if (previous.pendingRequest && previous.pendingRequest.requestId === requestId) {
-        this.overlays.set(threadId, {
-          ...previous,
-          activity: 'working',
-          pendingRequest: null,
-        })
-      }
-      return
-    }
-    if (notification.method === 'item/started' && isObject(params.item)) {
-      if (isSubstantiveItem(params.item.type)) {
-        this.overlays.set(threadId, {
-          ...previous,
-          hasSubstantiveActivity: true,
-        })
-      }
-      return
-    }
-
-    if (notification.method === 'turn/started' && isObject(params.turn)) {
-      const turn = params.turn
-      this.overlays.set(threadId, {
-        ...previous,
-        turnId: stringValue(turn.id),
-        turnStartedAt:
-          typeof turn.startedAt === 'number'
-            ? new Date(turn.startedAt * 1000).toISOString()
-            : new Date(this.now()).toISOString(),
-        activity: 'working',
-        collaborationMode: null,
-        hasSubstantiveActivity: false,
-        endedAt: null,
-        plan: null,
-        planHistory: [],
-        pendingRequest: null,
-        turnOutcome: null,
-      })
-      return
-    }
-    if (notification.method === 'thread/settings/updated' && isObject(params.settings)) {
-      const collaboration = isObject(params.settings.collaborationMode)
-        ? params.settings.collaborationMode.mode
-        : null
-      if (collaboration === 'plan' || collaboration === 'default') {
-        this.overlays.set(threadId, { ...previous, collaborationMode: collaboration })
-      }
-      return
-    }
-    if (notification.method === 'turn/plan/updated' && Array.isArray(params.plan)) {
-      const current = previous.plan ?? null
-      const steps: PlanStep[] = params.plan.flatMap((entry): PlanStep[] => {
-        if (!isObject(entry) || typeof entry.step !== 'string' || typeof entry.status !== 'string') return []
-        const status = entry.status === 'inProgress' ? 'in_progress' : entry.status
-        if (status !== 'pending' && status !== 'in_progress' && status !== 'completed') return []
-        return [{ step: entry.step, status }]
-      })
-      const plan: Plan = {
-        revision: (current?.revision ?? 0) + 1,
-        updatedAt: new Date(this.now()).toISOString(),
-        explanation: typeof params.explanation === 'string' ? params.explanation : null,
-        steps,
-      }
-      this.overlays.set(threadId, {
-        ...previous,
-        plan,
-        hasSubstantiveActivity: true,
-        planHistory: current ? [...(previous.planHistory ?? []), current] : previous.planHistory ?? [],
-      })
-      return
-    }
-    if (notification.method === 'turn/completed') {
-      const completedTurnId = isObject(params.turn) ? stringValue(params.turn.id) : null
-      if (previous.turnId && completedTurnId && previous.turnId !== completedTurnId) return
-      this.overlays.set(threadId, {
-        ...previous,
-        activity: 'idle',
-        endedAt: null,
-        pendingRequest: null,
-        turnOutcome: isObject(params.turn) && params.turn.status === 'completed'
-          ? 'completed'
-          : 'aborted',
-      })
-    }
+  private async controllerFor(sessionId: string): Promise<SessionController> {
+    const session = (await this.sessions()).find((candidate) => candidate.id === sessionId)
+    // An unknown id is still routed to Codex so its own ownership error stays authoritative.
+    const backend = this.backendFor(session?.agent ?? 'codex')
+    if (!backend) throw new Error('Session not found.')
+    if (!backend.controller) throw new Error('This session is read-only in Agent Zen.')
+    return backend.controller
   }
 
-  private mergeOverlay(session: AgentSession): AgentSession {
-    const overlay = this.overlays.get(session.id)
-    if (!overlay) return session
-    if (overlay.turnId && session.turnId !== overlay.turnId) {
-      return { ...session, review: null, wrapup: null, ...overlay }
-    }
-    return { ...session, ...overlay }
-  }
-
-  private withRuntimeOwnership(session: AgentSession): AgentSession {
-    return {
-      ...session,
-      source: this.ownsThreadInCurrentConnection(session.id) ? 'owned' : 'external',
-    }
-  }
-
-  private ownsThreadInCurrentConnection(threadId: string): boolean {
-    return this.dependencies.client.isConnected &&
-      this.ownedThreads.get(threadId) === this.dependencies.client.connectionGeneration
+  private backendFor(agent: AgentKind): AgentBackend | null {
+    return this.backends.find((backend) => backend.agent === agent) ?? null
   }
 
   private now(): number {
@@ -482,234 +220,44 @@ export class AgentZenBridgeService {
   }
 }
 
-function transientSession(
-  result: ThreadStartResult,
-  request: LaunchRequest,
-  startedAt: string,
-): AgentSession {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function defaultCodexBackend(dependencies: BridgeServiceDependencies): AgentBackend {
+  if (!dependencies.client || !dependencies.observer) {
+    throw new Error('AgentZenBridgeService needs either backends or a Codex client and observer.')
+  }
+  return new CodexBackend({
+    client: dependencies.client,
+    observer: dependencies.observer,
+    now: dependencies.now,
+  })
+}
+
+/**
+ * One status line for surfaces that predate multiple agents. Connected when any
+ * backend is; the Codex line leads because it is the only controllable one.
+ */
+export function aggregateConnection(backends: readonly BackendStatus[]): BridgeConnectionStatus {
+  const connected = backends.filter((backend) => backend.connected)
+  if (connected.length === 0) {
+    const lead = backends.find((backend) => backend.agent === 'codex') ?? backends[0]
+    const reported = lead?.error ? lead : backends.find((backend) => backend.error) ?? lead
+    return {
+      connected: false,
+      label: reported?.label ?? 'No agent connections',
+      userAgent: null,
+      error: reported?.error ?? null,
+    }
+  }
+  const userAgents = connected.flatMap((backend) => (backend.userAgent ? [backend.userAgent] : []))
   return {
-    id: result.thread.id,
-    threadId: result.thread.id,
-    turnId: null,
-    title: request.prompt.length > 84 ? `${request.prompt.slice(0, 81).trimEnd()}…` : request.prompt,
-    agent: 'codex',
-    source: 'owned',
-    model: result.model,
-    reasoningEffort: result.reasoningEffort ?? request.effort ?? null,
-    cliVersion: null,
-    createdAt: result.thread.createdAt
-      ? new Date(result.thread.createdAt * 1000).toISOString()
-      : startedAt,
-    turnStartedAt: startedAt,
-    activity: 'working',
-    collaborationMode: 'default',
-    turnOutcome: null,
-    hasSubstantiveActivity: false,
-    parentSessionId: null,
-    cwd: result.thread.cwd,
-    repository: null,
-    branch: result.thread.gitInfo?.branch ?? null,
-    worktree: result.thread.cwd,
-    projectId: null,
-    plan: null,
-    planHistory: [],
-    goal: null,
-    review: null,
-    wrapup: null,
-    endedAt: null,
+    connected: true,
+    label: connected.map((backend) => backend.label).join(' / '),
+    userAgent: userAgents.length > 0 ? userAgents.join(' / ') : null,
+    error: null,
   }
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
-function stringValue(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-function isBlockingUserRequest(notification: AppServerNotification): boolean {
-  if (!notification.method.endsWith('/requestApproval') &&
-    notification.method !== 'item/tool/requestUserInput' &&
-    notification.method !== 'mcpServer/elicitation/request' &&
-    notification.method !== 'execCommandApproval' &&
-    notification.method !== 'applyPatchApproval') {
-    return false
-  }
-  if (!notification.params || typeof notification.params !== 'object') return true
-  const params = notification.params as Record<string, unknown>
-  return params.isBlocking !== false
-}
-
-function pendingSessionRequest(notification: AppServerNotification): PendingSessionRequest | null {
-  if (notification.id === undefined || !isBlockingUserRequest(notification)) return null
-  const params = isObject(notification.params) ? notification.params : {}
-  if (notification.method === 'item/tool/requestUserInput') {
-    const questions = Array.isArray(params.questions)
-      ? params.questions.flatMap((entry) => {
-          if (!isObject(entry) || typeof entry.id !== 'string' || typeof entry.question !== 'string') {
-            return []
-          }
-          const options = Array.isArray(entry.options)
-            ? entry.options.flatMap((option) => (
-                isObject(option) && typeof option.label === 'string'
-                  ? [{
-                      label: option.label,
-                      description: typeof option.description === 'string' ? option.description : '',
-                    }]
-                  : []
-              ))
-            : null
-          return [{
-            id: entry.id,
-            header: typeof entry.header === 'string' ? entry.header : 'Question',
-            question: entry.question,
-            isOther: entry.isOther === true,
-            isSecret: entry.isSecret === true,
-            options,
-          }]
-        })
-      : []
-    return { kind: 'user-input', requestId: notification.id, questions }
-  }
-  if (notification.method === 'item/commandExecution/requestApproval') {
-    return {
-      kind: 'approval',
-      requestId: notification.id,
-      approval: 'command',
-      title: 'Approve command?',
-      detail: typeof params.command === 'string' ? params.command : null,
-      reason: typeof params.reason === 'string' ? params.reason : null,
-      availableDecisions: approvalDecisions(params.availableDecisions),
-    }
-  }
-  if (notification.method === 'item/fileChange/requestApproval') {
-    return {
-      kind: 'approval',
-      requestId: notification.id,
-      approval: 'file',
-      title: 'Approve file changes?',
-      detail: typeof params.grantRoot === 'string' ? params.grantRoot : null,
-      reason: typeof params.reason === 'string' ? params.reason : null,
-      availableDecisions: BASIC_APPROVAL_DECISIONS,
-    }
-  }
-  if (notification.method === 'item/permissions/requestApproval') {
-    return {
-      kind: 'permissions',
-      requestId: notification.id,
-      title: 'Grant additional permissions?',
-      reason: typeof params.reason === 'string' ? params.reason : null,
-      requestedPermissions: isObject(params.permissions) ? params.permissions : {},
-    }
-  }
-  if (notification.method === 'execCommandApproval') {
-    const command = Array.isArray(params.command)
-      ? params.command.filter((part): part is string => typeof part === 'string').join(' ')
-      : null
-    return {
-      kind: 'approval',
-      requestId: notification.id,
-      approval: 'legacy-command',
-      title: 'Approve command?',
-      detail: command,
-      reason: typeof params.reason === 'string' ? params.reason : null,
-      availableDecisions: BASIC_APPROVAL_DECISIONS,
-    }
-  }
-  if (notification.method === 'applyPatchApproval') {
-    return {
-      kind: 'approval',
-      requestId: notification.id,
-      approval: 'legacy-file',
-      title: 'Approve file changes?',
-      detail: typeof params.grantRoot === 'string' ? params.grantRoot : null,
-      reason: typeof params.reason === 'string' ? params.reason : null,
-      availableDecisions: BASIC_APPROVAL_DECISIONS,
-    }
-  }
-  return {
-    kind: 'unsupported',
-    requestId: notification.id,
-    title: 'Codex needs input in its native client',
-    detail: notification.method,
-  }
-}
-
-const BASIC_APPROVAL_DECISIONS: readonly SessionApprovalDecision[] = [
-  'accept',
-  'acceptForSession',
-  'decline',
-  'cancel',
-]
-
-function approvalDecisions(value: unknown): readonly SessionApprovalDecision[] {
-  if (!Array.isArray(value)) return BASIC_APPROVAL_DECISIONS
-  const decisions = value.filter((entry): entry is SessionApprovalDecision => (
-    entry === 'accept' || entry === 'acceptForSession' || entry === 'decline' || entry === 'cancel'
-  ))
-  return decisions.length > 0 ? decisions : BASIC_APPROVAL_DECISIONS
-}
-
-function nativeResponse(
-  pending: PendingSessionRequest,
-  response: SessionRequestResponse,
-): unknown {
-  if (pending.kind === 'user-input' && response.kind === 'user-input') {
-    return {
-      answers: Object.fromEntries(
-        Object.entries(response.answers).map(([id, answers]) => [id, { answers: [...answers] }]),
-      ),
-    }
-  }
-  if (pending.kind === 'approval' && response.kind === 'approval') {
-    if (!pending.availableDecisions.includes(response.decision)) {
-      throw new Error('That approval decision is not available for this request.')
-    }
-    if (pending.approval === 'legacy-command' || pending.approval === 'legacy-file') {
-      return { decision: legacyApprovalDecision(response.decision) }
-    }
-    return { decision: response.decision }
-  }
-  if (pending.kind === 'permissions' && response.kind === 'permissions') {
-    return {
-      permissions: grantedPermissionProfile(pending.requestedPermissions),
-      scope: response.scope,
-    }
-  }
-  throw new Error('The response does not match the pending Codex request.')
-}
-
-function grantedPermissionProfile(
-  requested: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, unknown>> {
-  return Object.fromEntries(
-    ['network', 'fileSystem'].flatMap((key) => requested[key] == null ? [] : [[key, requested[key]]]),
-  )
-}
-
-function legacyApprovalDecision(decision: SessionApprovalDecision): unknown {
-  if (decision === 'accept') return 'approved'
-  if (decision === 'acceptForSession') return 'approved_for_session'
-  if (decision === 'decline') return { denied: { rejection: 'Declined in Agent Zen.' } }
-  return 'abort'
-}
-
-function isSubstantiveItem(type: unknown): boolean {
-  return type === 'agentMessage' ||
-    type === 'commandExecution' ||
-    type === 'fileChange' ||
-    type === 'mcpToolCall' ||
-    type === 'dynamicToolCall' ||
-    type === 'collabAgentToolCall' ||
-    type === 'webSearch' ||
-    type === 'imageView' ||
-    type === 'imageGeneration'
-}
-
-function compactTitle(value: string): string {
-  const singleLine = value.trim().replace(/\s+/g, ' ')
-  return singleLine.length > 84 ? `${singleLine.slice(0, 81).trimEnd()}…` : singleLine
 }
 
 export { FocusLimitReachedError }

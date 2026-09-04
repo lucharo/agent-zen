@@ -23,8 +23,8 @@ const STAGE_REASON_LABELS: Record<SessionStageReason, string> = {
   'explicit-wrapup-invocation': 'Explicit wrap-up invocation',
   'explicit-review-invocation': 'Explicit review invocation',
   'between-turns': 'Between turns',
-  'plan-mode': 'Native Codex plan mode',
-  'active-turn': 'Active Codex turn',
+  'plan-mode': 'Native plan mode',
+  'active-turn': 'Active turn',
 }
 
 export function stageReasonLabel(reason: SessionStageReason): string {
@@ -38,9 +38,9 @@ export interface ClassifiedAgentSession extends AgentSession {
 /**
  * Where a session sits on the board, or `null` once it has left the focus surface.
  *
- * A thread whose Codex process is gone leaves the board entirely. Between-turn
+ * A session whose owning process is gone leaves the board entirely. Between-turn
  * work is Idle, while aggregate root-and-descendant attention is published as
- * a separate Needs you signal. Every placement is derived from Codex-owned
+ * a separate Needs you signal. Every placement is derived from agent-owned
  * state: wrapup, review, attention, then native work activity. The Kanban is a
  * projection, not an editor, so no local override can silently contradict the
  * session that produced it.
@@ -157,7 +157,7 @@ export function activeSessionCount<T extends AgentSession>(
 
 export interface LaunchAvailability {
   readonly allowed: boolean
-  readonly reason: 'limit-disabled' | 'slot-available' | 'limit-reached'
+  readonly reason: 'limit-disabled' | 'slot-available' | 'limit-reached' | 'controller-unavailable'
 }
 
 /**
@@ -168,7 +168,9 @@ export function launchAvailability(
   active: number,
   enabled: boolean,
   limit: number,
+  controllerReady = true,
 ): LaunchAvailability {
+  if (!controllerReady) return { allowed: false, reason: 'controller-unavailable' }
   if (!enabled) return { allowed: true, reason: 'limit-disabled' }
   if (active < limit) return { allowed: true, reason: 'slot-available' }
   return { allowed: false, reason: 'limit-reached' }

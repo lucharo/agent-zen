@@ -55,6 +55,7 @@ interface DaemonStatus extends LaunchctlState {
   readonly serverPid: number | null
   readonly version: string | null
   readonly codexConnected: boolean
+  readonly claudeConnected: boolean
   readonly url: string
   readonly launchAtLogin: boolean
   readonly plistPath: string
@@ -264,6 +265,7 @@ async function printStatus(asJson: boolean): Promise<void> {
     serverPid: health.pid,
     version: health.version,
     codexConnected: health.codexConnected,
+    claudeConnected: health.claudeConnected,
     url: current.url,
     launchAtLogin: isLaunchAtLoginConfigured(launchAtLogin),
     plistPath: current.paths.plistPath,
@@ -287,6 +289,7 @@ async function printStatus(asJson: boolean): Promise<void> {
   if (status.serverPid && status.serverPid !== status.pid) console.log(`Serving PID: ${status.serverPid}`)
   console.log(`URL: ${status.url}`)
   if (status.reachable) console.log(`Codex: ${status.codexConnected ? 'connected' : 'unavailable'}`)
+  if (status.reachable) console.log(`Claude Code: ${status.claudeConnected ? 'connected' : 'unavailable'}`)
   console.log(`Launch at login: ${status.launchAtLogin ? 'enabled' : 'disabled'}`)
   console.log(`Log: ${status.logPath}`)
 }
@@ -507,7 +510,7 @@ function unique(values: readonly string[]): string[] {
 }
 
 function printHelp(): void {
-  console.log(`Agent Zen ${packageJson.version} - a calm local board for Codex sessions
+  console.log(`Agent Zen ${packageJson.version} - a calm local board for coding-agent sessions
 
 Usage:
   agent-zen <command>

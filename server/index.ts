@@ -2,6 +2,8 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { AgentZenBridgeService } from './bridgeService'
 import { CodexAppServerClient } from './codex/appServerClient'
+import { ClaudeBackend } from './claude/claudeBackend'
+import { CodexBackend } from './codex/codexBackend'
 import { CodexStateObserver } from './codex/stateObserver'
 import { createBridgeRequestHandler, createFrontendProxyRequestHandler } from './http'
 import { AgentZenSettingsStore } from './settings'
@@ -39,17 +41,27 @@ if (upstreamBridgeUrl && frontendBuildId) {
   const client = new CodexAppServerClient({
     command: [process.env.AGENT_ZEN_CODEX_PATH ?? 'codex', 'app-server', '--stdio'],
   })
+  const getProjects = async () =>
+    (await settings.discoverProjects()).map(({ id, name, directory, repository }) => ({
+      id,
+      name,
+      directory,
+      repository,
+    }))
   const observer = new CodexStateObserver({
     dbPath: join(homedir(), '.codex', 'state_5.sqlite'),
-    getProjects: async () =>
-      (await settings.discoverProjects()).map(({ id, name, directory, repository }) => ({
-        id,
-        name,
-        directory,
-        repository,
-      })),
+    getProjects,
   })
-  const service = new AgentZenBridgeService({ settings, observer, client })
+  const service = new AgentZenBridgeService({
+    settings,
+    backends: [
+      new CodexBackend({ client, observer }),
+      new ClaudeBackend({
+        claudeHome: process.env.AGENT_ZEN_CLAUDE_HOME ?? join(homedir(), '.claude'),
+        getProjects,
+      }),
+    ],
+  })
   await service.start()
   requestHandler = createBridgeRequestHandler({
     service,

@@ -1,4 +1,5 @@
 import type {
+  AgentKind,
   CaptureAction,
   IdeaGroupBy,
   IdeaLayout,
@@ -9,7 +10,7 @@ import type {
   ThemeChoice,
   View,
 } from '@/domain/types'
-import type { UiPreferences } from '@/domain/preferences'
+import { normaliseVisibleAgents, type UiPreferences } from '@/domain/preferences'
 import type { SessionLane } from '@/domain/lanes'
 import { newId, type PersistedState } from './persistence'
 
@@ -35,6 +36,7 @@ export type Action =
   | { type: 'set-show-collapsed-lanes'; value: boolean }
   | { type: 'set-highlight-needs-you'; value: boolean }
   | { type: 'set-constrain-board-width'; value: boolean }
+  | { type: 'toggle-agent-visibility'; agent: AgentKind }
   | { type: 'set-active-limit-enabled'; enabled: boolean }
   | { type: 'set-active-limit'; limit: number }
   | { type: 'sync-ui-preferences'; preferences: UiPreferences }
@@ -95,6 +97,14 @@ export function reducer(state: PersistedState, action: Action): PersistedState {
 
     case 'set-constrain-board-width':
       return { ...state, constrainBoardWidth: action.value }
+
+    case 'toggle-agent-visibility': {
+      const visible = state.visibleAgents.includes(action.agent)
+        ? state.visibleAgents.filter((agent) => agent !== action.agent)
+        : [...state.visibleAgents, action.agent]
+      // The board never goes dark: the last visible agent cannot be hidden.
+      return visible.length === 0 ? state : { ...state, visibleAgents: normaliseVisibleAgents(visible) }
+    }
 
     case 'set-active-limit-enabled':
       return { ...state, activeLimitEnabled: action.enabled }

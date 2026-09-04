@@ -2,13 +2,14 @@ import { currentPlanStep, planProgress, type ClassifiedAgentSession } from '@/do
 import { formatSessionTiming } from '@/domain/time'
 import { Target } from 'lucide-react'
 import {
+  AGENT_LABELS,
   STAGE_LABELS,
   type AgentSession,
   type KanbanCardDetail,
   type LogbookNote,
 } from '@/domain/types'
 import type { BoardSession } from '@/state/store'
-import { StageIcon } from './primitives'
+import { AgentMark, StageIcon } from './primitives'
 import { QuickLogbook } from './QuickLogbook'
 import styles from './SessionCard.module.css'
 
@@ -78,6 +79,9 @@ export function SessionCard({
             </span>
           ) : null}
           <div className={styles.titleRow}>
+            <span className={styles.agentMark}>
+              <AgentMark agent={session.agent} />
+            </span>
             <h3 className={styles.title}>{session.title}</h3>
             {session.goal ? (
               <span
@@ -226,7 +230,7 @@ function MetaPopover({ session }: { session: ClassifiedAgentSession }) {
         <dd>{session.model}</dd>
         <dt>Effort</dt>
         <dd>{session.reasoningEffort ?? '—'}</dd>
-        <dt>Codex</dt>
+        <dt>{AGENT_LABELS[session.agent]}</dt>
         <dd>{session.cliVersion ?? '—'}</dd>
         <dt>Repository</dt>
         <dd>{session.repository ?? '—'}</dd>

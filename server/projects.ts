@@ -60,6 +60,11 @@ async function describeProject(directory: string): Promise<ProjectCandidate> {
   }
 }
 
+/** The `origin` remote of the checkout containing `directory`, or null outside git. */
+export function gitOriginUrl(directory: string): Promise<string | null> {
+  return git(directory, ['remote', 'get-url', 'origin'])
+}
+
 async function git(directory: string, args: readonly string[]): Promise<string | null> {
   const process = Bun.spawn(['git', '-C', directory, ...args], {
     stdout: 'pipe',

@@ -147,6 +147,31 @@
   color: var(--accent-text);
 }
 
+.backendList {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backendRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+}
+
+.backendState {
+  margin-left: auto;
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+.backendRow[data-connected='false'] .backendState {
+  color: var(--ink-secondary);
+}
+
 .notice {
   margin-top: var(--space-3);
   padding: var(--space-3);

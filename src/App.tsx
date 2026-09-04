@@ -126,7 +126,7 @@ export function App() {
         <div className={styles.connecting} role="status" aria-live="polite">
           <span className="codexMark" aria-hidden="true" />
           <div>
-            <strong>Connecting to Codex</strong>
+            <strong>Connecting to your agents</strong>
             <p>Reading local sessions and plans…</p>
           </div>
         </div>
@@ -148,7 +148,7 @@ export function App() {
         <div className={styles.connectionAlert} role="alert">
           <CircleAlert size={16} strokeWidth={1.7} aria-hidden="true" />
           <div>
-            <strong>Codex bridge needs attention</strong>
+            <strong>Agent bridge needs attention</strong>
             <span>{connectionError}</span>
           </div>
         </div>

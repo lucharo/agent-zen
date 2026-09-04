@@ -4,7 +4,7 @@
  * The model has two halves and the split is load-bearing:
  *
  *  - `AgentSession` and everything reachable from it is **agent-derived and
- *    read-only**. It mirrors what Codex already persists (thread, turn, plan,
+ *    read-only**. It mirrors what the coding agent already persists (thread, turn, plan,
  *    parent/child, cwd, worktree, branch, model). Agent Zen never writes here
  *    and never asks an agent to maintain a second ledger.
  *  - `Idea`, `Project` and `LogbookNote` are **Agent Zen-owned and locally
@@ -55,7 +55,7 @@ export const SESSION_STAGES: readonly Exclude<Stage, 'ideas'>[] = [
 // Agent-derived, read-only
 // ---------------------------------------------------------------------------
 
-/** Mirrors the Codex `update_plan` step statuses exactly. */
+/** Shared plan-step statuses emitted by the supported agents. */
 export type PlanStepStatus = 'pending' | 'in_progress' | 'completed'
 
 export interface PlanStep {
@@ -154,31 +154,41 @@ export type PendingSessionRequest =
       readonly detail: string | null
     }
 
+/** The coding agents Agent Zen can observe. Each has its own read-only backend. */
+export type AgentKind = 'codex' | 'claude'
+
+export const AGENT_KINDS: readonly AgentKind[] = ['codex', 'claude'] as const
+
+export const AGENT_LABELS: Record<AgentKind, string> = {
+  codex: 'Codex',
+  claude: 'Claude Code',
+}
+
 export interface AgentSession {
   readonly id: string
-  /** Codex `session_meta.id`, i.e. the rollout thread id. */
+  /** The agent's own session id: the Codex rollout thread id, or the Claude Code session id. */
   readonly threadId: string
   readonly title: string
-  readonly agent: 'codex'
-  /** Whether Agent Zen owns the controlling app-server connection for this thread. */
+  readonly agent: AgentKind
+  /** Whether Agent Zen owns the controlling connection for this session. */
   readonly source: 'owned' | 'external'
   readonly model: string
   readonly reasoningEffort: string | null
   readonly cliVersion: string | null
-  /** ISO timestamp of `session_meta`. Drives "time since session creation". */
+  /** ISO timestamp supplied by the agent's session record. */
   readonly createdAt: string
-  /** ISO timestamp of the current turn's `task_started`. */
+  /** ISO timestamp of the current turn's start. */
   readonly turnStartedAt: string | null
   readonly turnId: string | null
   readonly activity: SessionActivity
-  /** Native Codex collaboration mode for the current turn. */
+  /** Native collaboration mode for the current turn. */
   readonly collaborationMode?: SessionCollaborationMode | null
   readonly turnOutcome?: SessionTurnOutcome | null
   /** True once the current/latest turn emits assistant output or invokes a tool. */
   readonly hasSubstantiveActivity: boolean
   /** Set when this session was spawned by another session. */
   readonly parentSessionId: string | null
-  /** Codex `session_meta.cwd`. */
+  /** Working directory reported by the agent. */
   readonly cwd: string
   readonly repository: string | null
   readonly branch: string | null
@@ -190,9 +200,9 @@ export interface AgentSession {
   readonly goal: SessionGoal | null
   readonly review: ReviewSignals | null
   readonly wrapup: WrapupSignals | null
-  /** Present only for an Agent Zen-owned app-server request awaiting a human response. */
+  /** A native request or read-only waiting signal awaiting a human response. */
   readonly pendingRequest?: PendingSessionRequest | null
-  /** Set once the owning Codex process is gone; ended sessions leave the focus board. */
+  /** Set once the owning process is gone; ended sessions leave the focus board. */
   readonly endedAt: string | null
 }
 

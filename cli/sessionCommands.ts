@@ -1,6 +1,8 @@
 import type { BridgeSnapshot } from '../src/bridge/types'
 import { planProgress, stageReasonLabel, type ClassifiedAgentSession } from '../src/domain/stage'
-import { STAGE_LABELS } from '../src/domain/types'
+import {
+  AGENT_LABELS, STAGE_LABELS
+} from '../src/domain/types'
 
 export interface SessionCommandIo {
   readonly snapshot: () => Promise<BridgeSnapshot>
@@ -23,13 +25,14 @@ export async function runSessionsCommand(
     return
   }
   if (sessions.length === 0) {
-    io.write('No live Codex sessions.')
+    io.write('No live agent sessions.')
     return
   }
   io.write(sessions.map((session) => [
     stageLabel(session),
     attentionLabel(session),
     goalLabel(session),
+    AGENT_LABELS[session.agent],
     session.title,
     session.id,
   ].join('\t')).join('\n'))
@@ -53,6 +56,7 @@ export async function runExplainCommand(
   }
   io.write([
     `Session: ${session.title}`,
+    `Agent: ${AGENT_LABELS[session.agent]}`,
     `ID: ${session.id}`,
     `Stage: ${stageLabel(session)}`,
     `Reason: ${stageReasonLabel(session.classification.reason)} (${session.classification.reason})`,
@@ -80,6 +84,7 @@ function resolveSession(
 function sessionListItem(session: ClassifiedAgentSession) {
   return {
     id: session.id,
+    agent: session.agent,
     title: session.title,
     projectId: session.projectId,
     activity: session.activity,
@@ -96,6 +101,7 @@ function sessionExplanation(snapshot: BridgeSnapshot, session: ClassifiedAgentSe
     protocolVersion: snapshot.protocolVersion,
     session: {
       id: session.id,
+      agent: session.agent,
       threadId: session.threadId,
       title: session.title,
       projectId: session.projectId,

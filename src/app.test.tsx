@@ -46,9 +46,10 @@ function seedTestState(storage: Storage): Storage {
 const column = (name: string) => screen.getByRole('region', { name })
 
 const disconnectedSnapshot: BridgeSnapshot = {
-  protocolVersion: 10,
+  protocolVersion: 11,
   generatedAt: new Date().toISOString(),
   connection: { connected: false, label: 'Unavailable', userAgent: null, error: 'offline' },
+  backends: [],
   sessions: [],
   focus: {
     enabled: false,
@@ -149,7 +150,7 @@ describe('the board', () => {
       </AgentZenProvider>,
     )
 
-    expect(screen.getByRole('status')).toHaveTextContent('Connecting to Codex')
+    expect(screen.getByRole('status')).toHaveTextContent('Connecting to your agents')
     expect(screen.queryByText('Revise calm control plane')).toBeNull()
   })
 
@@ -171,7 +172,8 @@ describe('the board', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('offline')
 
     fireEvent.keyDown(window, { key: ',', metaKey: true })
-    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    const settings = screen.getByRole('dialog', { name: 'Settings' })
+    expect(settings).toBeInTheDocument()
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
@@ -194,7 +196,7 @@ describe('the board', () => {
     // The mark lives in the column title, never on a card.
     const runningHeader = column('Running').querySelector('header')
     expect(runningHeader).not.toBeNull()
-    expect(within(runningHeader as HTMLElement).getByText('Codex')).toBeInTheDocument()
+    expect(within(runningHeader as HTMLElement).queryByText('Codex')).toBeNull()
     expect(within(column('Ideas')).queryByText('Codex')).toBeNull()
   })
 
@@ -310,6 +312,7 @@ describe('navigation', () => {
       showCollapsedLanes: false,
       highlightNeedsYou: false,
       constrainBoardWidth: false,
+      visibleAgents: ['codex', 'claude'],
     })
     const user = userEvent.setup({ document })
     render(
@@ -578,12 +581,15 @@ describe('navigation', () => {
 
   it('keeps titles and goals visible while Description and Comments are cumulative card fields', async () => {
     const { user } = mount()
+    const runningCard = within(column('Running')).getByRole('button', {
+      name: /Revise calm control plane/,
+    })
 
     expect(screen.queryByRole('combobox', { name: 'Session card detail' })).toBeNull()
-    expect(within(column('Running')).getByText('agent-zen')).toBeInTheDocument()
-    expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
-    expect(within(column('Running')).getByText('3 / 5')).toBeInTheDocument()
-    expect(within(column('Running')).getByLabelText(
+    expect(within(runningCard).getByText('agent-zen')).toBeInTheDocument()
+    expect(within(runningCard).getByText('42m total · 7m current turn')).toBeInTheDocument()
+    expect(within(runningCard).getByText('3 / 5')).toBeInTheDocument()
+    expect(within(runningCard).getByLabelText(
       'Goal active: Turn Agent Zen into a calm, reliable session control plane.',
     )).toBeInTheDocument()
     expect(within(column('Running')).queryByText('Generate three new mockups')).toBeNull()
@@ -628,9 +634,10 @@ describe('navigation', () => {
     await user.click(gridButton)
 
     const grid = screen.getByRole('region', { name: 'Session grid' })
+    const runningCard = within(grid).getByRole('button', { name: /Revise calm control plane/ })
     expect(grid.querySelector('[data-constrain-width]')).toHaveAttribute('data-constrain-width', 'true')
-    expect(within(grid).getByText('Revise calm control plane')).toBeInTheDocument()
-    expect(within(grid).getByText('Running · agent-zen')).toBeInTheDocument()
+    expect(within(runningCard).getByText('Revise calm control plane')).toBeInTheDocument()
+    expect(within(runningCard).getByText('Running · agent-zen')).toBeInTheDocument()
     expect(within(grid).queryByRole('button', { name: /Sweep board fixtures into tests/ })).toBeNull()
     expect(within(grid).getByText('1 subagent')).toBeInTheDocument()
     expect(within(grid).getAllByText(/Running ·/).length).toBeGreaterThan(0)
@@ -844,6 +851,7 @@ describe('session detail', () => {
     const snapshot: BridgeSnapshot = {
       ...disconnectedSnapshot,
       connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
+      backends: [],
       sessions: [owned],
       preferences: selectUiPreferences(createInitialState(NOW)),
       projects: SEED_PROJECTS,
@@ -884,6 +892,7 @@ describe('session detail', () => {
     const snapshot: BridgeSnapshot = {
       ...disconnectedSnapshot,
       connection: { connected: true, label: 'Live Codex', userAgent: 'test', error: null },
+      backends: [],
       sessions: [{
         ...running,
         classification: {
@@ -917,6 +926,82 @@ describe('session detail', () => {
 })
 
 describe('settings and limits', () => {
+  it('shows an agent-neutral empty state and connected backend warnings', async () => {
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      connection: { connected: true, label: 'Claude Code · local observer', userAgent: 'Claude Code 2.1.259', error: null },
+      backends: [{
+        agent: 'claude',
+        connected: true,
+        label: 'Claude Code · local observer',
+        userAgent: 'Claude Code 2.1.259',
+        error: '1 Claude Code session could not be read.',
+      }],
+      preferences: selectUiPreferences(createInitialState(NOW)),
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await user.keyboard('{Meta>},{/Meta}')
+    const settings = screen.getByRole('dialog', { name: 'Settings' })
+    expect(within(settings).getByText('Start an agent session in a repository or add one manually.')).toBeInTheDocument()
+    expect(within(settings).getByText(/Claude Code 2\.1\.259 · 1 Claude Code session could not be read/)).toBeInTheDocument()
+  })
+
+  it('keeps hidden agents in the visible focus count', async () => {
+    const base = createFixtureSessionSource({ now: NOW, tickMs: 0 }).snapshot()
+    const running = base.find((session) => session.title === 'Revise calm control plane')!
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      connection: { connected: true, label: 'Live agents', userAgent: 'test', error: null },
+      sessions: [
+        { ...running, id: 'codex-visible', threadId: 'codex-visible', agent: 'codex', classification: { stage: 'running', reason: 'active-turn', needsUser: false } },
+        { ...running, id: 'claude-hidden', threadId: 'claude-hidden', title: 'Hidden Claude work', agent: 'claude', classification: { stage: 'running', reason: 'active-turn', needsUser: false } },
+      ],
+      focus: {
+        enabled: true,
+        limit: 3,
+        activeCount: 2,
+        availability: { allowed: true, reason: 'slot-available' },
+      },
+      preferences: {
+        ...selectUiPreferences(createInitialState(NOW)),
+        visibleAgents: ['codex'],
+      },
+      projects: SEED_PROJECTS,
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Active 2 \/ 3/ })).toBeInTheDocument())
+    expect(screen.queryByText('Hidden Claude work')).toBeNull()
+  })
+
   it('enables the focus limit and uses it to refuse a new root launch', async () => {
     const { user } = mount()
 
@@ -926,12 +1011,76 @@ describe('settings and limits', () => {
     await user.click(within(settings).getByRole('button', { name: 'Lower active session limit' }))
     await user.click(within(settings).getByRole('button', { name: 'Close settings' }))
 
-    expect(screen.getByRole('button', { name: /Active 2 \/ 2/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Active 3 \/ 2/ })).toBeInTheDocument()
     await user.click(within(column('Ideas')).getByText('Session dashboard'))
 
     const detail = screen.getByRole('dialog')
     expect(within(detail).getByRole('button', { name: 'Launch session' })).toBeDisabled()
-    expect(within(detail).getByText(/Focus limit reached: 2 of 2/)).toBeInTheDocument()
+    expect(within(detail).getByText(/Focus limit reached: 3 of 2/)).toBeInTheDocument()
+  })
+
+  it('disables launch when Claude is connected but the Codex controller is unavailable', async () => {
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      connection: { connected: true, label: 'Claude Code · local observer', userAgent: 'Claude Code', error: null },
+      backends: [
+        { agent: 'codex', connected: false, label: 'Codex unavailable', userAgent: null, error: 'offline' },
+        { agent: 'claude', connected: true, label: 'Claude Code · local observer', userAgent: 'Claude Code', error: null },
+      ],
+      preferences: selectUiPreferences(createInitialState(NOW)),
+      projects: SEED_PROJECTS,
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={seedTestState(createMemoryStorage())}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await user.click(within(column('Ideas')).getByText('Session dashboard'))
+
+    const detail = screen.getByRole('dialog')
+    expect(within(detail).getByRole('button', { name: 'Launch session' })).toBeDisabled()
+    expect(within(detail).getByText('Codex is unavailable, so Agent Zen cannot launch a session.')).toBeInTheDocument()
+  })
+
+  it('disables launch when aggregate connectivity is down despite a stale Codex status', async () => {
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      backends: [
+        { agent: 'codex', connected: true, label: 'Codex App Server', userAgent: 'Codex', error: null },
+      ],
+      preferences: selectUiPreferences(createInitialState(NOW)),
+      projects: SEED_PROJECTS,
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={seedTestState(createMemoryStorage())}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await user.click(within(column('Ideas')).getByText('Session dashboard'))
+
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Launch session' })).toBeDisabled()
   })
 
   it('registers a discovered local project through the quiet onboarding flow', async () => {

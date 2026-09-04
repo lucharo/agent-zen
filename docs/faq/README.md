@@ -1,6 +1,6 @@
 # Agent Zen FAQ
 
-Agent Zen is a local, Codex-first control plane: Codex owns session state; Agent Zen reads it, groups it, and adds a separate human Ideas and Logbook layer.
+Agent Zen is a local control plane for Codex and Claude Code: each agent owns its session state; Agent Zen reads it, groups it, and adds a separate human Ideas and Logbook layer.
 
 ![Agent Zen stage contract](2026-08-07-agent-zen-stage-contract.png)
 
@@ -22,6 +22,23 @@ On macOS, the observer asks `lsof` which rollout JSONL files are currently held 
 
 _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: Codex CLI 0.147.0 local stores_
 
+## How does Agent Zen connect to Claude Code?
+
+**Short answer:** It reads the stock Claude Code CLI's live session registry, transcripts and task files. It does not install hooks, alter settings, wrap the command, or require ACP.
+
+`~/.claude/sessions/<pid>.json` supplies live membership, cwd, version, activity and waiting state. Agent Zen verifies the pid still belongs to a Claude process, then locates the matching JSONL transcript under `~/.claude/projects` for titles, prompts, model, branch and workflow hints. A matching directory under `~/.claude/tasks` becomes the current plan. Every Claude session is read-only; when it needs input, Agent Zen points back to the terminal where it is running.
+
+These files are an observed Claude Code 2.1.259 contract rather than a public control API. Parsing is isolated behind the Claude backend so a format change can make Claude unavailable without hiding Codex sessions.
+
+### Sources
+
+- [ADR-0009](../adr/0009-claude-code-observer-and-agent-backends.md) — accepted evidence and product boundary.
+- [Claude backend](https://github.com/lucharo/agent-zen/blob/main/server/claude/claudeBackend.ts) — read-only session composition.
+- [Registry reader](https://github.com/lucharo/agent-zen/blob/main/server/claude/registry.ts) — live process membership and status.
+- [Claude regressions](https://github.com/lucharo/agent-zen/blob/main/server/claude/claudeBackend.test.ts) — registry, transcript, task and composition coverage.
+
+_Created: 2026-09-04 · Updated: 2026-09-04 · Verified: 2026-09-04 · Scope/version: Claude Code 2.1.259 local stores_
+
 ## Which native Codex requests can Agent Zen answer?
 
 **Short answer:** For a session launched by the current Agent Zen bridge, the centred detail dialog can answer native user questions, command approvals, file-change approvals, and additional permission requests. External sessions remain observation-only.
@@ -41,7 +58,7 @@ _Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/ver
 
 ## What survives an Agent Zen daemon restart?
 
-**Short answer:** The daemon, settings, registered projects, Ideas, Logbook notes, and observed Codex sessions return. Control ownership of previously launched sessions does not.
+**Short answer:** The daemon, settings, registered projects, Ideas, Logbook notes, and observed Codex and Claude sessions return. Control ownership of previously launched Codex sessions does not.
 
 `agent-zen daemon start` validates installed assets, repairs a missing LaunchAgent plist or disabled login override, and waits up to 20 seconds for the authenticated health endpoint. That window deliberately exceeds Codex App Server's 15-second initialization timeout. Preferences, focus policy, project roots, and registered project directories remain in `~/.agent-zen/settings.json`. Ideas, Logbook notes, and their project cache remain in browser storage.
 
@@ -54,7 +71,7 @@ The App Server connection and its owned-thread map are intentionally in memory. 
 - [Bridge ownership](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — connection-generation ownership map.
 - [Ownership regression](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.test.ts) — reconnect turns an owned session into external observation.
 
-_Created: 2026-08-10 · Updated: 2026-08-11 · Verified: 2026-08-11_
+_Created: 2026-08-10 · Updated: 2026-09-04 · Verified: 2026-09-04_
 
 ## How does Agent Zen know whether a session has a goal?
 
@@ -76,15 +93,15 @@ _Created: 2026-08-11 · Updated: 2026-08-11 · Verified: 2026-08-11_
 
 | Stage | Exact qualifying condition |
 | --- | --- |
-| Ideas | A human-created Agent Zen idea; no Codex session exists yet. |
-| Planning | The active turn uses native Codex plan mode. |
+| Ideas | A human-created Agent Zen idea; no agent session exists yet. |
+| Planning | The active turn uses the agent's native plan mode. |
 | Idle | The process remains open between turns with no unresolved request. |
 | Running | A default-mode turn is active outside review and wrap-up. |
 | Needs you | Any root session has unresolved native input, including input requested by a child agent. The card still shows its workflow phase. |
 | Reviewing | An explicitly invoked review turn is active. Completion returns it to Idle or Needs you. |
 | Wrapping up | An explicitly invoked `$wrapup` or `/wrapup` turn is active. |
 | Wrapped up | The wrap-up turn completed with no unresolved request while the process or thread remains open. An aborted wrap-up returns to Idle. |
-| Off board | The owning Codex process closes or the thread is archived. |
+| Off board | The owning process closes; a Codex thread also leaves when archived. |
 
 Needs you always wins the visible lane while the card keeps the underlying workflow phase. Empty or manually collapsed Kanban lanes can remain as labelled rails or be hidden in Settings, and the full-lane yellow Needs you treatment can be disabled. Grid view can group by state and omits empty groups.
 
@@ -99,7 +116,7 @@ Agent Zen never turns a bare marker into invented evidence. If no PR, visual res
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — owned `turn/started` and plan overlays use the same stage model.
 - [Stage tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.test.ts) — marker persistence and precedence.
 
-_Created: 2026-08-06 · Updated: 2026-08-27 · Verified: 2026-08-27 · Scope/version: Agent Zen 0.1.0, protocol 10_
+_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04 · Scope/version: Agent Zen 0.1.0, protocol 11_
 
 ## Why did a completed `$wrapup` session remain in Idle?
 
@@ -177,11 +194,11 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 ## How and how often does the board refresh?
 
-**Short answer:** The bridge applies Agent Zen-owned App Server events immediately, and the browser requests a fresh snapshot every second. A separate 1-second UI clock updates elapsed-time labels.
+**Short answer:** The bridge applies Agent Zen-owned Codex events immediately, observes both backends on every snapshot, and the browser requests a fresh snapshot every second. A separate 1-second UI clock updates elapsed-time labels.
 
-Each snapshot first inventories rollout files held open by live Codex processes, then queries those exact thread ids from SQLite and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for lifecycle, plan, stage-marker, substantive-activity, and unresolved-input anchors so state does not disappear merely because it fell outside the tail window.
+For Codex, each snapshot inventories rollout files held open by live processes, queries those exact thread ids from SQLite, and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for lifecycle, plan, stage-marker, substantive-activity, and unresolved-input anchors. For Claude Code, each snapshot reads the small live registry, incrementally consumes only newly appended transcript bytes, and reads the current task files.
 
-Display names come from a lightweight supported `thread/read(includeTurns=false)` lookup for each observed live thread id. This is where Codex Desktop exposes sidebar renames in current builds; SQLite may still have `name = NULL`. If the catalog has no explicit name, Agent Zen falls back to the persisted title or preview. Resuming the same thread therefore keeps its renamed card title.
+Codex display names come from the supported paginated `thread/list` catalogue and are matched to observed live thread ids. This is where Codex Desktop exposes sidebar renames in current builds; SQLite may still have `name = NULL`. If the catalogue has no explicit name, Agent Zen falls back to the persisted title or preview. Claude display names come from its custom title, AI title, first human prompt, then registry name.
 
 This is polling, not a hook. App Server state can be current inside the bridge before the browser sees it; the maximum ordinary visible lag is about one second plus local parsing time. Read-only and idempotent browser requests have a 12-second client timeout. A session launch deliberately does not: aborting a non-idempotent HTTP request cannot prove the server stopped creating the Codex thread, and retrying could create a duplicate.
 
@@ -191,9 +208,10 @@ Snapshots also carry a protocol version. If the dashboard and bridge are from di
 
 - [HTTP bridge client](https://github.com/lucharo/agent-zen/blob/main/src/bridge/httpBridge.ts) — 1-second polling, bounded idempotent requests, and non-aborted launches.
 - [Codex observer](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — cache, bounded tail, and anchor recovery.
+- [Claude transcript reader](https://github.com/lucharo/agent-zen/blob/main/server/claude/transcript.ts) — incremental transcript parsing and title precedence.
 - [App state provider](https://github.com/lucharo/agent-zen/blob/main/src/state/store.tsx) — 1-second display clock.
 
-_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
+_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
 
 ## Are worktrees discovered and linked to their main project?
 
@@ -229,7 +247,7 @@ _Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10_
 
 ## Are the Sessions views editable or controllable?
 
-**Short answer:** Workflow state is not editable. Session cards cannot be dragged between stages because that would create a second truth that can disagree with Codex. Sessions launched by the current Agent Zen bridge can still be steered, interrupted, or answered through Codex's native protocol.
+**Short answer:** Workflow state is not editable. Session cards cannot be dragged between stages because that would create a second truth that can disagree with the agent. Codex sessions launched by the current Agent Zen bridge can still be steered, interrupted, or answered; every Claude session is read-only.
 
 Plans, stage, project identity, model, branch, and worktree remain agent-derived. Humans may capture ideas, register projects, add Logbook notes, choose filters and grouping, and control only current-connection Agent Zen-owned sessions. External sessions are observation-only. Stage corrections belong in the observer or classifier rather than as per-card overrides.
 
@@ -240,7 +258,7 @@ Plans, stage, project identity, model, branch, and worktree remain agent-derived
 - [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — root-only presentation without mutation controls.
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — connection-scoped steer, interrupt, and request-response controls.
 
-_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
 
 ## Why can a session say “Outside a Git project”?
 
@@ -259,7 +277,7 @@ _Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
 
 **Short answer:** When enabled, it refuses only a new root-session launch after every slot is occupied. It never kills, pauses, or moves existing work.
 
-Planning and Running root sessions consume slots while their Codex process remains open. Child agents share their parent's slot. Idle, Reviewing, Wrapping up, and Wrapped up release capacity. The limit defaults off, and concurrent launch requests are serialized so two requests cannot both claim the final slot. Once admitted, the launch remains one server operation; the browser does not time it out and offer a duplicate retry.
+Planning and Running root sessions from every backend consume slots while their process remains open, even when that agent is hidden by the toolbar filter. Codex child agents share their parent's slot. Idle, Reviewing, Wrapping up, and Wrapped up release capacity. The limit defaults off, and concurrent Codex launch requests are serialized so two requests cannot both claim the final slot. Once admitted, the launch remains one server operation; the browser does not time it out and offer a duplicate retry.
 
 ### Sources
 
@@ -267,7 +285,7 @@ Planning and Running root sessions consume slots while their Codex process remai
 - [Stage domain](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — active-slot counting rules.
 - [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — serialized enforcement before launch.
 
-_Created: 2026-08-06 · Updated: 2026-08-25 · Verified: 2026-08-25_
+_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
 
 ## How are long durations displayed?
 
@@ -418,7 +436,7 @@ The Mac App Store requires sandboxing. Agent Zen needs deliberate entitlements a
 
 **Short answer:** Active Git repositories register themselves. The onboarding dialog adds inactive checkouts the user wants available as launch targets.
 
-Discovery shows repository identity, path, branch, and registration state. Launching still requires a registered project so the local bridge never accepts an arbitrary cwd from the browser; automatic registration is limited to repositories already evidenced by a visible active Codex session.
+Discovery shows repository identity, path, branch, and registration state. Launching still requires a registered project so the local bridge never accepts an arbitrary cwd from the browser; automatic registration is limited to repositories already evidenced by a visible active agent session.
 
 ### Sources
 
@@ -426,15 +444,16 @@ Discovery shows repository identity, path, branch, and registration state. Launc
 - [Project discovery](https://github.com/lucharo/agent-zen/blob/main/server/projects.ts) — local Git metadata.
 - [Security tests](https://github.com/lucharo/agent-zen/blob/main/server/security.test.ts) — loopback and launch-boundary checks.
 
-_Created: 2026-08-06 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
 
 ## Which earlier visuals are retained?
 
-**Short answer:** The connection diagram, live-demo poster, state-boundary infographic, current stage contract, and Quick Capture screenshot remain in the repository after the session dashboard disappears.
+**Short answer:** The connection diagram, live-demo poster, state-boundary infographic, dual-agent integration review, current stage contract, and Quick Capture screenshot remain in the repository after the session dashboard disappears.
 
 - [Codex connection architecture](2026-08-06-agent-zen-codex-connection.png)
 - [Live Codex demo poster](2026-08-06-agent-zen-live-demo-poster.png)
 - [Session state boundaries](../assets/2026-08-25-agent-zen-state-boundaries.png) and its [reproducible generation prompt](../assets/2026-08-25-agent-zen-state-boundaries.prompt.md)
+- [Codex and Claude integration review](../../explorations/2026-09-04-claude-integration-review/README.md) and its [dual-agent boundary diagram](../assets/2026-09-04-agent-zen-dual-agent-boundary.png)
 - [Current stage contract](2026-08-07-agent-zen-stage-contract.png)
 - [Centred Quick Capture](2026-08-07-agent-zen-quick-capture.png)
 - [Superseded 2-second stage/refresh visual](2026-08-06-agent-zen-stage-refresh.png)
@@ -449,4 +468,4 @@ The poster records the first live bridge demonstration; it is historical evidenc
 - Repository `qa/README.md` — retained screenshots, video, and validation context.
 - Repository `explorations/2026-08-05-codex-zen-directions/README.md` — selected visual direction.
 
-_Created: 2026-08-06 · Updated: 2026-08-25 · Verified: 2026-08-25_
+_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_

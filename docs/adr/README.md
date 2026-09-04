@@ -8,3 +8,4 @@
 - [ADR-0006: Browser keyboard and accessibility contract](0006-browser-keyboard-and-accessibility.md)
 - [ADR-0007: Native shell and distribution ladder](0007-native-shell-and-distribution.md)
 - [ADR-0008: CLI-managed local daemon](0008-cli-managed-local-daemon.md)
+- [ADR-0009: Claude Code observer and multi-agent backends](0009-claude-code-observer-and-agent-backends.md)
