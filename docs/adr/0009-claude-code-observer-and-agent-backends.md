@@ -15,7 +15,7 @@ Claude Code 2.1.259 on macOS maintains three useful local sources:
 - `~/.claude/projects/<slug>/<session-id>.jsonl` records prompts, assistant activity, titles, model, branch and collaboration mode.
 - `~/.claude/tasks/<session-id>/*.json`, with a newer short-id directory fallback, records the current task list and step status.
 
-The live registry was observed to distinguish `busy`, `waiting` and `idle`; an ordinary completed turn was `idle` with no waiting reason. Agent Zen also verifies that the recorded pid is still alive. These formats are version-sensitive implementation details, so parse failures degrade only the Claude backend and never hide Codex sessions.
+The live registry was observed to distinguish `busy`, `waiting` and `idle`; an ordinary completed turn was `idle` with no waiting reason. Agent Zen also verifies that the recorded pid still belongs to a Claude process. These formats are version-sensitive implementation details, so parse failures degrade only the Claude backend and never hide Codex sessions.
 
 ## Decision
 

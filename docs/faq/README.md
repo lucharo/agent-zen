@@ -26,7 +26,7 @@ _Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/ver
 
 **Short answer:** It reads the stock Claude Code CLI's live session registry, transcripts and task files. It does not install hooks, alter settings, wrap the command, or require ACP.
 
-`~/.claude/sessions/<pid>.json` supplies live membership, cwd, version, activity and waiting state. Agent Zen verifies the pid is alive, then locates the matching JSONL transcript under `~/.claude/projects` for titles, prompts, model, branch and workflow hints. A matching directory under `~/.claude/tasks` becomes the current plan. Every Claude session is read-only; when it needs input, Agent Zen points back to the terminal where it is running.
+`~/.claude/sessions/<pid>.json` supplies live membership, cwd, version, activity and waiting state. Agent Zen verifies the pid still belongs to a Claude process, then locates the matching JSONL transcript under `~/.claude/projects` for titles, prompts, model, branch and workflow hints. A matching directory under `~/.claude/tasks` becomes the current plan. Every Claude session is read-only; when it needs input, Agent Zen points back to the terminal where it is running.
 
 These files are an observed Claude Code 2.1.259 contract rather than a public control API. Parsing is isolated behind the Claude backend so a format change can make Claude unavailable without hiding Codex sessions.
 

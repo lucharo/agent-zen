@@ -1,5 +1,6 @@
+import { execFileSync } from 'node:child_process'
 import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 /**
  * Claude Code writes `~/.claude/sessions/<pid>.json` for every process it runs
@@ -73,6 +74,8 @@ export interface ReadRegistryOptions {
   readonly directory: string
   /** Defaults to `process.kill(pid, 0)`; injectable so tests can pretend a pid died. */
   readonly isProcessAlive?: (pid: number) => boolean
+  /** Defaults to a bounded `ps` lookup; used to reject stale registry files after PID reuse. */
+  readonly processName?: (pid: number) => string | null
 }
 
 /**
@@ -84,6 +87,7 @@ export async function readLiveRegistry(
   options: ReadRegistryOptions,
 ): Promise<ClaudeRegistryEntry[] | null> {
   const alive = options.isProcessAlive ?? processIsAlive
+  const processName = options.processName ?? processNameForPid
   let names: string[]
   try {
     names = await readdir(options.directory)
@@ -102,8 +106,23 @@ export async function readLiveRegistry(
     .filter((entry): entry is ClaudeRegistryEntry => entry !== null)
     .filter((entry) => entry.kind === null || entry.kind === 'interactive')
     .filter((entry) => entry.status === 'busy' || entry.status === 'waiting' || entry.status === 'idle')
-    .filter((entry) => alive(entry.pid))
+    .filter((entry) => alive(entry.pid) && isClaudeProcess(processName(entry.pid)))
     .sort((left, right) => right.startedAt - left.startedAt)
+}
+
+function processNameForPid(pid: number): string | null {
+  try {
+    return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'comm='], {
+      encoding: 'utf8',
+      timeout: 1_000,
+    }).trim() || null
+  } catch {
+    return null
+  }
+}
+
+function isClaudeProcess(command: string | null): boolean {
+  return command !== null && /^claude(?:$|[-.])/i.test(basename(command))
 }
 
 function processIsAlive(pid: number): boolean {

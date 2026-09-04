@@ -47,6 +47,7 @@ interface TranscriptRecord {
   readonly timestamp?: unknown
   readonly isMeta?: unknown
   readonly isSidechain?: unknown
+  readonly isApiErrorMessage?: unknown
   readonly promptSource?: unknown
   readonly toolUseResult?: unknown
   readonly sourceToolUseID?: unknown
@@ -90,7 +91,7 @@ export function applyTranscriptRecord(
       }
     }
     case 'assistant': {
-      if (record.isSidechain === true) return next
+      if (record.isSidechain === true || record.isApiErrorMessage === true) return next
       const message = isObject(record.message) ? record.message : null
       const model = message && typeof message.model === 'string' && !message.model.startsWith('<')
         ? message.model

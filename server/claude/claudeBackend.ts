@@ -12,6 +12,7 @@ export interface ClaudeBackendOptions {
   readonly claudeHome: string
   readonly getProjects: () => readonly Project[] | Promise<readonly Project[]>
   readonly isProcessAlive?: (pid: number) => boolean
+  readonly processName?: (pid: number) => string | null
   readonly gitOriginUrl?: (directory: string) => Promise<string | null>
   readonly now?: () => number
 }
@@ -53,6 +54,7 @@ export class ClaudeBackend implements AgentBackend {
       readLiveRegistry({
         directory: join(this.options.claudeHome, 'sessions'),
         isProcessAlive: this.options.isProcessAlive,
+        processName: this.options.processName,
       }),
       this.options.getProjects(),
     ])

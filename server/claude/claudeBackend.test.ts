@@ -105,8 +105,12 @@ describe('registry', () => {
     await writeFile(join(directory, '5.abc.key'), '{"secret":"never read"}')
     await writeFile(join(directory, '6.json'), '{')
 
-    const live = await readLiveRegistry({ directory, isProcessAlive: (pid) => pid !== 2 })
-    expect(live?.map((entry) => entry.sessionId).sort()).toEqual(['busy', 'idle'])
+    const live = await readLiveRegistry({
+      directory,
+      isProcessAlive: (pid) => pid !== 2,
+      processName: (pid) => pid === 5 ? 'python3' : 'claude',
+    })
+    expect(live?.map((entry) => entry.sessionId).sort()).toEqual(['busy'])
     expect(await readLiveRegistry({ directory: join(home, 'nope'), isProcessAlive: () => true })).toBeNull()
   })
 })
@@ -242,6 +246,7 @@ describe('ClaudeBackend', () => {
       claudeHome: home,
       getProjects: () => [project],
       isProcessAlive: () => true,
+      processName: () => 'claude',
       gitOriginUrl: async (directory) => {
         origins.push(directory)
         return directory.startsWith('/repo') ? 'git@github.com:lucharo/agent-zen.git' : null
@@ -307,10 +312,40 @@ describe('ClaudeBackend', () => {
       claudeHome: join(tmpdir(), 'agent-zen-no-claude-here'),
       getProjects: () => [],
       isProcessAlive: () => true,
+      processName: () => 'claude',
       gitOriginUrl: async () => null,
     })
     expect(await backend.observe()).toEqual([])
     expect(backend.status().connected).toBe(false)
     expect(backend.status().error).toContain('sessions')
+  })
+
+  test('does not complete a wrapup turn when Claude only records an API error', async () => {
+    const home = await claudeHome()
+    await writeFile(join(home, 'sessions', '4242.json'), registryEntry({ status: 'idle' }))
+    await writeFile(
+      join(home, 'projects', '-repo', 'session-a.jsonl'),
+      [
+        humanPrompt('<command-name>/wrapup</command-name>', { uuid: 'wrapup-turn' }),
+        line({
+          type: 'assistant',
+          isApiErrorMessage: true,
+          message: { role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: 'API error' }] },
+        }),
+      ].join('\n') + '\n',
+    )
+    const backend = new ClaudeBackend({
+      claudeHome: home,
+      getProjects: () => [project],
+      isProcessAlive: () => true,
+      processName: () => 'claude',
+      gitOriginUrl: async () => 'git@github.com:lucharo/agent-zen.git',
+    })
+
+    const [session] = await backend.observe()
+
+    expect(session?.hasSubstantiveActivity).toBe(false)
+    expect(session?.turnOutcome).toBeNull()
+    expect(session && classifySession(session).stage).toBe('idle')
   })
 })
