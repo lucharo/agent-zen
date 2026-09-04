@@ -184,7 +184,7 @@ describe('AgentZenBridgeService with several agent backends', () => {
       connected: false,
       label: 'codex observer',
       userAgent: null,
-      error: 'no registry',
+      error: 'codex exploded',
     })
   })
 
@@ -196,8 +196,31 @@ describe('AgentZenBridgeService with several agent backends', () => {
 
     await expect(service.interrupt('claude-1')).rejects.toThrow('read-only in Agent Zen')
     await expect(service.steer('claude-1', 'hi')).rejects.toThrow('read-only in Agent Zen')
+    await expect(service.respond('claude-1', {
+      requestId: 1,
+      kind: 'permissions',
+      scope: 'turn',
+    })).rejects.toThrow('read-only in Agent Zen')
     await expect(service.launch({ projectId: project.id, prompt: 'Do the work' })).rejects.toThrow(
       'Codex is not available',
     )
+  })
+
+  test('recovers a backend after a transient observation failure', async () => {
+    let attempts = 0
+    const recovering = {
+      ...readOnlyBackend('claude', []),
+      observe: async (): Promise<AgentSession[]> => {
+        attempts += 1
+        if (attempts === 1) throw new Error('temporary failure')
+        return [session('claude-1', 'claude')]
+      },
+    }
+    const service = new AgentZenBridgeService({ settings, backends: [recovering] })
+
+    expect((await service.snapshot()).backends[0]).toMatchObject({ connected: false, error: 'temporary failure' })
+    const recovered = await service.snapshot()
+    expect(recovered.sessions.map((entry) => entry.id)).toEqual(['claude-1'])
+    expect(recovered.backends[0]).toMatchObject({ connected: true, error: null })
   })
 })

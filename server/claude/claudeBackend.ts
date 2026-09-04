@@ -12,8 +12,9 @@ export interface ClaudeBackendOptions {
   readonly claudeHome: string
   readonly getProjects: () => readonly Project[] | Promise<readonly Project[]>
   readonly isProcessAlive?: (pid: number) => boolean
-  readonly processName?: (pid: number) => string | null
+  readonly processName?: (pid: number) => string | null | Promise<string | null>
   readonly gitOriginUrl?: (directory: string) => Promise<string | null>
+  readonly transcriptReader?: Pick<ClaudeTranscriptReader, 'read'>
   readonly now?: () => number
 }
 
@@ -28,7 +29,7 @@ export interface ClaudeBackendOptions {
 export class ClaudeBackend implements AgentBackend {
   readonly agent = 'claude' as const
   readonly controller = null
-  private readonly transcripts = new ClaudeTranscriptReader()
+  private readonly transcripts: Pick<ClaudeTranscriptReader, 'read'>
   private readonly transcriptPaths = new Map<string, string>()
   private readonly origins = new Map<string, Promise<string | null>>()
   private connection: BackendStatus = {
@@ -39,7 +40,9 @@ export class ClaudeBackend implements AgentBackend {
     error: null,
   }
 
-  constructor(private readonly options: ClaudeBackendOptions) {}
+  constructor(private readonly options: ClaudeBackendOptions) {
+    this.transcripts = options.transcriptReader ?? new ClaudeTranscriptReader()
+  }
 
   async start(): Promise<void> {
     await this.observe()
@@ -50,7 +53,7 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   async observe(): Promise<AgentSession[]> {
-    const [entries, projects] = await Promise.all([
+    const [registry, projects] = await Promise.all([
       readLiveRegistry({
         directory: join(this.options.claudeHome, 'sessions'),
         isProcessAlive: this.options.isProcessAlive,
@@ -58,7 +61,7 @@ export class ClaudeBackend implements AgentBackend {
       }),
       this.options.getProjects(),
     ])
-    if (entries === null) {
+    if (registry === null) {
       this.connection = {
         agent: 'claude',
         connected: false,
@@ -68,16 +71,34 @@ export class ClaudeBackend implements AgentBackend {
       }
       return []
     }
+    const { entries, processRejections } = registry
+    if (entries.length === 0 && processRejections.length > 0) {
+      this.connection = {
+        agent: 'claude',
+        connected: false,
+        label: 'Claude Code sessions rejected',
+        userAgent: null,
+        error: processRejectionMessage(processRejections.length),
+      }
+      return []
+    }
     const version = entries.find((entry) => entry.version)?.version ?? null
+    const results = await Promise.allSettled(entries.map((entry) => this.toSession(entry, projects)))
+    const sessions = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+    const unreadableCount = results.length - sessions.length
+    const warnings = [
+      processRejections.length > 0 ? processRejectionMessage(processRejections.length) : null,
+      unreadableCount > 0
+        ? `${unreadableCount} Claude Code ${unreadableCount === 1 ? 'session' : 'sessions'} could not be read.`
+        : null,
+    ].filter((warning): warning is string => warning !== null)
     this.connection = {
       agent: 'claude',
       connected: true,
       label: 'Claude Code · local observer',
       userAgent: version ? `Claude Code ${version}` : 'Claude Code',
-      error: null,
+      error: warnings.length > 0 ? warnings.join(' ') : null,
     }
-    const sessions: AgentSession[] = []
-    for (const entry of entries) sessions.push(await this.toSession(entry, projects))
     return sessions
   }
 
@@ -174,6 +195,10 @@ export class ClaudeBackend implements AgentBackend {
     this.origins.set(cwd, lookup)
     return lookup
   }
+}
+
+function processRejectionMessage(count: number): string {
+  return `${count} live Claude Code ${count === 1 ? 'registry entry was' : 'registry entries were'} rejected because process identity could not be verified.`
 }
 
 function sessionTitle(entry: ClaudeRegistryEntry, transcript: ClaudeTranscriptSnapshot | null): string {

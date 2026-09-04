@@ -243,7 +243,7 @@ export function aggregateConnection(backends: readonly BackendStatus[]): BridgeC
       connected: false,
       label: lead?.label ?? 'No agent connections',
       userAgent: null,
-      error: backends.map((backend) => backend.error).find((error) => error) ?? null,
+      error: lead?.error ?? backends.map((backend) => backend.error).find((error) => error) ?? null,
     }
   }
   const userAgents = connected.flatMap((backend) => (backend.userAgent ? [backend.userAgent] : []))

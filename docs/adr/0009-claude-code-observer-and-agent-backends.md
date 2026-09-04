@@ -15,7 +15,7 @@ Claude Code 2.1.259 on macOS maintains three useful local sources:
 - `~/.claude/projects/<slug>/<session-id>.jsonl` records prompts, assistant activity, titles, model, branch and collaboration mode.
 - `~/.claude/tasks/<session-id>/*.json`, with a newer short-id directory fallback, records the current task list and step status.
 
-The live registry was observed to distinguish `busy`, `waiting` and `idle`; an ordinary completed turn was `idle` with no waiting reason. Agent Zen also verifies that the recorded pid still belongs to a Claude process. These formats are version-sensitive implementation details, so parse failures degrade only the Claude backend and never hide Codex sessions.
+The live registry was observed to distinguish `busy`, `waiting` and `idle`; an ordinary completed turn was `idle` with no waiting reason. Agent Zen also verifies asynchronously that the recorded pid still belongs to a Claude process. A rejected process identity is reported explicitly instead of looking like an empty board. These formats are version-sensitive implementation details, so one unreadable Claude session is isolated from the others and a whole-backend failure never hides Codex sessions.
 
 ## Decision
 
@@ -23,7 +23,7 @@ The live registry was observed to distinguish `busy`, `waiting` and `idle`; an o
 - Keep the Codex implementation behind that boundary without changing its ownership rules. Only sessions launched by the current Agent Zen App Server connection can be steered, interrupted or answered.
 - Add a Claude backend with no controller. Every Claude session is external and read-only. A `waiting` registry state becomes Needs you and its reason is shown with instructions to answer in the original terminal.
 - Exclude non-interactive Claude processes and registry entries whose pid is no longer alive. A Claude session leaves the board when its registry entry disappears or its process exits.
-- Read Claude transcripts incrementally and cache transcript paths and Git origins. Use explicit user-invoked review and wrap-up commands as workflow hints; tool activity and prose mentions do not promote a stage.
+- Read Claude transcripts incrementally with byte-safe JSONL boundaries, and cache transcript paths and Git origins. Use explicit user-invoked review and wrap-up commands as workflow hints; tool activity and prose mentions do not promote a stage.
 - Project Claude task files into the existing current-plan shape without fabricating revision history or goals.
 - Count active root sessions from every backend toward the focus limit. The Codex-only launch gate therefore reflects the user's full active workload, even when one agent is hidden in the UI.
 - Persist a non-empty Codex/Claude visibility selection. Show a small agent mark on each card and expose each backend's connection state in Settings and the CLI.
@@ -43,6 +43,7 @@ This decision supersedes only these details of earlier accepted ADRs:
 - Claude launch, steer, interrupt, approvals, subagent relationships and goals remain unsupported. ACP can provide a future control backend, but it is not required for observation and is outside this decision.
 - Native menu-bar counts include all agents because filtering is a presentation preference, not a change to the canonical snapshot.
 - A Claude Code release may change undocumented local formats. The isolated backend and focused parser tests provide the repair boundary.
+- Registry identity rejection and partial transcript failures appear in the Claude backend row in Settings, so degraded observation is distinguishable from no running sessions.
 
 ## Rejected alternatives
 

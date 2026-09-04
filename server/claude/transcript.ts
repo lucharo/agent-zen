@@ -195,19 +195,26 @@ export class ClaudeTranscriptReader {
     let position = resumable?.parsedTo ?? 0
     const handle = await open(filePath, 'r')
     try {
-      let carry = ''
+      let carry = Buffer.alloc(0)
       while (position < metadata.size) {
         const length = Math.min(READ_CHUNK_BYTES, metadata.size - position)
         const bytes = Buffer.alloc(length)
         const { bytesRead } = await handle.read(bytes, 0, length, position)
         if (bytesRead === 0) break
-        const text = carry + bytes.subarray(0, bytesRead).toString('utf8')
-        const lines = text.split('\n')
-        carry = lines.pop() ?? ''
-        for (const line of lines) snapshot = applyTranscriptRecord(snapshot, line)
+        const block = carry.length > 0
+          ? Buffer.concat([carry, bytes.subarray(0, bytesRead)])
+          : bytes.subarray(0, bytesRead)
+        let lineStart = 0
+        let lineEnd = block.indexOf(0x0a, lineStart)
+        while (lineEnd >= 0) {
+          snapshot = applyTranscriptRecord(snapshot, block.subarray(lineStart, lineEnd).toString('utf8'))
+          lineStart = lineEnd + 1
+          lineEnd = block.indexOf(0x0a, lineStart)
+        }
+        carry = block.subarray(lineStart)
         position += bytesRead
       }
-      const parsedTo = position - Buffer.byteLength(carry, 'utf8')
+      const parsedTo = position - carry.length
       this.cache.set(filePath, {
         size: metadata.size,
         modifiedAt: metadata.mtimeMs,

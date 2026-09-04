@@ -108,9 +108,12 @@ describe('registry', () => {
     const live = await readLiveRegistry({
       directory,
       isProcessAlive: (pid) => pid !== 2,
-      processName: (pid) => pid === 5 ? 'python3' : 'claude',
+      processName: async (pid) => pid === 5 ? 'python3' : 'claude',
     })
-    expect(live?.map((entry) => entry.sessionId).sort()).toEqual(['busy'])
+    expect(live?.entries.map((entry) => entry.sessionId).sort()).toEqual(['busy'])
+    expect(live?.processRejections).toEqual([
+      { pid: 5, sessionId: 'idle', command: 'python3' },
+    ])
     expect(await readLiveRegistry({ directory: join(home, 'nope'), isProcessAlive: () => true })).toBeNull()
   })
 })
@@ -201,6 +204,21 @@ describe('transcript', () => {
     expect(snapshot.turnId).toBe('p2')
     expect(snapshot.firstPrompt).toBe('First')
     expect(snapshot.latestPrompt).toBe('Second')
+  })
+
+  test('preserves a multibyte prompt split across read chunks', async () => {
+    const home = await claudeHome()
+    const path = join(home, 'projects', '-repo', 'session-a.jsonl')
+    const marker = 'SPLIT-HERE'
+    const template = humanPrompt(marker, { uuid: 'unicode' })
+    const markerOffset = Buffer.from(template).indexOf(marker)
+    const padding = 'x'.repeat((1024 * 1024) - 1 - markerOffset)
+    await writeFile(path, template.replace(marker, `${padding}🙂 boundary`) + '\n')
+
+    const snapshot = await new ClaudeTranscriptReader().read(path)
+
+    expect(snapshot.turnId).toBe('unicode')
+    expect(snapshot.latestPrompt?.endsWith('🙂 boundary')).toBe(true)
   })
 })
 
@@ -347,5 +365,51 @@ describe('ClaudeBackend', () => {
     expect(session?.hasSubstantiveActivity).toBe(false)
     expect(session?.turnOutcome).toBeNull()
     expect(session && classifySession(session).stage).toBe('idle')
+  })
+
+  test('reports process identity rejection instead of looking like no sessions exist', async () => {
+    const home = await claudeHome()
+    await writeFile(join(home, 'sessions', '4242.json'), registryEntry())
+    const backend = new ClaudeBackend({
+      claudeHome: home,
+      getProjects: () => [],
+      isProcessAlive: () => true,
+      processName: async () => 'node',
+      gitOriginUrl: async () => null,
+    })
+
+    expect(await backend.observe()).toEqual([])
+    expect(backend.status()).toMatchObject({
+      connected: false,
+      label: 'Claude Code sessions rejected',
+      error: expect.stringContaining('process identity'),
+    })
+  })
+
+  test('keeps readable Claude sessions when one transcript fails', async () => {
+    const home = await claudeHome()
+    await writeFile(join(home, 'sessions', '4242.json'), registryEntry())
+    await writeFile(join(home, 'sessions', '4243.json'), registryEntry({ pid: 4243, sessionId: 'session-b' }))
+    await writeFile(join(home, 'projects', '-repo', 'session-a.jsonl'), humanPrompt('Broken') + '\n')
+    await writeFile(join(home, 'projects', '-repo', 'session-b.jsonl'), humanPrompt('Readable', { uuid: 'p2' }) + '\n')
+    const backend = new ClaudeBackend({
+      claudeHome: home,
+      getProjects: () => [project],
+      isProcessAlive: () => true,
+      processName: async () => 'claude',
+      gitOriginUrl: async () => null,
+      transcriptReader: {
+        read: async (path) => {
+          if (path.endsWith('session-a.jsonl')) throw new Error('transcript unreadable')
+          return new ClaudeTranscriptReader().read(path)
+        },
+      },
+    })
+
+    expect((await backend.observe()).map((session) => session.id)).toEqual(['session-b'])
+    expect(backend.status()).toMatchObject({
+      connected: true,
+      error: expect.stringContaining('1 Claude Code session could not be read'),
+    })
   })
 })

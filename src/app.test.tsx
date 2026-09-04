@@ -172,7 +172,8 @@ describe('the board', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('offline')
 
     fireEvent.keyDown(window, { key: ',', metaKey: true })
-    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    const settings = screen.getByRole('dialog', { name: 'Settings' })
+    expect(settings).toBeInTheDocument()
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
@@ -925,6 +926,82 @@ describe('session detail', () => {
 })
 
 describe('settings and limits', () => {
+  it('shows an agent-neutral empty state and connected backend warnings', async () => {
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      connection: { connected: true, label: 'Claude Code · local observer', userAgent: 'Claude Code 2.1.259', error: null },
+      backends: [{
+        agent: 'claude',
+        connected: true,
+        label: 'Claude Code · local observer',
+        userAgent: 'Claude Code 2.1.259',
+        error: '1 Claude Code session could not be read.',
+      }],
+      preferences: selectUiPreferences(createInitialState(NOW)),
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await user.keyboard('{Meta>},{/Meta}')
+    const settings = screen.getByRole('dialog', { name: 'Settings' })
+    expect(within(settings).getByText('Start an agent session in a repository or add one manually.')).toBeInTheDocument()
+    expect(within(settings).getByText(/Claude Code 2\.1\.259 · 1 Claude Code session could not be read/)).toBeInTheDocument()
+  })
+
+  it('keeps hidden agents in the visible focus count', async () => {
+    const base = createFixtureSessionSource({ now: NOW, tickMs: 0 }).snapshot()
+    const running = base.find((session) => session.title === 'Revise calm control plane')!
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      connection: { connected: true, label: 'Live agents', userAgent: 'test', error: null },
+      sessions: [
+        { ...running, id: 'codex-visible', threadId: 'codex-visible', agent: 'codex', classification: { stage: 'running', reason: 'active-turn', needsUser: false } },
+        { ...running, id: 'claude-hidden', threadId: 'claude-hidden', title: 'Hidden Claude work', agent: 'claude', classification: { stage: 'running', reason: 'active-turn', needsUser: false } },
+      ],
+      focus: {
+        enabled: true,
+        limit: 3,
+        activeCount: 2,
+        availability: { allowed: true, reason: 'slot-available' },
+      },
+      preferences: {
+        ...selectUiPreferences(createInitialState(NOW)),
+        visibleAgents: ['codex'],
+      },
+      projects: SEED_PROJECTS,
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={createMemoryStorage()}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Active 2 \/ 3/ })).toBeInTheDocument())
+    expect(screen.queryByText('Hidden Claude work')).toBeNull()
+  })
+
   it('enables the focus limit and uses it to refuse a new root launch', async () => {
     const { user } = mount()
 

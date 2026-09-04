@@ -57,7 +57,9 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
                   <AgentMark agent={backend.agent} title="" />
                   <span>{AGENT_LABELS[backend.agent]}</span>
                   <span className={styles.backendState}>
-                    {backend.connected ? backend.userAgent ?? 'connected' : backend.error ?? 'unavailable'}
+                    {backend.connected
+                      ? [backend.userAgent ?? 'connected', backend.error].filter(Boolean).join(' · ')
+                      : backend.error ?? 'unavailable'}
                   </span>
                 </li>
               ))}
@@ -172,7 +174,7 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
               <li>
                 <div>
                   <strong>No Git projects observed yet</strong>
-                  <span>Start a Codex session in a repository or add one manually.</span>
+                  <span>Start an agent session in a repository or add one manually.</span>
                 </div>
               </li>
             ) : null}

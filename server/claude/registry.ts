@@ -1,6 +1,7 @@
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+import { promisify } from 'node:util'
 
 /**
  * Claude Code writes `~/.claude/sessions/<pid>.json` for every process it runs
@@ -75,7 +76,18 @@ export interface ReadRegistryOptions {
   /** Defaults to `process.kill(pid, 0)`; injectable so tests can pretend a pid died. */
   readonly isProcessAlive?: (pid: number) => boolean
   /** Defaults to a bounded `ps` lookup; used to reject stale registry files after PID reuse. */
-  readonly processName?: (pid: number) => string | null
+  readonly processName?: (pid: number) => string | null | Promise<string | null>
+}
+
+export interface ClaudeProcessRejection {
+  readonly pid: number
+  readonly sessionId: string
+  readonly command: string | null
+}
+
+export interface ClaudeRegistrySnapshot {
+  readonly entries: readonly ClaudeRegistryEntry[]
+  readonly processRejections: readonly ClaudeProcessRejection[]
 }
 
 /**
@@ -85,7 +97,7 @@ export interface ReadRegistryOptions {
  */
 export async function readLiveRegistry(
   options: ReadRegistryOptions,
-): Promise<ClaudeRegistryEntry[] | null> {
+): Promise<ClaudeRegistrySnapshot | null> {
   const alive = options.isProcessAlive ?? processIsAlive
   const processName = options.processName ?? processNameForPid
   let names: string[]
@@ -102,20 +114,35 @@ export async function readLiveRegistry(
         return text === null ? null : parseRegistryEntry(text)
       }),
   )
-  return entries
+  const candidates = entries
     .filter((entry): entry is ClaudeRegistryEntry => entry !== null)
     .filter((entry) => entry.kind === null || entry.kind === 'interactive')
     .filter((entry) => entry.status === 'busy' || entry.status === 'waiting' || entry.status === 'idle')
-    .filter((entry) => alive(entry.pid) && isClaudeProcess(processName(entry.pid)))
-    .sort((left, right) => right.startedAt - left.startedAt)
+    .filter((entry) => alive(entry.pid))
+  const identified = await Promise.all(candidates.map(async (entry) => ({
+    entry,
+    command: await processName(entry.pid),
+  })))
+  return {
+    entries: identified
+      .filter(({ command }) => isClaudeProcess(command))
+      .map(({ entry }) => entry)
+      .sort((left, right) => right.startedAt - left.startedAt),
+    processRejections: identified
+      .filter(({ command }) => !isClaudeProcess(command))
+      .map(({ entry, command }) => ({ pid: entry.pid, sessionId: entry.sessionId, command })),
+  }
 }
 
-function processNameForPid(pid: number): string | null {
+const execFileAsync = promisify(execFile)
+
+async function processNameForPid(pid: number): Promise<string | null> {
   try {
-    return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'comm='], {
+    const { stdout } = await execFileAsync('/bin/ps', ['-p', String(pid), '-o', 'comm='], {
       encoding: 'utf8',
       timeout: 1_000,
-    }).trim() || null
+    })
+    return stdout.trim() || null
   } catch {
     return null
   }
