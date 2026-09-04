@@ -410,7 +410,7 @@ _Created: 2026-08-06 · Updated: 2026-08-28 · Verified: 2026-08-28 · Runtime p
 
 
 
-`bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. It signs the compiled Bun bridge with the required JavaScriptCore JIT entitlements before signing and verifying the outer app. The personal Mac currently has Apple Development and Apple Distribution identities, but not the `Developer ID Application` identity required for a notarised outside-the-Mac-App-Store release.
+`bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. It signs the compiled Bun bridge with the required JavaScriptCore JIT entitlements before signing and verifying the outer app. The personal Mac currently has Apple Development and Apple Distribution identities, but not the `Developer ID Application` identity required for a notarised outside-the-Mac-App-Store release. `bun run release:macos` is the release command for the day those certificates exist: it notarises and staples the app, wraps it in a Developer ID Installer-signed PKG, and verifies the result (see `docs/macos-release.md`).
 
 The concrete release path is:
 

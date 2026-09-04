@@ -88,7 +88,7 @@ The repository also contains a small AppKit and WKWebView shell. It launches qui
 bun run build:macos
 ```
 
-On the personal Mac, an Apple Development-signed build now cold-launches from `/Applications`, connects its embedded bridge, and exposes the window, menu-bar companion, `Command-N`, and `Command-,`. The remaining distribution step is a hardened, notarised Developer ID build; the browser and daemon remain the portable distribution today. See [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).
+On the personal Mac, an Apple Development-signed build now cold-launches from `/Applications`, connects its embedded bridge, and exposes the window, menu-bar companion, `Command-N`, and `Command-,`. `bun run release:macos` produces that hardened, notarised Developer ID build as a stapled PKG (and optional DMG) once Developer ID certificates are in the keychain; see [docs/macos-release.md](docs/macos-release.md). Until then the browser and daemon remain the portable distribution. See [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).
 
 ## Development
 
