@@ -130,6 +130,47 @@ describe('AgentZenBridgeService with several agent backends', () => {
     expect(service.health().backends).toHaveLength(2)
   })
 
+  test('isolates an observation rejection and reports that backend unavailable', async () => {
+    const failing = {
+      ...readOnlyBackend('codex', []),
+      observe: async (): Promise<AgentSession[]> => {
+        throw new Error('codex observation exploded')
+      },
+    }
+    const service = new AgentZenBridgeService({
+      settings,
+      backends: [failing, readOnlyBackend('claude', [session('claude-1', 'claude')])],
+    })
+
+    const snapshot = await service.snapshot()
+
+    expect(snapshot.sessions.map((entry) => entry.id)).toEqual(['claude-1'])
+    expect(snapshot.connection.connected).toBe(true)
+    expect(snapshot.backends.find((backend) => backend.agent === 'codex')).toMatchObject({
+      connected: false,
+      error: 'codex observation exploded',
+    })
+  })
+
+  test('isolates a startup rejection and reports that backend unavailable', async () => {
+    const failing = {
+      ...readOnlyBackend('codex', []),
+      start: async (): Promise<void> => {
+        throw new Error('codex startup exploded')
+      },
+    }
+    const service = new AgentZenBridgeService({
+      settings,
+      backends: [failing, readOnlyBackend('claude', [])],
+    })
+
+    await expect(service.start()).resolves.toBeUndefined()
+    expect(service.health().backends.find((backend) => backend.agent === 'codex')).toMatchObject({
+      connected: false,
+      error: 'codex startup exploded',
+    })
+  })
+
   test('reports disconnected with the Codex line leading when nothing is connected', async () => {
     const service = new AgentZenBridgeService({
       settings,

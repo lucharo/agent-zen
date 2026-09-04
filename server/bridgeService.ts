@@ -3,7 +3,7 @@ import {
   classifyAgentSessions,
   launchAvailability,
 } from '../src/domain/stage'
-import type { AgentKind, AgentSession } from '../src/domain/types'
+import { AGENT_LABELS, type AgentKind, type AgentSession } from '../src/domain/types'
 import type {
   BridgeConnectionStatus,
   BridgeSnapshot,
@@ -39,6 +39,7 @@ export interface BridgeServiceDependencies {
  */
 export class AgentZenBridgeService {
   private readonly backends: readonly AgentBackend[]
+  private readonly backendFailures = new Map<AgentKind, string>()
   private readonly launchCoordinator: LaunchCoordinator
 
   constructor(private readonly dependencies: BridgeServiceDependencies) {
@@ -51,7 +52,14 @@ export class AgentZenBridgeService {
   }
 
   async start(): Promise<void> {
-    await Promise.all(this.backends.map((backend) => backend.start()))
+    await Promise.all(this.backends.map(async (backend) => {
+      try {
+        await backend.start()
+        this.backendFailures.delete(backend.agent)
+      } catch (error) {
+        this.backendFailures.set(backend.agent, errorMessage(error))
+      }
+    }))
   }
 
   async snapshot(): Promise<BridgeSnapshot> {
@@ -153,7 +161,16 @@ export class AgentZenBridgeService {
   }
 
   private async sessions(): Promise<AgentSession[]> {
-    const observed = await Promise.all(this.backends.map((backend) => backend.observe()))
+    const observed = await Promise.all(this.backends.map(async (backend) => {
+      try {
+        const sessions = await backend.observe()
+        this.backendFailures.delete(backend.agent)
+        return sessions
+      } catch (error) {
+        this.backendFailures.set(backend.agent, errorMessage(error))
+        return []
+      }
+    }))
     return observed
       .flat()
       .filter((session) => session.endedAt === null)
@@ -161,7 +178,17 @@ export class AgentZenBridgeService {
   }
 
   private backendStatuses(): BackendStatus[] {
-    return this.backends.map((backend) => backend.status())
+    return this.backends.map((backend) => {
+      const failure = this.backendFailures.get(backend.agent)
+      if (!failure) return backend.status()
+      return {
+        agent: backend.agent,
+        connected: false,
+        label: `${AGENT_LABELS[backend.agent]} unavailable`,
+        userAgent: null,
+        error: failure,
+      }
+    })
   }
 
   /** Launches are Codex-only: it is the one agent with a supported launch surface. */
@@ -187,6 +214,10 @@ export class AgentZenBridgeService {
   private now(): number {
     return this.dependencies.now?.() ?? Date.now()
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function defaultCodexBackend(dependencies: BridgeServiceDependencies): AgentBackend {
