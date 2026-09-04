@@ -188,6 +188,32 @@ describe('AgentZenBridgeService with several agent backends', () => {
     })
   })
 
+  test('keeps a disconnected error paired with the backend label that produced it', async () => {
+    const service = new AgentZenBridgeService({
+      settings,
+      backends: [
+        {
+          ...readOnlyBackend('codex', []),
+          status: () => ({
+            agent: 'codex' as const,
+            connected: false,
+            label: 'codex observer',
+            userAgent: null,
+            error: null,
+          }),
+        },
+        readOnlyBackend('claude', [], 'no registry'),
+      ],
+    })
+
+    expect(service.health().connection).toEqual({
+      connected: false,
+      label: 'claude observer',
+      userAgent: null,
+      error: 'no registry',
+    })
+  })
+
   test('refuses control calls for a session whose backend is read-only', async () => {
     const service = new AgentZenBridgeService({
       settings,

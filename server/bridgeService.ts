@@ -239,11 +239,12 @@ export function aggregateConnection(backends: readonly BackendStatus[]): BridgeC
   const connected = backends.filter((backend) => backend.connected)
   if (connected.length === 0) {
     const lead = backends.find((backend) => backend.agent === 'codex') ?? backends[0]
+    const reported = lead?.error ? lead : backends.find((backend) => backend.error) ?? lead
     return {
       connected: false,
-      label: lead?.label ?? 'No agent connections',
+      label: reported?.label ?? 'No agent connections',
       userAgent: null,
-      error: lead?.error ?? backends.map((backend) => backend.error).find((error) => error) ?? null,
+      error: reported?.error ?? null,
     }
   }
   const userAgents = connected.flatMap((backend) => (backend.userAgent ? [backend.userAgent] : []))
