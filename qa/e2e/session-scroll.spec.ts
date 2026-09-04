@@ -245,6 +245,8 @@ test('the native minimum-width toolbar keeps every visible control inside the wi
   }))
 
   expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth)
+  await expect(toolbar.getByRole('button', { name: 'Codex sessions' })).toBeVisible()
+  await expect(toolbar.getByRole('button', { name: 'Claude Code sessions' })).toBeVisible()
   await expect(toolbar.getByRole('button', { name: /Theme:/ })).toBeVisible()
   await expect(toolbar.getByRole('button', { name: /Quick capture/ })).toBeVisible()
   await expect(toolbar.getByRole('button', { name: 'Search or jump' })).toBeHidden()

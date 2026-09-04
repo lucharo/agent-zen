@@ -40,7 +40,7 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
               <p>Codex sessions launched here are controllable. Everything else, including every Claude Code session, stays read-only.</p>
             </div>
             <span className={styles.status} data-mode={sourceMode}>
-              {sourceLabel}
+              {connectionError ? 'Unavailable' : sourceMode === 'live' ? 'Live' : sourceLabel}
             </span>
           </div>
           {connectionError ? (
