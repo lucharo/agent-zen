@@ -11,6 +11,7 @@
     "build:cli": "mkdir -p build/cli && bun build --compile cli/index.ts --outfile build/cli/agent-zen && bun build --compile server/index.ts --outfile build/cli/agent-zen-server",
     "install:cli": "./scripts/install-cli.sh",
     "build:macos": "./scripts/build-macos-app.sh",
+    "release:macos": "./scripts/release-macos.sh",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:server": "tsc -p tsconfig.server.json",

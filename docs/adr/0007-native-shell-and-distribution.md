@@ -2,7 +2,7 @@
 
 - Status: Accepted, personal development build verified; notarisation pending
 - Date: 2026-08-06
-- Updated: 2026-08-27
+- Updated: 2026-09-04
 
 ## Outcome
 
@@ -21,6 +21,7 @@ Agent Zen has a small AppKit and WKWebView shell with genuine macOS menu command
 - `bun run build:macos` compiles the web assets, Swift shell, and Bun bridge into `build/Agent Zen.app`.
 - Signing automatically prefers Developer ID Application, then Apple Development. The Bun bridge is signed first with its JavaScriptCore JIT entitlements, followed by the AppKit executable and outer bundle; the final bundle is verified. With no identity, the script creates an ad-hoc build and prints a warning.
 Mac App Store work remains optional and separate.
+- `bun run release:macos` (`scripts/release-macos.sh`) is the repeatable release command: it signs with Developer ID Application, notarises and staples the app, builds a Developer ID Installer-signed flat PKG and optional DMG, and verifies with `codesign`, `pkgutil`, `spctl` and `stapler`. It refuses to run without a Developer ID Application identity unless asked for a development dry run. `scripts/mdm-audit.sh` is the version-aware MDM audit; paths and lifecycle are in `docs/macos-release.md`.
 - The managed package should install `Agent Zen.app` in `/Applications` and preserve the native shell's local bridge behavior. If the launch-at-login daemon and CLI are included, their system and per-user install paths, upgrade behavior, rollback, and uninstall contract must be explicit rather than reusing a developer's `~/.local` layout implicitly.
 lucharo.agent-zen`, the expected app version, the signed package contents, and any managed daemon files. A failed audit may trigger reinstall; the pilot therefore has to prove that reinstall is idempotent and does not replace browser-owned Ideas or Logbook data.
 
