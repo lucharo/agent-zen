@@ -27,7 +27,7 @@ const EMPTY: BridgeSnapshot = {
   generatedAt: new Date(0).toISOString(),
   connection: {
     connected: false,
-    label: 'Connecting to Codex…',
+    label: 'Connecting to agents…',
     userAgent: null,
     error: null,
   },

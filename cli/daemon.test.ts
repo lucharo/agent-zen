@@ -98,17 +98,17 @@ describe('Agent Zen daemon contract', () => {
   test('does not call a daemon stopped while its old pid still serves HTTP', () => {
     expect(hasManagedDaemonStopped(
       { loaded: false, state: null, pid: null },
-      { reachable: true, pid: 4217, version: '0.1.0', protocolVersion: 11, codexConnected: true },
+      { reachable: true, pid: 4217, version: '0.1.0', protocolVersion: 11, codexConnected: true, claudeConnected: false },
       4217,
     )).toBe(false)
     expect(hasManagedDaemonStopped(
       { loaded: false, state: null, pid: null },
-      { reachable: false, pid: null, version: null, protocolVersion: null, codexConnected: false },
+      { reachable: false, pid: null, version: null, protocolVersion: null, codexConnected: false, claudeConnected: false },
       4217,
     )).toBe(true)
     expect(hasManagedDaemonStopped(
       { loaded: false, state: null, pid: null },
-      { reachable: true, pid: 9001, version: '0.1.0', protocolVersion: 11, codexConnected: true },
+      { reachable: true, pid: 9001, version: '0.1.0', protocolVersion: 11, codexConnected: true, claudeConnected: false },
       4217,
     )).toBe(true)
   })
@@ -125,6 +125,7 @@ describe('Agent Zen daemon contract', () => {
       version: '0.1.0',
       protocolVersion: 11,
       codexConnected: false,
+      claudeConnected: false,
     })
     expect(parseDaemonHealth({ connection: { connected: true } })).toEqual({
       reachable: false,
@@ -132,6 +133,7 @@ describe('Agent Zen daemon contract', () => {
       version: null,
       protocolVersion: null,
       codexConnected: false,
+      claudeConnected: false,
     })
   })
 
@@ -143,6 +145,7 @@ describe('Agent Zen daemon contract', () => {
       version: '0.1.0',
       protocolVersion: 7,
       codexConnected: true,
+      claudeConnected: false,
     }
 
     expect(isOwnedHealthy(launchd, health)).toBe(false)
@@ -169,6 +172,7 @@ describe('Agent Zen daemon contract', () => {
       version: '0.1.0',
       protocolVersion: 11,
       codexConnected: true,
+      claudeConnected: false,
     }
     const missingPlist = { plistExists: false, overrideEnabled: true }
     const disabledOverride = { plistExists: true, overrideEnabled: false }

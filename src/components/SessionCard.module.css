@@ -60,6 +60,15 @@
   margin-bottom: 2px;
 }
 
+/* Which agent owns the card, quiet enough to sit beside the title. */
+.agentMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-top: 3px;
+  color: var(--ink-muted);
+}
+
 .goal {
   display: inline-flex;
   align-items: center;

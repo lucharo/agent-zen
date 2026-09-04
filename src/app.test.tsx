@@ -150,7 +150,7 @@ describe('the board', () => {
       </AgentZenProvider>,
     )
 
-    expect(screen.getByRole('status')).toHaveTextContent('Connecting to Codex')
+    expect(screen.getByRole('status')).toHaveTextContent('Connecting to your agents')
     expect(screen.queryByText('Revise calm control plane')).toBeNull()
   })
 
@@ -195,7 +195,7 @@ describe('the board', () => {
     // The mark lives in the column title, never on a card.
     const runningHeader = column('Running').querySelector('header')
     expect(runningHeader).not.toBeNull()
-    expect(within(runningHeader as HTMLElement).getByText('Codex')).toBeInTheDocument()
+    expect(within(runningHeader as HTMLElement).queryByText('Codex')).toBeNull()
     expect(within(column('Ideas')).queryByText('Codex')).toBeNull()
   })
 
@@ -580,12 +580,15 @@ describe('navigation', () => {
 
   it('keeps titles and goals visible while Description and Comments are cumulative card fields', async () => {
     const { user } = mount()
+    const runningCard = within(column('Running')).getByRole('button', {
+      name: /Revise calm control plane/,
+    })
 
     expect(screen.queryByRole('combobox', { name: 'Session card detail' })).toBeNull()
-    expect(within(column('Running')).getByText('agent-zen')).toBeInTheDocument()
-    expect(within(column('Running')).getByText('42m total · 7m current turn')).toBeInTheDocument()
-    expect(within(column('Running')).getByText('3 / 5')).toBeInTheDocument()
-    expect(within(column('Running')).getByLabelText(
+    expect(within(runningCard).getByText('agent-zen')).toBeInTheDocument()
+    expect(within(runningCard).getByText('42m total · 7m current turn')).toBeInTheDocument()
+    expect(within(runningCard).getByText('3 / 5')).toBeInTheDocument()
+    expect(within(runningCard).getByLabelText(
       'Goal active: Turn Agent Zen into a calm, reliable session control plane.',
     )).toBeInTheDocument()
     expect(within(column('Running')).queryByText('Generate three new mockups')).toBeNull()
@@ -630,9 +633,10 @@ describe('navigation', () => {
     await user.click(gridButton)
 
     const grid = screen.getByRole('region', { name: 'Session grid' })
+    const runningCard = within(grid).getByRole('button', { name: /Revise calm control plane/ })
     expect(grid.querySelector('[data-constrain-width]')).toHaveAttribute('data-constrain-width', 'true')
-    expect(within(grid).getByText('Revise calm control plane')).toBeInTheDocument()
-    expect(within(grid).getByText('Running · agent-zen')).toBeInTheDocument()
+    expect(within(runningCard).getByText('Revise calm control plane')).toBeInTheDocument()
+    expect(within(runningCard).getByText('Running · agent-zen')).toBeInTheDocument()
     expect(within(grid).queryByRole('button', { name: /Sweep board fixtures into tests/ })).toBeNull()
     expect(within(grid).getByText('1 subagent')).toBeInTheDocument()
     expect(within(grid).getAllByText(/Running ·/).length).toBeGreaterThan(0)
@@ -930,12 +934,12 @@ describe('settings and limits', () => {
     await user.click(within(settings).getByRole('button', { name: 'Lower active session limit' }))
     await user.click(within(settings).getByRole('button', { name: 'Close settings' }))
 
-    expect(screen.getByRole('button', { name: /Active 2 \/ 2/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Active 3 \/ 2/ })).toBeInTheDocument()
     await user.click(within(column('Ideas')).getByText('Session dashboard'))
 
     const detail = screen.getByRole('dialog')
     expect(within(detail).getByRole('button', { name: 'Launch session' })).toBeDisabled()
-    expect(within(detail).getByText(/Focus limit reached: 2 of 2/)).toBeInTheDocument()
+    expect(within(detail).getByText(/Focus limit reached: 3 of 2/)).toBeInTheDocument()
   })
 
   it('registers a discovered local project through the quiet onboarding flow', async () => {

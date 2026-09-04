@@ -1,6 +1,7 @@
 import { Eye, Focus, FolderGit2, Link2, X } from 'lucide-react'
 import { useAgentZen } from '@/state/store'
-import { Overlay } from './primitives'
+import { AgentMark, Overlay } from './primitives'
+import { AGENT_LABELS } from '@/domain/types'
 import styles from './SettingsDialog.module.css'
 
 export interface SettingsDialogProps {
@@ -10,7 +11,7 @@ export interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogProps) {
-  const { state, dispatch, activeCount, sourceMode, sourceLabel, connectionError, setFocus } = useAgentZen()
+  const { state, dispatch, activeCount, sourceMode, sourceLabel, connectionError, backends, setFocus } = useAgentZen()
 
   return (
     <Overlay
@@ -35,8 +36,8 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
           <div className={styles.sectionHead}>
             <span className={styles.sectionIcon} data-tone="codex"><SettingsIcon kind="connection" /></span>
             <div className={styles.sectionCopy}>
-              <h3 id="connection-heading">Codex connection</h3>
-              <p>Owned sessions are controllable. Other Codex sessions stay read-only.</p>
+              <h3 id="connection-heading">Connections</h3>
+              <p>Codex sessions launched here are controllable. Everything else, including every Claude Code session, stays read-only.</p>
             </div>
             <span className={styles.status} data-mode={sourceMode}>
               {sourceLabel}
@@ -48,6 +49,19 @@ export function SettingsDialog({ open, onClose, onAddProjects }: SettingsDialogP
             <p className={styles.notice}>
               The local bridge is unavailable, so Agent Zen is showing sample sessions until it reconnects.
             </p>
+          ) : null}
+          {backends.length > 0 ? (
+            <ul className={styles.backendList} aria-label="Agent connections">
+              {backends.map((backend) => (
+                <li key={backend.agent} className={styles.backendRow} data-connected={backend.connected}>
+                  <AgentMark agent={backend.agent} title="" />
+                  <span>{AGENT_LABELS[backend.agent]}</span>
+                  <span className={styles.backendState}>
+                    {backend.connected ? backend.userAgent ?? 'connected' : backend.error ?? 'unavailable'}
+                  </span>
+                </li>
+              ))}
+            </ul>
           ) : null}
         </section>
 

@@ -1,5 +1,5 @@
 import type { AgentSession, Plan, PlanRevision, PlanStep } from '@/domain/types'
-import type { CodexSessionSource } from './CodexSessionSource'
+import type { SessionSource } from './SessionSource'
 
 const MINUTE = 60_000
 
@@ -49,6 +49,43 @@ export function fixtureSessions(base: number): AgentSession[] {
       worktree: '~/Projects/github.com/lucharo/agent-zen',
       projectId: 'agent-zen',
       plan: null,
+      planHistory: [],
+      goal: null,
+      review: null,
+      wrapup: null,
+      endedAt: null,
+    },
+    {
+      id: 'sess-claude-observer',
+      threadId: '7f3d2c1e-9b4a-4d0e-8c6f-2a1b3c4d5e6f',
+      title: 'Claude backend for Agent Zen',
+      agent: 'claude',
+      source: 'external',
+      model: 'claude-fable-5-1',
+      reasoningEffort: null,
+      cliVersion: '2.1.259',
+      createdAt: iso(base, 18),
+      turnStartedAt: iso(base, 3),
+      turnId: 'prompt-claude-observer',
+      activity: 'working',
+      collaborationMode: 'default',
+      hasSubstantiveActivity: true,
+      parentSessionId: null,
+      cwd: '/Users/demo/Projects/github.com/lucharo/agent-zen/.claude/worktrees/connect-claude',
+      repository: 'lucharo/agent-zen',
+      branch: 'worktree-connect-claude',
+      worktree: '~/Projects/github.com/lucharo/agent-zen/.claude/worktrees/connect-claude',
+      projectId: 'agent-zen',
+      plan: {
+        revision: 1,
+        updatedAt: iso(base, 2),
+        explanation: null,
+        steps: [
+          { step: 'Extract the Codex backend', status: 'completed' },
+          { step: 'Observe Claude Code sessions', status: 'in_progress' },
+          { step: 'Agent visibility toggle', status: 'pending' },
+        ],
+      },
       planHistory: [],
       goal: null,
       review: null,
@@ -301,13 +338,13 @@ export interface FixtureSourceOptions {
 }
 
 /**
- * Fixture-backed `CodexSessionSource`.
+ * Fixture-backed `SessionSource`.
  *
  * Swapping this for the bundled Codex app-server is a same-shape replacement:
  * hold the thread list, push it to listeners when the protocol reports a
  * change, and keep `snapshot()` synchronous.
  */
-export function createFixtureSessionSource(options: FixtureSourceOptions = {}): CodexSessionSource {
+export function createFixtureSessionSource(options: FixtureSourceOptions = {}): SessionSource {
   const base = options.now ?? Date.now()
   const tickMs = options.tickMs ?? 12_000
   const ticking = options.tickingSessionIds ?? ['sess-control-plane', 'sess-fixture-sweep']
@@ -343,7 +380,7 @@ export function createFixtureSessionSource(options: FixtureSourceOptions = {}): 
   }
 
   return {
-    agent: 'codex',
+    agents: ['codex', 'claude'],
     mode: 'fixture',
     label: 'Fixture data',
     snapshot: () => sessions,

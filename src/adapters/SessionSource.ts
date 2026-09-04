@@ -1,4 +1,4 @@
-import type { AgentSession } from '@/domain/types'
+import type { AgentKind, AgentSession } from '@/domain/types'
 
 /**
  * The one seam between Agent Zen and a coding agent.
@@ -19,9 +19,9 @@ import type { AgentSession } from '@/domain/types'
  * same three members against that protocol and changing one line in
  * `createSessionSource()`.
  */
-export interface CodexSessionSource {
-  /** Stable identifier for the backing agent, surfaced in the UI. */
-  readonly agent: 'codex'
+export interface SessionSource {
+  /** The agents this source can report on. */
+  readonly agents: readonly AgentKind[]
   readonly mode: 'fixture' | 'live'
   readonly label: string
 

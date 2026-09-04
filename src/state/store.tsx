@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { CodexSessionSource } from '@/adapters/CodexSessionSource'
+import type { SessionSource } from '@/adapters/SessionSource'
 import { createFixtureSessionSource } from '@/adapters/fixtureSource'
 import type {
   ProjectCandidate,
@@ -18,6 +18,7 @@ import type {
 import { createFixtureProjectDiscoverySource } from '@/adapters/fixtureProjectSource'
 import type { AgentZenBridge } from '@/bridge/httpBridge'
 import type {
+  BridgeBackendStatus,
   BridgeSnapshot,
   LaunchSessionResponse,
   SessionRequestResponse,
@@ -54,8 +55,9 @@ export interface AgentZenValue {
   readonly board: readonly BoardSession[]
   readonly activeCount: number
   readonly launchAvailability: ReturnType<typeof launchAvailability>
-  readonly agent: CodexSessionSource['agent']
-  readonly sourceMode: CodexSessionSource['mode']
+  /** Per-agent connection state from the bridge; empty for the fixture source. */
+  readonly backends: readonly BridgeBackendStatus[]
+  readonly sourceMode: SessionSource['mode']
   readonly sourceLabel: string
   readonly sourceReady: boolean
   readonly connectionError: string | null
@@ -86,7 +88,7 @@ const AgentZenContext = createContext<AgentZenValue | null>(null)
 
 export interface AgentZenProviderProps {
   children: ReactNode
-  source?: CodexSessionSource
+  source?: SessionSource
   projectSource?: ProjectDiscoverySource
   bridge?: AgentZenBridge
   /** Frozen clock for tests. When set, no interval is started. */
@@ -318,7 +320,7 @@ export function AgentZenProvider({
         state.activeLimitEnabled,
         state.activeLimit,
       ),
-      agent: sessionSource.agent,
+      backends: bridgeSnapshot?.backends ?? [],
       sourceMode: bridge ? 'live' : sessionSource.mode,
       sourceLabel: bridgeSnapshot?.connection.label ?? sessionSource.label,
       sourceReady: bridgeReady,
@@ -359,15 +361,15 @@ export function AgentZenProvider({
         return result
       },
       interruptSession: async (threadId) => {
-        if (!bridge) throw new Error('The fixture source cannot control Codex.')
+        if (!bridge) throw new Error('The fixture source cannot control sessions.')
         await bridge.interrupt(threadId)
       },
       steerSession: async (threadId, prompt) => {
-        if (!bridge) throw new Error('The fixture source cannot control Codex.')
+        if (!bridge) throw new Error('The fixture source cannot control sessions.')
         await bridge.steer(threadId, prompt)
       },
       respondToSession: async (threadId, response) => {
-        if (!bridge) throw new Error('The fixture source cannot control Codex.')
+        if (!bridge) throw new Error('The fixture source cannot control sessions.')
         await bridge.respond(threadId, response)
       },
     }

@@ -52,6 +52,7 @@ describe('session CLI commands', () => {
       sessions: [
         {
           id: 'sess-index-threads',
+          agent: 'codex',
           title: 'Index local Codex threads',
           projectId: 'agent-zen',
           activity: 'working',
@@ -61,7 +62,19 @@ describe('session CLI commands', () => {
           goal: null,
         },
         {
+          id: 'sess-claude-observer',
+          agent: 'claude',
+          title: 'Claude backend for Agent Zen',
+          projectId: 'agent-zen',
+          activity: 'working',
+          stage: 'running',
+          reason: 'active-turn',
+          needsUser: false,
+          goal: null,
+        },
+        {
           id: 'sess-control-plane',
+          agent: 'codex',
           title: 'Revise calm control plane',
           projectId: 'agent-zen',
           activity: 'working',
@@ -75,6 +88,7 @@ describe('session CLI commands', () => {
         },
         {
           id: 'sess-harbor-canary',
+          agent: 'codex',
           title: 'Harbor canary review',
           projectId: 'acm',
           activity: 'awaiting-input',
@@ -85,6 +99,7 @@ describe('session CLI commands', () => {
         },
         {
           id: 'sess-retire-dask',
+          agent: 'codex',
           title: 'Retire dask join helpers',
           projectId: 'data-pipeline',
           activity: 'working',
@@ -107,6 +122,7 @@ describe('session CLI commands', () => {
       protocolVersion: 11,
       session: {
         id: 'sess-control-plane',
+        agent: 'codex',
         threadId: '019e21b0-3d54-7f18-8a77-1c0be4d2f905',
         title: 'Revise calm control plane',
         projectId: 'agent-zen',

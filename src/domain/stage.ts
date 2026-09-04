@@ -23,8 +23,8 @@ const STAGE_REASON_LABELS: Record<SessionStageReason, string> = {
   'explicit-wrapup-invocation': 'Explicit wrap-up invocation',
   'explicit-review-invocation': 'Explicit review invocation',
   'between-turns': 'Between turns',
-  'plan-mode': 'Native Codex plan mode',
-  'active-turn': 'Active Codex turn',
+  'plan-mode': 'Native plan mode',
+  'active-turn': 'Active turn',
 }
 
 export function stageReasonLabel(reason: SessionStageReason): string {

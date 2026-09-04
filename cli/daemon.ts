@@ -32,6 +32,7 @@ export interface DaemonHealth {
   readonly version: string | null
   readonly protocolVersion: number | null
   readonly codexConnected: boolean
+  readonly claudeConnected: boolean
 }
 
 export interface LaunchAtLoginState {
@@ -149,8 +150,17 @@ export function parseDaemonHealth(value: unknown): DaemonHealth {
     pid: Number(runtimeObject.pid),
     version: typeof runtimeObject.version === 'string' ? runtimeObject.version : null,
     protocolVersion: Number.isInteger(object.protocolVersion) ? Number(object.protocolVersion) : null,
-    codexConnected: connected,
+    codexConnected: backendConnected(object.backends, 'codex', connected),
+    claudeConnected: backendConnected(object.backends, 'claude', false),
   }
+}
+
+function backendConnected(backends: unknown, agent: string, fallback: boolean): boolean {
+  if (!Array.isArray(backends)) return fallback
+  const match = backends.find((entry) =>
+    entry && typeof entry === 'object' && (entry as Record<string, unknown>).agent === agent,
+  ) as Record<string, unknown> | undefined
+  return match ? match.connected === true : fallback
 }
 
 export function parseLogLineCount(args: readonly string[]): number {
@@ -233,6 +243,7 @@ function unreachableHealth(): DaemonHealth {
     version: null,
     protocolVersion: null,
     codexConnected: false,
+    claudeConnected: false,
   }
 }
 

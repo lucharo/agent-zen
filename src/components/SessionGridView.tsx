@@ -21,7 +21,7 @@ export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
       {entries.length === 0 ? (
         <div className={styles.empty}>
           <strong>No active sessions</strong>
-          <p>Codex sessions appear here when they enter planning.</p>
+          <p>Agent sessions appear here when they enter planning.</p>
         </div>
       ) : (
         <div className={styles.scroller} data-constrain-width={state.constrainBoardWidth}>

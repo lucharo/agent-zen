@@ -3,11 +3,13 @@ import { X } from 'lucide-react'
 import { stageReasonLabel, type ClassifiedAgentSession } from '@/domain/stage'
 import { elapsedSince, formatCaptureTime, formatDuration } from '@/domain/time'
 import {
+  AGENT_LABELS,
+  type AgentSession,
   STAGE_LABELS,
   type SessionApprovalDecision,
 } from '@/domain/types'
 import { useAgentZen } from '@/state/store'
-import { Chevron, CodexMark, Overlay } from './primitives'
+import { AgentMark, Chevron, Overlay } from './primitives'
 import { Logbook } from './Logbook'
 import styles from './DetailSheet.module.css'
 
@@ -95,10 +97,10 @@ function SessionDetail({
         <section className={styles.native} aria-labelledby="native-heading">
           <header className={styles.nativeHead}>
             <span className={styles.nativeMark}>
-              <CodexMark />
+              <AgentMark agent={session.agent} />
             </span>
             <h3 className={styles.sectionTitle} id="native-heading">
-              From Codex
+              From {AGENT_LABELS[session.agent]}
             </h3>
             <span className={styles.readonly}>
               {session.source === 'owned' ? 'Agent Zen-owned' : 'read-only'}
@@ -181,7 +183,7 @@ function SessionDetail({
             <dt>Model</dt>
             <dd>{session.model}{session.reasoningEffort ? ` · ${session.reasoningEffort}` : ''}</dd>
             <dt>Control</dt>
-            <dd>{session.source === 'owned' ? 'Agent Zen' : 'Another Codex process · read-only'}</dd>
+            <dd>{session.source === 'owned' ? 'Agent Zen' : `Another ${AGENT_LABELS[session.agent]} process · read-only`}</dd>
             <dt>Repository</dt>
             <dd>{session.repository ?? '—'}</dd>
             <dt>Branch</dt>
@@ -190,7 +192,7 @@ function SessionDetail({
             <dd className={styles.mono}>{session.worktree ?? session.cwd}</dd>
             <dt>Thread</dt>
             <dd className={styles.mono}>{session.threadId}</dd>
-            <dt>Codex</dt>
+            <dt>{AGENT_LABELS[session.agent]}</dt>
             <dd>{session.cliVersion ?? '—'}</dd>
             <dt>Session age</dt>
             <dd>{age === null ? '—' : formatDuration(age)}</dd>
@@ -240,10 +242,19 @@ function SessionDetail({
           </section>
         ) : null}
 
+        {session.source !== 'owned' && session.pendingRequest ? (
+          <section className={styles.controls} aria-labelledby="session-waiting-title">
+            <div>
+              <h3 id="session-waiting-title">{AGENT_LABELS[session.agent]} needs you</h3>
+              <p>{pendingRequestSummary(session.pendingRequest)} Answer it where the session is running.</p>
+            </div>
+          </section>
+        ) : null}
+
         {session.source === 'owned' && session.pendingRequest ? (
           <section className={styles.controls} aria-labelledby="session-request-title">
             <div>
-              <h3 id="session-request-title">Codex needs you</h3>
+              <h3 id="session-request-title">{AGENT_LABELS[session.agent]} needs you</h3>
               <p>Answer the native request to let this turn continue.</p>
             </div>
             {session.pendingRequest.kind === 'user-input' ? (
@@ -450,7 +461,7 @@ function SessionDetail({
               <p>
                 {session.activity === 'working'
                   ? 'Send one instruction or interrupt this Agent Zen-owned turn.'
-                  : 'This turn needs input in Codex. You can still interrupt it here.'}
+                  : `This turn needs input in ${AGENT_LABELS[session.agent]}. You can still interrupt it here.`}
               </p>
             </div>
             {session.activity === 'working' ? (
@@ -563,6 +574,12 @@ function permissionSummary(requested: Readonly<Record<string, unknown>>): string
     if ((network as Record<string, unknown>).enabled === true) parts.push('Network access')
   }
   return parts.join('\n') || 'Additional Codex permissions'
+}
+
+function pendingRequestSummary(pending: NonNullable<AgentSession['pendingRequest']>): string {
+  if (pending.kind === 'user-input') return 'Waiting for an answer to its question.'
+  if (pending.kind === 'unsupported' && pending.detail) return `Waiting for: ${pending.detail}.`
+  return `${pending.title.replace(/[.?]$/, '')}.`
 }
 
 function attentionSuffix(session: ClassifiedAgentSession): string {
