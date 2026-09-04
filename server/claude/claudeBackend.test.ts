@@ -11,6 +11,7 @@ import {
   applyTranscriptRecord,
   EMPTY_TRANSCRIPT,
   ClaudeTranscriptReader,
+  plainPromptText,
   stageHintFromClaudePrompt,
 } from './transcript'
 
@@ -62,6 +63,10 @@ function humanPrompt(text: string, overrides: Record<string, unknown> = {}): str
     message: { role: 'user', content: text },
     ...overrides,
   })
+}
+
+function nativeCommand(command: string, args = ''): string {
+  return `<command-name>${command}</command-name>\n<command-message>${command.slice(1)}</command-message>\n<command-args>${args}</command-args>`
 }
 
 async function claudeHome(): Promise<string> {
@@ -158,7 +163,7 @@ describe('transcript', () => {
     expect(snapshot.turnId).toBe('p1')
 
     fold(line({ type: 'assistant', message: { role: 'assistant', model: '<synthetic>', content: [] }, isApiErrorMessage: true }))
-    fold(humanPrompt('<command-name>/wrapup</command-name>\n<command-message>wrapup</command-message>\n<command-args>quickly</command-args>', { uuid: 'p2', timestamp: '2026-09-04T00:20:00.000Z' }))
+    fold(humanPrompt(nativeCommand('/wrapup', 'quickly'), { uuid: 'p2', timestamp: '2026-09-04T00:20:00.000Z' }))
     fold(line({ type: 'permission-mode', permissionMode: 'bypassPermissions' }))
     fold(line({ type: 'custom-title', customTitle: 'Renamed by hand' }))
 
@@ -179,6 +184,7 @@ describe('transcript', () => {
   })
 
   test('reads a workflow stage from tagged and typed slash commands only', () => {
+    const nativeWrapup = nativeCommand('/wrapup')
     expect(stageHintFromClaudePrompt('/wrapup')).toBe('wrapping-up')
     expect(stageHintFromClaudePrompt('/code-review high')).toBe('reviewing')
     expect(stageHintFromClaudePrompt('/webapp-agent-demo')).toBe('reviewing')
@@ -186,6 +192,9 @@ describe('transcript', () => {
     expect(stageHintFromClaudePrompt('/model')).toBeNull()
     expect(stageHintFromClaudePrompt('please do not run /wrapup yet')).toBeNull()
     expect(stageHintFromClaudePrompt('$wrapup\nland it')).toBe('wrapping-up')
+    expect(stageHintFromClaudePrompt(plainPromptText(nativeWrapup))).toBe('wrapping-up')
+    expect(stageHintFromClaudePrompt(plainPromptText('<command-name>/wrapup</command-name>'))).toBeNull()
+    expect(stageHintFromClaudePrompt(plainPromptText(`Example only:\n${nativeWrapup}`))).toBeNull()
     expect(stageHintFromClaudePrompt('review this reasoning with me')).toBeNull()
   })
 
@@ -268,7 +277,7 @@ describe('ClaudeBackend', () => {
     await writeFile(
       join(home, 'projects', '-repo', 'session-c.jsonl'),
       [
-        humanPrompt('<command-name>/wrapup</command-name>', { uuid: 'p9' }),
+        humanPrompt(nativeCommand('/wrapup'), { uuid: 'p9' }),
         line({ type: 'assistant', message: { role: 'assistant', model: 'claude-fable-5-1', content: [] } }),
       ].join('\n') + '\n',
     )
@@ -362,7 +371,7 @@ describe('ClaudeBackend', () => {
     await writeFile(
       join(home, 'projects', '-repo', 'session-a.jsonl'),
       [
-        humanPrompt('<command-name>/wrapup</command-name>', { uuid: 'wrapup-turn' }),
+        humanPrompt(nativeCommand('/wrapup'), { uuid: 'wrapup-turn' }),
         line({
           type: 'assistant',
           isApiErrorMessage: true,

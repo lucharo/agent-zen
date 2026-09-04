@@ -309,9 +309,11 @@ export function AgentZenProvider({
       .filter((project) => relevantProjectIds.has(project.id))
       .sort((left, right) => left.name.localeCompare(right.name))
     const backendStatuses = bridgeSnapshot?.backends ?? []
-    const codexControllerReady = !bridge
-      || backendStatuses.length === 0
-      || backendStatuses.some((backend) => backend.agent === 'codex' && backend.connected)
+    const codexControllerReady = !bridge || Boolean(
+      bridgeReady
+      && bridgeSnapshot?.connection.connected
+      && backendStatuses.some((backend) => backend.agent === 'codex' && backend.connected),
+    )
 
     return {
       state,

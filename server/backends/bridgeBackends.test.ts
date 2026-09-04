@@ -249,4 +249,32 @@ describe('AgentZenBridgeService with several agent backends', () => {
     expect(recovered.sessions.map((entry) => entry.id)).toEqual(['claude-1'])
     expect(recovered.backends[0]).toMatchObject({ connected: true, error: null })
   })
+
+  test('fails launch closed when any backend workload cannot be counted', async () => {
+    let launches = 0
+    const codex: AgentBackend = {
+      ...readOnlyBackend('codex', []),
+      controller: {
+        launch: async () => {
+          launches += 1
+          return { threadId: 'new-thread', turnId: 'new-turn' }
+        },
+        interrupt: async () => undefined,
+        steer: async () => undefined,
+        respond: async () => undefined,
+      },
+    }
+    const unavailableClaude: AgentBackend = {
+      ...readOnlyBackend('claude', []),
+      observe: async () => {
+        throw new Error('claude observation exploded')
+      },
+    }
+    const service = new AgentZenBridgeService({ settings, backends: [codex, unavailableClaude] })
+
+    await expect(service.launch({ projectId: project.id, prompt: 'Do the work' })).rejects.toThrow(
+      'Could not verify active Claude Code sessions',
+    )
+    expect(launches).toBe(0)
+  })
 })

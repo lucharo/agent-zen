@@ -1053,6 +1053,36 @@ describe('settings and limits', () => {
     expect(within(detail).getByText('Codex is unavailable, so Agent Zen cannot launch a session.')).toBeInTheDocument()
   })
 
+  it('disables launch when aggregate connectivity is down despite a stale Codex status', async () => {
+    const snapshot: BridgeSnapshot = {
+      ...disconnectedSnapshot,
+      backends: [
+        { agent: 'codex', connected: true, label: 'Codex App Server', userAgent: 'Codex', error: null },
+      ],
+      preferences: selectUiPreferences(createInitialState(NOW)),
+      projects: SEED_PROJECTS,
+    }
+    const bridge: AgentZenBridge = {
+      ...disconnectedBridge(),
+      snapshot: () => snapshot,
+      subscribe: (listener) => {
+        listener(snapshot)
+        return () => undefined
+      },
+      refresh: async () => snapshot,
+    }
+    const user = userEvent.setup({ document })
+    render(
+      <AgentZenProvider bridge={bridge} now={NOW} storage={seedTestState(createMemoryStorage())}>
+        <App />
+      </AgentZenProvider>,
+    )
+
+    await user.click(within(column('Ideas')).getByText('Session dashboard'))
+
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Launch session' })).toBeDisabled()
+  })
+
   it('registers a discovered local project through the quiet onboarding flow', async () => {
     const { user, storage } = mount()
 

@@ -141,14 +141,13 @@ export function humanPromptText(record: TranscriptRecord): string | null {
   return plain ? plain : null
 }
 
-const COMMAND_NAME = /<command-name>\s*(\/[^<\s]+)\s*<\/command-name>/i
-const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/i
+const NATIVE_COMMAND = /^\s*<command-name>\s*(\/[^<\s]+)\s*<\/command-name>\s*<command-message>[\s\S]*?<\/command-message>\s*(?:<command-args>([\s\S]*?)<\/command-args>)?\s*$/i
 
 /** Slash commands arrive wrapped in tags; render them the way the user typed them. */
 export function plainPromptText(text: string): string {
-  const command = text.match(COMMAND_NAME)
+  const command = text.match(NATIVE_COMMAND)
   if (command?.[1]) {
-    const args = text.match(COMMAND_ARGS)?.[1]?.trim() ?? ''
+    const args = command[2]?.trim() ?? ''
     return args ? `${command[1]} ${args}` : command[1]
   }
   return text.replace(/<[a-z-]+-reminder>[\s\S]*?<\/[a-z-]+-reminder>/gi, '').trim()

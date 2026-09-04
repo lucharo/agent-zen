@@ -45,7 +45,7 @@ export class AgentZenBridgeService {
   constructor(private readonly dependencies: BridgeServiceDependencies) {
     this.backends = dependencies.backends ?? [defaultCodexBackend(dependencies)]
     this.launchCoordinator = new LaunchCoordinator({
-      getSessions: () => this.sessions(),
+      getSessions: () => this.sessions(true),
       getFocus: async () => (await dependencies.settings.read()).focus,
       launch: (request) => this.launchController().launch(request),
     })
@@ -160,14 +160,18 @@ export class AgentZenBridgeService {
     await Promise.all(this.backends.map((backend) => backend.close()))
   }
 
-  private async sessions(): Promise<AgentSession[]> {
+  private async sessions(failClosed = false): Promise<AgentSession[]> {
     const observed = await Promise.all(this.backends.map(async (backend) => {
       try {
         const sessions = await backend.observe()
         this.backendFailures.delete(backend.agent)
         return sessions
       } catch (error) {
-        this.backendFailures.set(backend.agent, errorMessage(error))
+        const message = errorMessage(error)
+        this.backendFailures.set(backend.agent, message)
+        if (failClosed) {
+          throw new Error(`Could not verify active ${AGENT_LABELS[backend.agent]} sessions: ${message}`)
+        }
         return []
       }
     }))
