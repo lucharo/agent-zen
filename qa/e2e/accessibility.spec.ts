@@ -91,4 +91,6 @@ test('primary surfaces meet the WCAG 2.2 AA axe rules', async ({ page }) => {
   const darkSettings = page.getByRole('dialog', { name: 'Settings' })
   await expect(darkSettings).toHaveCSS('opacity', '1')
   await expectAccessible(page, 'Settings dark theme')
+
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
