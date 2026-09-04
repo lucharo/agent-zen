@@ -56,6 +56,7 @@ export async function runExplainCommand(
   }
   io.write([
     `Session: ${session.title}`,
+    `Agent: ${AGENT_LABELS[session.agent]}`,
     `ID: ${session.id}`,
     `Stage: ${stageLabel(session)}`,
     `Reason: ${stageReasonLabel(session.classification.reason)} (${session.classification.reason})`,

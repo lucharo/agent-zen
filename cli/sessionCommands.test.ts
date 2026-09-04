@@ -142,6 +142,14 @@ describe('session CLI commands', () => {
     })
   })
 
+  test('identifies the agent in human-readable session explanations', async () => {
+    const { output, commandIo } = io()
+
+    await runExplainCommand(['Claude backend'], commandIo)
+
+    expect(output.join('')).toContain('Agent: Claude Code')
+  })
+
   test('reports aggregate child attention from the canonical classification', async () => {
     const base = snapshot()
     const root = base.sessions.find((session) => session.id === 'sess-control-plane')!
