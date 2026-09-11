@@ -55,12 +55,14 @@ identity for a local dry run of the packaging.
 
 The repository doubles as a Homebrew tap: `Casks/agent-zen.rb` points at the DMG
 attached to the GitHub Release for the current version. Because the repository
-is private, Homebrew clones the tap over SSH and downloads the DMG through the
+is private, Homebrew clones the tap over HTTPS (with the git credential helper `gh auth setup-git` installs) and downloads the DMG through the
 GitHub API with your token:
 
 ```bash
-export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)"
-brew tap lucharo/agent-zen git@github.com:lucharo/agent-zen.git
+gh auth setup-git                                     # once: git clones the private tap over HTTPS with gh's token
+export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)"   # the DMG is a private release asset
+brew trust --tap lucharo/agent-zen && brew trust --cask lucharo/agent-zen/agent-zen   # Homebrew 6 loads no third-party tap it has not been told to trust
+brew tap lucharo/agent-zen https://github.com/lucharo/agent-zen.git
 brew install --cask agent-zen
 brew upgrade --cask agent-zen   # after a new release
 ```
