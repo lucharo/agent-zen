@@ -1,6 +1,6 @@
 # ADR-0007: Native shell and distribution ladder
 
-- Status: Accepted, personal development build verified; notarisation pending
+- Status: Accepted; v0.1.0 notarised Developer ID release published 2026-09-11
 - Date: 2026-08-06
 - Updated: 2026-09-04
 

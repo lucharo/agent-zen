@@ -75,8 +75,8 @@ bun run release:macos -- --publish
 
 It creates GitHub Release `v<version>` if missing, uploads the PKG and DMG,
 rewrites the cask's `version`, `sha256` and asset id, and prints the install
-command. Commit the cask change so `brew upgrade` sees it. The cask is a
-placeholder (version 0.0.0) until the first publish.
+command. Commit the cask change so `brew upgrade` sees it. The first publish was
+v0.1.0 on 2026-09-11; every later publish rewrites the same three fields.
 
 ## Managed paths and lifecycle
 
