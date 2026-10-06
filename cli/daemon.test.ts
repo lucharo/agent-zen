@@ -127,6 +127,24 @@ describe('Agent Zen daemon contract', () => {
       codexConnected: false,
       claudeConnected: false,
     })
+    // Per-agent rows win over the aggregate line: Codex down while Claude Code is up.
+    expect(parseDaemonHealth({
+      connection: { connected: true },
+      generatedAt: '2026-09-28T09:00:00.000Z',
+      protocolVersion: 11,
+      runtime: { pid: 4217, version: '0.1.0' },
+      backends: [
+        { agent: 'codex', connected: false },
+        { agent: 'claude', connected: true },
+      ],
+    })).toEqual({
+      reachable: true,
+      pid: 4217,
+      version: '0.1.0',
+      protocolVersion: 11,
+      codexConnected: false,
+      claudeConnected: true,
+    })
     expect(parseDaemonHealth({ connection: { connected: true } })).toEqual({
       reachable: false,
       pid: null,

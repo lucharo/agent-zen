@@ -156,7 +156,7 @@ describe('AgentZenSettingsStore', () => {
       showCollapsedLanes: false,
       highlightNeedsYou: false,
       constrainBoardWidth: false,
-      visibleAgents: ['codex', 'claude'],
+      visibleAgents: ['claude'],
     })
 
     const reloaded = new AgentZenSettingsStore({ settingsPath, defaultProjectRoots: [root] })
@@ -175,7 +175,7 @@ describe('AgentZenSettingsStore', () => {
       showCollapsedLanes: false,
       highlightNeedsYou: false,
       constrainBoardWidth: false,
-      visibleAgents: ['codex', 'claude'],
+      visibleAgents: ['claude'],
     })
     expect(await reloaded.registeredProjects()).toMatchObject([
       { directory: expect.stringContaining('/lucharo/demo'), repository: 'lucharo/demo' },

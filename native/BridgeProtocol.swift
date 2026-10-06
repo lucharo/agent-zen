@@ -78,7 +78,8 @@ private struct BridgeSnapshotSummary: Decodable {
 }
 
 struct BridgeStageCounts: Equatable {
-    let visible: Int
+    /// Every live session from every agent, subagents included; the board may hide some.
+    let live: Int
     let running: Int
     let reviewing: Int
     let wrapping: Int
@@ -124,7 +125,7 @@ func bridgeStageCounts(data: Data?) -> BridgeStageCounts? {
         }
     }
     return BridgeStageCounts(
-        visible: snapshot.sessions.count,
+        live: snapshot.sessions.count,
         running: running,
         reviewing: reviewing,
         wrapping: wrapping

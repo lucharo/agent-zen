@@ -31,7 +31,7 @@ import {
   type ClassifiedAgentSession,
   type SessionStage,
 } from '@/domain/stage'
-import type { LogbookNote, Project } from '@/domain/types'
+import { AGENT_KINDS, type AgentKind, type LogbookNote, type Project } from '@/domain/types'
 import {
   loadState,
   resolveTheme,
@@ -54,6 +54,8 @@ export interface AgentZenValue {
   readonly sessions: readonly ClassifiedAgentSession[]
   readonly board: readonly BoardSession[]
   readonly activeCount: number
+  /** Root sessions of each hidden agent that need you, so hiding an agent never silences it. */
+  readonly hiddenNeedsYou: Readonly<Record<AgentKind, number>>
   readonly launchAvailability: ReturnType<typeof launchAvailability>
   /** Per-agent connection state from the bridge; empty for the fixture source. */
   readonly backends: readonly BridgeBackendStatus[]
@@ -291,6 +293,12 @@ export function AgentZenProvider({
     // Focus counts every agent; the visibility toggle only decides what is drawn.
     const activeCount = activeSessionCount(live, stageOf)
     const visible = live.filter((s) => state.visibleAgents.includes(s.agent))
+    const hiddenNeedsYou = Object.fromEntries(AGENT_KINDS.map((agent) => [
+      agent,
+      state.visibleAgents.includes(agent)
+        ? 0
+        : live.filter((s) => s.agent === agent && !s.parentSessionId && s.classification.needsUser).length,
+    ])) as Record<AgentKind, number>
     const board: BoardSession[] = visible
       .filter((s) => !s.parentSessionId)
       .map((session) => ({
@@ -321,6 +329,7 @@ export function AgentZenProvider({
       sessions: sessions.filter((s) => state.visibleAgents.includes(s.agent)),
       board,
       activeCount,
+      hiddenNeedsYou,
       launchAvailability: launchAvailability(
         activeCount,
         state.activeLimitEnabled,

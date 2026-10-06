@@ -15,7 +15,7 @@ import { Toolbar } from '@/components/Toolbar'
 import styles from './App.module.css'
 
 export function App() {
-  const { state, dispatch, sourceReady, connectionError } = useAgentZen()
+  const { state, dispatch, sessions, sourceReady, connectionError } = useAgentZen()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -33,6 +33,14 @@ export function App() {
   }, [])
   const openIdea = useCallback((id: string) => setDetail({ kind: 'idea', id }), [])
   const openCapture = useCallback(() => setCaptureOpen(true), [])
+
+  // A session that ends or is hidden closes its sheet; clear the target too, or shortcuts stay blocked.
+  const detailMissing = detail?.kind === 'session'
+    ? !sessions.some((session) => session.id === detail.id)
+    : detail?.kind === 'idea' && !state.ideas.some((idea) => idea.id === detail.id)
+  useEffect(() => {
+    if (detailMissing) setDetail(null)
+  }, [detailMissing])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

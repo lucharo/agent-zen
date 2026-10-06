@@ -19,9 +19,18 @@ This is not a throughput dashboard. It is an active shelf for choosing what to c
 
 Finished or archived sessions leave the active board. There is deliberately no Done column competing for attention.
 
-## Install the CLI and daemon
+## Install
 
-Agent Zen ships as one local app on `http://localhost:5274/`. The CLI installs a user LaunchAgent, keeps the service alive, and starts it again at login.
+**The Mac app.** The notarised app installs from this repository's private Homebrew tap; [docs/macos-release.md](docs/macos-release.md#homebrew-install-private-repository-tap) has the one-time token and trust steps.
+
+```sh
+brew tap lucharo/agent-zen https://github.com/lucharo/agent-zen.git
+brew install --cask agent-zen
+```
+
+The app serves its window from `http://127.0.0.1:5275`. When a CLI daemon speaking the same bridge protocol runs on 5274, the app reads through it; otherwise the app starts its own bridge. Ideas and Logbook notes are browser storage, so the app window and a browser tab on 5274 keep separate copies.
+
+**The CLI and daemon.** From a checkout, the CLI installs a user LaunchAgent that serves the same app on `http://localhost:5274/`, keeps it alive, and starts it again at login.
 
 ```sh
 bun install
@@ -47,7 +56,7 @@ agent-zen daemon stop
 
 `sessions` and `explain` read the same classified daemon snapshot as the board. Both include the current explicit goal, when one exists. `explain` also reports the stable stage reason, so a CLI check and the visible column cannot silently use different classifiers.
 
-After updating the repository, run `bun run install:cli` again followed by `agent-zen daemon restart`.
+After updating the repository, run `bun run install:cli` again followed by `agent-zen daemon restart`. Do the same after `brew upgrade --cask agent-zen` if you also run the daemon. Otherwise the app, finding a different bridge protocol on 5274, starts its own bridge and a second Codex app-server, and `agent-zen sessions` keeps reporting the old daemon.
 
 ## Where the idea came from
 
@@ -88,7 +97,7 @@ The repository also contains a small AppKit and WKWebView shell. It launches qui
 bun run build:macos
 ```
 
-On the personal Mac, an Apple Development-signed build now cold-launches from `/Applications`, connects its embedded bridge, and exposes the window, menu-bar companion, `Command-N`, and `Command-,`. `bun run release:macos` produces that hardened, notarised Developer ID build as a stapled PKG (and optional DMG) once Developer ID certificates are in the keychain; see [docs/macos-release.md](docs/macos-release.md). Until then the browser and daemon remain the portable distribution. See [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).
+`bun run release:macos` produces the hardened, notarised Developer ID build as a stapled PKG and DMG. v0.1.0 shipped that way on 2026-09-11 and installs through the cask above. See [docs/macos-release.md](docs/macos-release.md) and [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).
 
 ## Development
 

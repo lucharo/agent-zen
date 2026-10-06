@@ -1,6 +1,6 @@
 # ADR-0002: Native Codex connection with cross-process observation
 
-- Status: Accepted
+- Status: Accepted; partly superseded by [ADR-0009](0009-claude-code-observer-and-agent-backends.md)
 - Date: 2026-08-06
 
 ## Outcome

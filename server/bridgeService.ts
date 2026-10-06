@@ -40,6 +40,10 @@ export interface BridgeServiceDependencies {
 export class AgentZenBridgeService {
   private readonly backends: readonly AgentBackend[]
   private readonly backendFailures = new Map<AgentKind, string>()
+  /** Each backend's last successful observation, kept on the board while that backend is failing. */
+  private readonly lastObserved = new Map<AgentKind, AgentSession[]>()
+  /** Agents that have connected at least once, so losing one is an alert and never having one is not. */
+  private readonly everConnected = new Set<AgentKind>()
   private readonly launchCoordinator: LaunchCoordinator
 
   constructor(private readonly dependencies: BridgeServiceDependencies) {
@@ -88,7 +92,7 @@ export class AgentZenBridgeService {
     return {
       protocolVersion: BRIDGE_PROTOCOL_VERSION,
       generatedAt: new Date(this.now()).toISOString(),
-      connection: aggregateConnection(backends),
+      connection: aggregateConnection(backends, this.everConnected),
       backends,
       sessions: classifiedSessions,
       focus: {
@@ -106,7 +110,7 @@ export class AgentZenBridgeService {
     const backends = this.backendStatuses()
     return {
       protocolVersion: BRIDGE_PROTOCOL_VERSION,
-      connection: aggregateConnection(backends),
+      connection: aggregateConnection(backends, this.everConnected),
       backends,
       generatedAt: new Date(this.now()).toISOString(),
     }
@@ -157,7 +161,10 @@ export class AgentZenBridgeService {
   }
 
   async close(): Promise<void> {
-    await Promise.all(this.backends.map((backend) => backend.close()))
+    // Every backend gets to close even when another one fails to.
+    const results = await Promise.allSettled(this.backends.map((backend) => backend.close()))
+    const failure = results.find((result) => result.status === 'rejected')
+    if (failure) throw failure.reason
   }
 
   private async sessions(failClosed = false): Promise<AgentSession[]> {
@@ -165,6 +172,7 @@ export class AgentZenBridgeService {
       try {
         const sessions = await backend.observe()
         this.backendFailures.delete(backend.agent)
+        this.lastObserved.set(backend.agent, sessions)
         return sessions
       } catch (error) {
         const message = errorMessage(error)
@@ -172,7 +180,8 @@ export class AgentZenBridgeService {
         if (failClosed) {
           throw new Error(`Could not verify active ${AGENT_LABELS[backend.agent]} sessions: ${message}`)
         }
-        return []
+        // A failed poll is not proof the work stopped: keep what was last seen, with the failure beside it.
+        return this.lastObserved.get(backend.agent) ?? []
       }
     }))
     return observed
@@ -182,7 +191,7 @@ export class AgentZenBridgeService {
   }
 
   private backendStatuses(): BackendStatus[] {
-    return this.backends.map((backend) => {
+    const statuses = this.backends.map((backend): BackendStatus => {
       const failure = this.backendFailures.get(backend.agent)
       if (!failure) return backend.status()
       return {
@@ -193,6 +202,8 @@ export class AgentZenBridgeService {
         error: failure,
       }
     })
+    for (const status of statuses) if (status.connected) this.everConnected.add(status.agent)
+    return statuses
   }
 
   /** Launches are Codex-only: it is the one agent with a supported launch surface. */
@@ -202,13 +213,20 @@ export class AgentZenBridgeService {
     return controller
   }
 
+  /**
+   * Only read-only backends are observed here: a session one of them owns is
+   * refused, and anything else goes to Codex, whose controller checks its own
+   * ownership before it observes, so a control call never observes Codex twice.
+   */
   private async controllerFor(sessionId: string): Promise<SessionController> {
-    const session = (await this.sessions()).find((candidate) => candidate.id === sessionId)
-    // An unknown id is still routed to Codex so its own ownership error stays authoritative.
-    const backend = this.backendFor(session?.agent ?? 'codex')
-    if (!backend) throw new Error('Session not found.')
-    if (!backend.controller) throw new Error('This session is read-only in Agent Zen.')
-    return backend.controller
+    for (const backend of this.backends) {
+      if (backend.controller) continue
+      const sessions = await backend.observe().catch(() => this.lastObserved.get(backend.agent) ?? [])
+      if (sessions.some((session) => session.id === sessionId)) throw new ReadOnlySessionError()
+    }
+    const controller = this.backendFor('codex')?.controller
+    if (!controller) throw new Error('Session not found.')
+    return controller
   }
 
   private backendFor(agent: AgentKind): AgentBackend | null {
@@ -217,6 +235,14 @@ export class AgentZenBridgeService {
 
   private now(): number {
     return this.dependencies.now?.() ?? Date.now()
+  }
+}
+
+/** A control call for a session Agent Zen only observes. */
+export class ReadOnlySessionError extends Error {
+  constructor() {
+    super('This session is read-only in Agent Zen.')
+    this.name = 'ReadOnlySessionError'
   }
 }
 
@@ -239,7 +265,10 @@ function defaultCodexBackend(dependencies: BridgeServiceDependencies): AgentBack
  * One status line for surfaces that predate multiple agents. Connected when any
  * backend is; the Codex line leads because it is the only controllable one.
  */
-export function aggregateConnection(backends: readonly BackendStatus[]): BridgeConnectionStatus {
+export function aggregateConnection(
+  backends: readonly BackendStatus[],
+  everConnected: ReadonlySet<AgentKind> = new Set(),
+): BridgeConnectionStatus {
   const connected = backends.filter((backend) => backend.connected)
   if (connected.length === 0) {
     const lead = backends.find((backend) => backend.agent === 'codex') ?? backends[0]
@@ -252,11 +281,16 @@ export function aggregateConnection(backends: readonly BackendStatus[]): BridgeC
     }
   }
   const userAgents = connected.flatMap((backend) => (backend.userAgent ? [backend.userAgent] : []))
+  // Codex is the only agent that can launch, so losing it still raises the global alert while
+  // Claude is up; a Mac that never had Codex stays quiet. Other backends' problems stay in
+  // their own Settings row.
+  const codex = backends.find((backend) => backend.agent === 'codex')
+  const codexLost = codex && !codex.connected && everConnected.has('codex')
   return {
     connected: true,
     label: connected.map((backend) => backend.label).join(' / '),
     userAgent: userAgents.length > 0 ? userAgents.join(' / ') : null,
-    error: null,
+    error: codexLost ? codex.error ?? `${codex.label}.` : null,
   }
 }
 

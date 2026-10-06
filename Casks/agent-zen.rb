@@ -6,7 +6,7 @@
 #   brew tap lucharo/agent-zen https://github.com/lucharo/agent-zen.git
 #   brew install --cask agent-zen
 # `scripts/release-macos.sh --publish` rewrites version, sha256 and the asset
-# id on every release. Values below are placeholders until the first publish.
+# id on every release. The first publish was v0.1.0 on 2026-09-11.
 cask "agent-zen" do
   version "0.1.0"
   sha256 "252856923b2455efa5ee97cafe0fb480e65627000aa4d4c9a373ec25d57ef840"

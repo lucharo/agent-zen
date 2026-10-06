@@ -153,7 +153,7 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
 
         let menu = NSMenu(title: "Agent Zen")
-        statusSummaryItem = menu.addItem(withTitle: "Connecting to Codex…", action: nil, keyEquivalent: "")
+        statusSummaryItem = menu.addItem(withTitle: "Connecting to your agents…", action: nil, keyEquivalent: "")
         statusSummaryItem.isEnabled = false
         runningStatusItem = addStageStatusItem(
             to: menu,
@@ -281,7 +281,7 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         do {
             try launchBridge(upstreamPort: upstreamPort, frontendBuildId: frontendBuildId)
         } catch {
-            showLaunchFailure("Could not start the local Codex bridge: \(error.localizedDescription)")
+            showLaunchFailure("Could not start the local agent bridge: \(error.localizedDescription)")
             return
         }
 
@@ -299,7 +299,7 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 Thread.sleep(forTimeInterval: 0.1)
             }
             DispatchQueue.main.async { [weak self] in
-                self?.showLaunchFailure("The local Codex bridge did not become ready. See ~/.agent-zen/native-bridge.log.")
+                self?.showLaunchFailure("The local agent bridge did not become ready. See ~/.agent-zen/native-bridge.log.")
             }
         }
     }
@@ -413,7 +413,7 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 guard let self else { return }
                 self.statusRefreshGate.finish()
                 if let counts {
-                    self.statusSummaryItem.title = "\(counts.visible) visible session\(counts.visible == 1 ? "" : "s")"
+                    self.statusSummaryItem.title = "\(counts.live) live session\(counts.live == 1 ? "" : "s")"
                     self.runningStatusItem.title = "Running  \(counts.running)"
                     self.reviewingStatusItem.title = "Reviewing  \(counts.reviewing)"
                     self.wrappingStatusItem.title = "Wrapping up  \(counts.wrapping)"

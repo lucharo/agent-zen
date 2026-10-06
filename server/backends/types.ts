@@ -19,9 +19,13 @@ export interface AgentBackend {
   readonly agent: AgentKind
   /** Establish whatever the backend needs. Must not throw; failures show up in `status()`. */
   start(): Promise<void>
-  /** Recomputed on every call so a reconnect is visible on the next snapshot. */
+  /** The state as of the last `start()` or `observe()`, so health checks never trigger work. */
   status(): BackendStatus
-  /** Read-only view of every session this backend can currently see, ended ones included. */
+  /**
+   * Read-only view of every session this backend can currently see, ended ones
+   * included. Throws when the live workload cannot be established; the bridge
+   * then keeps the last good view on the board and refuses launches.
+   */
   observe(): Promise<AgentSession[]>
   /** `null` for backends Agent Zen only observes. */
   readonly controller: SessionController | null

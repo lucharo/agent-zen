@@ -107,8 +107,20 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.09);
 }
 
-.segment:disabled {
+.segment:is(:disabled, [aria-disabled='true']) {
   cursor: default;
+}
+
+/* A hidden agent with a session waiting on you keeps a dot on its toggle. */
+.attention {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--focus-ink);
+  box-shadow: 0 0 0 1.5px var(--surface-selected);
 }
 
 /* --- Search / palette entry --------------------------------------------- */
@@ -280,6 +292,8 @@
     justify-content: center;
   }
 
+  /* "3 / 3" alone still reads as the focus count; the word costs the capture button its room. */
+  .limitButton[data-enabled='true'] span,
   .themeButton span,
   .toolbar[data-shortcuts='true'] .contextShortcut,
   .toolbar[data-shortcuts='true'] .addShortcut {

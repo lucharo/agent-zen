@@ -18,17 +18,17 @@ On macOS, the observer asks `lsof` which rollout JSONL files are currently held 
 
 - [ADR-0002](../adr/0002-native-codex-connection.md) — accepted integration boundary and rejected alternatives.
 - [Codex observer](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — SQLite and rollout observation.
-- [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — observation and App Server control composition.
+- [Codex backend](https://github.com/lucharo/agent-zen/blob/main/server/codex/codexBackend.ts) — observation and App Server control composition behind the shared backend contract.
 
-_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: Codex CLI 0.147.0 local stores_
+_Created: 2026-08-06 · Updated: 2026-09-28 · Verified: 2026-08-10 · Scope/version: Codex CLI 0.147.0 local stores_
 
 ## How does Agent Zen connect to Claude Code?
 
-**Short answer:** It reads the stock Claude Code CLI's live session registry, transcripts and task files. It does not install hooks, alter settings, wrap the command, or require ACP.
+**Short answer:** It reads the stock Claude Code CLI's live session registry and transcripts, which Claude Code writes by default with nothing to enable. It does not install hooks, alter settings, wrap the command, or require ACP.
 
-`~/.claude/sessions/<pid>.json` supplies live membership, cwd, version, activity and waiting state. Agent Zen verifies the pid still belongs to a Claude process, then locates the matching JSONL transcript under `~/.claude/projects` for titles, prompts, model, branch and workflow hints. A matching directory under `~/.claude/tasks` becomes the current plan. Every Claude session is read-only; when it needs input, Agent Zen points back to the terminal where it is running.
+`~/.claude/sessions/<pid>.json` supplies live membership, cwd, version, activity and waiting state (`busy`, `waiting`, `idle`, and `shell` for an idle prompt with a background shell). One `ps` call confirms each pid is still the Claude process that wrote the file, by name and start time. A session running in two processes at once, such as the desktop app and a CLI `--resume`, still gets one card, taken from the process waiting on you, then a busy one, then the newest. The newest matching transcript under `~/.claude/projects` supplies titles, prompts, model, branch and workflow hints. Only prompts that reach the model start a turn: `/model`-style local commands, background-task notices, compaction summaries and interruption markers do not. The task list the agent keeps with `TaskCreate` and `TaskUpdate` becomes the current plan; from 2.1.282 Claude Code leaves `~/.claude/tasks` empty, so those files are only a fallback for older builds. Typing `/wrapup`, or the agent loading the wrapup skill after you say "wrap up", puts the card in Wrapping up for the rest of the session, and Wrapped up once it is idle. Every Claude session is read-only; when it needs input, Agent Zen points back to the terminal where it is running.
 
-These files are an observed Claude Code 2.1.259 contract rather than a public control API. Parsing is isolated behind the Claude backend so a format change can make Claude unavailable without hiding Codex sessions.
+These files are an observed Claude Code contract (2.1.259 to 2.1.282) rather than a public control API. Parsing is isolated behind the Claude backend, so a format change can make Claude unavailable without hiding Codex sessions. If the process check fails, the board keeps the last good Claude view and launches are refused until it can count again.
 
 ### Sources
 
@@ -37,7 +37,7 @@ These files are an observed Claude Code 2.1.259 contract rather than a public co
 - [Registry reader](https://github.com/lucharo/agent-zen/blob/main/server/claude/registry.ts) — live process membership and status.
 - [Claude regressions](https://github.com/lucharo/agent-zen/blob/main/server/claude/claudeBackend.test.ts) — registry, transcript, task and composition coverage.
 
-_Created: 2026-09-04 · Updated: 2026-09-04 · Verified: 2026-09-04 · Scope/version: Claude Code 2.1.259 local stores_
+_Created: 2026-09-04 · Updated: 2026-10-06 · Verified: 2026-10-06 · Scope/version: Claude Code 2.1.259 to 2.1.282 local stores_
 
 ## Which native Codex requests can Agent Zen answer?
 
@@ -50,11 +50,11 @@ Unknown App Server request types remain visibly blocked and keep **Interrupt** a
 ### Sources
 
 - [App Server client](https://github.com/lucharo/agent-zen/blob/main/server/codex/appServerClient.ts) — JSON-RPC request and response transport.
-- [Request mapping](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — supported native requests, exact permission profile, and connection ownership.
+- [Request mapping](https://github.com/lucharo/agent-zen/blob/main/server/codex/codexBackend.ts) — supported native requests, exact permission profile, and connection ownership.
 - [Centred request UI](https://github.com/lucharo/agent-zen/blob/main/src/components/DetailSheet.tsx) — question, approval, permission, fallback, and interrupt surfaces.
 - [Request regressions](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.test.ts) — native response payloads and permission scope.
 
-_Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10 · Scope/version: Codex CLI 0.147.0 App Server_
+_Created: 2026-08-10 · Updated: 2026-09-28 · Verified: 2026-08-10 · Scope/version: Codex CLI 0.147.0 App Server_
 
 ## What survives an Agent Zen daemon restart?
 
@@ -68,10 +68,10 @@ The App Server connection and its owned-thread map are intentionally in memory. 
 
 - [Daemon CLI](https://github.com/lucharo/agent-zen/blob/main/cli/index.ts) — persistence repair and authenticated health checks.
 - [Daemon contract tests](https://github.com/lucharo/agent-zen/blob/main/cli/daemon.test.ts) — missing-plist and disabled-override regression.
-- [Bridge ownership](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — connection-generation ownership map.
+- [Codex ownership](https://github.com/lucharo/agent-zen/blob/main/server/codex/codexBackend.ts) — connection-generation ownership map.
 - [Ownership regression](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.test.ts) — reconnect turns an owned session into external observation.
 
-_Created: 2026-08-10 · Updated: 2026-09-04 · Verified: 2026-09-04_
+_Created: 2026-08-10 · Updated: 2026-09-28 · Verified: 2026-09-04_
 
 ## How does Agent Zen know whether a session has a goal?
 
@@ -99,13 +99,13 @@ _Created: 2026-08-11 · Updated: 2026-08-11 · Verified: 2026-08-11_
 | Running | A default-mode turn is active outside review and wrap-up. |
 | Needs you | Any root session has unresolved native input, including input requested by a child agent. The card still shows its workflow phase. |
 | Reviewing | An explicitly invoked review turn is active. Completion returns it to Idle or Needs you. |
-| Wrapping up | An explicitly invoked `$wrapup` or `/wrapup` turn is active. |
+| Wrapping up | An explicitly invoked `$wrapup` or `/wrapup` turn is active. In Claude Code the wrap-up also starts when the agent loads the wrapup skill, and it holds for the rest of the session. |
 | Wrapped up | The wrap-up turn completed with no unresolved request while the process or thread remains open. An aborted wrap-up returns to Idle. |
 | Off board | The owning process closes; a Codex thread also leaves when archived. |
 
 Needs you always wins the visible lane while the card keeps the underlying workflow phase. Empty or manually collapsed Kanban lanes can remain as labelled rails or be hidden in Settings, and the full-lane yellow Needs you treatment can be disabled. Grid view can group by state and omits empty groups.
 
-Mentioning a skill in prose does not move the card. Neither does reading, searching, or discussing a `SKILL.md` path inside an agent tool call. An explicit `$wrapup` or `/wrapup` token may start the first request line or follow a short acknowledgement on it; any following words are ordinary command arguments, so `$wrapup pls` is not a separate command. Quoted, negated, or explanatory uses remain discussion rather than invocation. The exact Markdown skill link may also appear on that first request line, including after the app's context envelope. Natural-language requests and plan prose remain plan/activity-derived until the user explicitly invokes the workflow. Each new `task_started` record resets the turn-specific review/wrap-up hint and current plan.
+Mentioning a skill in prose does not move the card. Neither does reading, searching, or discussing a `SKILL.md` path inside an agent tool call. An explicit `$wrapup` or `/wrapup` token may start the first request line or follow a short acknowledgement on it; any following words are ordinary command arguments, so `$wrapup pls` is not a separate command. Quoted, negated, or explanatory uses remain discussion rather than invocation. The exact Markdown skill link may also appear on that first request line, including after the app's context envelope. Natural-language requests and plan prose remain plan/activity-derived until the workflow is explicitly invoked; in Claude Code, the agent loading the wrapup or a review skill counts as that invocation. In Codex, each new `task_started` record resets the turn-specific review/wrap-up hint and current plan. In Claude Code, a review hint lasts for its turn, a wrap-up holds for the rest of the session, and the plan is the session's current task list.
 
 Agent Zen never turns a bare marker into invented evidence. If no PR, visual result, note count, or wrap-up check count was observed, the card says only “Review in progress” or “Wrapup in progress”.
 
@@ -113,10 +113,10 @@ Agent Zen never turns a bare marker into invented evidence. If no PR, visual res
 
 - [Stage derivation](https://github.com/lucharo/agent-zen/blob/main/src/domain/stage.ts) — precedence and plan predicates.
 - [Rollout parser](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.ts) — observed current-turn lifecycle, plan, review, and wrap-up extraction.
-- [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — owned `turn/started` and plan overlays use the same stage model.
+- [Codex backend](https://github.com/lucharo/agent-zen/blob/main/server/codex/codexBackend.ts) — owned `turn/started` and plan overlays use the same stage model.
 - [Stage tests](https://github.com/lucharo/agent-zen/blob/main/server/codex/rollout.test.ts) — marker persistence and precedence.
 
-_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04 · Scope/version: Agent Zen 0.1.0, protocol 11_
+_Created: 2026-08-06 · Updated: 2026-10-06 · Verified: 2026-09-04 · Scope/version: Agent Zen 0.1.0, protocol 11_
 
 ## Why did a completed `$wrapup` session remain in Idle?
 
@@ -150,7 +150,7 @@ _Created: 2026-08-10 · Updated: 2026-08-25 · Verified: 2026-08-25 · Scope/ver
 
 ## Does `agent-zen` have CLI verbs and commands?
 
-**Short answer:** Yes. `agent-zen sessions` lists the same live root sessions shown on the board, and `agent-zen explain <session-id-or-title-prefix>` reports one session's canonical stage, reason, attention state, plan position, and goal. Add `--json` for machine-readable output.
+**Short answer:** Yes. `agent-zen sessions` lists every live root session, including agents hidden on the board, and `agent-zen explain <session-id-or-title-prefix>` reports one session's canonical stage, reason, attention state, plan position, and goal. Add `--json` for machine-readable output.
 
 The remaining top-level commands are `open`, `daemon`, `version`, and `help`. `agent-zen daemon` provides `start`, `status`, `restart`, `stop`, `logs`, and `run`; `status` also accepts `--json`. The CLI reads the installed daemon snapshot, so it does not maintain a second classifier or inspect rollout files independently.
 
@@ -160,7 +160,7 @@ The remaining top-level commands are `open`, `daemon`, `version`, and `help`. `a
 - [Session commands](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.ts) — human-readable and JSON list and explanation output.
 - [CLI regressions](https://github.com/lucharo/agent-zen/blob/main/cli/sessionCommands.test.ts) — canonical stage, reason, goal, and ambiguous-prefix handling.
 
-_Created: 2026-08-11 · Updated: 2026-08-25 · Verified: 2026-08-25 · Scope/version: Agent Zen 0.1.0, protocol 10_
+_Created: 2026-08-11 · Updated: 2026-09-28 · Verified: 2026-09-28 · Scope/version: Agent Zen 0.1.0, protocol 11_
 
 ## Which Codex sessions count as active, and why did idle ones disappear?
 
@@ -196,7 +196,7 @@ _Created: 2026-08-06 · Updated: 2026-08-06 · Verified: 2026-08-06_
 
 **Short answer:** The bridge applies Agent Zen-owned Codex events immediately, observes both backends on every snapshot, and the browser requests a fresh snapshot every second. A separate 1-second UI clock updates elapsed-time labels.
 
-For Codex, each snapshot inventories rollout files held open by live processes, queries those exact thread ids from SQLite, and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for lifecycle, plan, stage-marker, substantive-activity, and unresolved-input anchors. For Claude Code, each snapshot reads the small live registry, incrementally consumes only newly appended transcript bytes, and reads the current task files.
+For Codex, each snapshot inventories rollout files held open by live processes, queries those exact thread ids from SQLite, and examines their rollouts. Unchanged rollout files are reused by size and modification time. Changed files are tailed up to 1 MiB; for long active turns, the observer searches backwards for lifecycle, plan, stage-marker, substantive-activity, and unresolved-input anchors. For Claude Code, each snapshot reads the small live registry, incrementally consumes only newly appended transcript bytes, and folds the transcript's `TaskCreate`/`TaskUpdate` calls into the plan, falling back to task files for older builds.
 
 Codex display names come from the supported paginated `thread/list` catalogue and are matched to observed live thread ids. This is where Codex Desktop exposes sidebar renames in current builds; SQLite may still have `name = NULL`. If the catalogue has no explicit name, Agent Zen falls back to the persisted title or preview. Claude display names come from its custom title, AI title, first human prompt, then registry name.
 
@@ -211,7 +211,7 @@ Snapshots also carry a protocol version. If the dashboard and bridge are from di
 - [Claude transcript reader](https://github.com/lucharo/agent-zen/blob/main/server/claude/transcript.ts) — incremental transcript parsing and title precedence.
 - [App state provider](https://github.com/lucharo/agent-zen/blob/main/src/state/store.tsx) — 1-second display clock.
 
-_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
+_Created: 2026-08-06 · Updated: 2026-10-06 · Verified: 2026-09-04_
 
 ## Are worktrees discovered and linked to their main project?
 
@@ -256,9 +256,9 @@ Plans, stage, project identity, model, branch, and worktree remain agent-derived
 - [ADR-0005](../adr/0005-read-only-board-and-quiet-settings.md) — read-only board decision.
 - [Kanban view](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.tsx) — stage presentation without mutation controls.
 - [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — root-only presentation without mutation controls.
-- [Bridge service](https://github.com/lucharo/agent-zen/blob/main/server/bridgeService.ts) — connection-scoped steer, interrupt, and request-response controls.
+- [Codex backend](https://github.com/lucharo/agent-zen/blob/main/server/codex/codexBackend.ts) — connection-scoped steer, interrupt, and request-response controls.
 
-_Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
+_Created: 2026-08-06 · Updated: 2026-09-28 · Verified: 2026-09-04_
 
 ## Why can a session say “Outside a Git project”?
 
@@ -302,11 +302,11 @@ _Created: 2026-08-25 · Updated: 2026-08-25 · Verified: 2026-08-25 · Scope/ver
 
 ## Where do Ideas and Logbook notes live, and why were mock ideas visible?
 
-**Short answer:** Ideas and Logbook notes live only in browser localStorage under `agent-zen.state.v1`. Interface preferences and focus settings live in `~/.agent-zen/settings.json`, so they survive browser sessions and are shared by Agent Zen windows.
+**Short answer:** Ideas and Logbook notes live only in browser localStorage under `agent-zen.state.v1`, so the Mac app window (port 5275) and a browser tab on the daemon (port 5274) keep separate copies. Interface preferences and focus settings live in `~/.agent-zen/settings.json`, so they survive browser sessions and are shared by Agent Zen windows.
 
 The browser data schema is version 4 even though the storage key retains its old name so existing data can be migrated. Migration removes only the exact prototype IDs; user-created ideas and notes are preserved. Older browser-owned choices are copied once into the bridge, then browser storage is reduced to a project cache needed by local Ideas, Ideas themselves, and Logbook notes. A separate theme key remains only to avoid a light-theme flash before React connects; bridge settings correct it on startup.
 
-The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, the cumulative Title, Description, and Comments card choice, Ideas and session-lane folding, focus enablement, focus limit, project discovery roots, and registered project directories. Agent Zen-owned thread identity is in memory only and does not survive a daemon restart.
+The bridge file owns theme, Sessions or Ideas view, project filter, Ideas grouping and layout, Sessions Kanban or Grid, Kanban grouping, the cumulative Title, Description, and Comments card choice, which agents are shown, collapsed-lane rails, the Needs you highlight, board width, Ideas and session-lane folding, focus enablement, focus limit, project discovery roots, and registered project directories. Agent Zen-owned thread identity is in memory only and does not survive a daemon restart.
 
 Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross-machine sync is not implemented.
 
@@ -317,7 +317,7 @@ Clearing site data deletes local Ideas and Logbook notes. Cross-browser or cross
 - [Persistence tests](https://github.com/lucharo/agent-zen/blob/main/src/domain/derivation.test.ts) — prototype removal and user-data preservation.
 - [Settings store](https://github.com/lucharo/agent-zen/blob/main/server/settings.ts) — bridge-owned durable settings.
 
-_Created: 2026-08-06 · Updated: 2026-08-11 · Verified: 2026-08-11 · Scope/version: browser schema v4, settings schema v2_
+_Created: 2026-08-06 · Updated: 2026-09-28 · Verified: 2026-08-11 · Scope/version: browser schema v4, settings schema v2_
 
 ## How can I add a quick Logbook note from a card?
 
@@ -393,7 +393,7 @@ The shell always loads its own build-identified frontend on port 5275. That keep
 
 The menu says **Connected · Updating sessions…** as soon as that health check succeeds. It permits one status snapshot at a time and waits five seconds after completion before starting another. The bridge also coalesces simultaneous snapshot requests from multiple surfaces, preventing several readers from scanning the same large rollout while keeping health responsive.
 
-The earlier personal-Mac Apple Development build was cold-launched from `/Applications`: its embedded bridge connected to Codex, the window and menu-bar companion appeared, and macOS exposed the `Command-N` and `Command-,` menu commands. The current shell starts as an accessory app and becomes foreground only after an explicit Open or Quick Capture action.
+1.0 app from the cask installs and runs there (checked 2026-09-28). The earlier personal-Mac Apple Development build was cold-launched from `/Applications`: its embedded bridge connected to Codex, the window and menu-bar companion appeared, and macOS exposed the `Command-N` and `Command-,` menu commands. The current shell starts as an accessory app and becomes foreground only after an explicit Open or Quick Capture action.
 
 A bare Swift executable launched directly from Terminal is not equivalent evidence. It can create an AppKit window and load a localhost web UI even when `spctl` rejects both that executable and the packaged app. That is useful for a development preview, but it does not prove that Finder, LaunchServices, or managed-device policy will accept an installed `.app` bundle.
 
@@ -404,13 +404,13 @@ A bare Swift executable launched directly from Terminal is not equivalent eviden
 - [Frontend proxy tests](https://github.com/lucharo/agent-zen/blob/main/server/http.test.ts) — stable packaged origin, exact build identity, and daemon API forwarding.
 - [ADR-0006](../adr/0006-browser-keyboard-and-accessibility.md) — keyboard and accessibility contract.
 
-_Created: 2026-08-06 · Updated: 2026-08-28 · Verified: 2026-08-28 · Runtime performance verified: 2026-08-12 · Current accessory AppKit lifecycle deliberately not launched_
+_Created: 2026-08-06 · Updated: 2026-09-28 · Verified: 2026-08-28 · Runtime performance verified: 2026-08-12 · Current accessory AppKit lifecycle deliberately not launched_
 
 ## How should the native app be distributed?
 
 
 
-`bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. It signs the compiled Bun bridge with the required JavaScriptCore JIT entitlements before signing and verifying the outer app. The personal Mac currently has Apple Development and Apple Distribution identities, but not the `Developer ID Application` identity required for a notarised outside-the-Mac-App-Store release. `bun run release:macos` is the release command for the day those certificates exist: it notarises and staples the app, wraps it in a Developer ID Installer-signed PKG, and verifies the result (see `docs/macos-release.md`).
+`bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. It signs the compiled Bun bridge with the required JavaScriptCore JIT entitlements before signing and verifying the outer app. v0.1.0 was released this way on 2026-09-11. `bun run release:macos` is the release command: it notarises and staples the app, wraps it in a Developer ID Installer-signed PKG, and verifies the result (see `docs/macos-release.md`).
 
 The concrete release path is:
 

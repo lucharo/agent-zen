@@ -1,9 +1,10 @@
+import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentSession, Project } from '../../src/domain/types'
+import type { AgentSession, Plan, Project } from '../../src/domain/types'
 import type { AgentBackend, BackendStatus } from '../backends/types'
 import { normaliseGitHubRepository, gitOriginUrl as readGitOriginUrl } from '../projects'
 import { compactTitle, resolveProject } from '../shared/projects'
-import { readLiveRegistry, type ClaudeRegistryEntry } from './registry'
+import { readLiveRegistry, type ClaudeRegistryEntry, type ReadRegistryOptions } from './registry'
 import { readTaskPlan } from './tasks'
 import { ClaudeTranscriptReader, type ClaudeTranscriptSnapshot } from './transcript'
 
@@ -11,10 +12,10 @@ export interface ClaudeBackendOptions {
   /** The Claude Code home, normally `~/.claude`. */
   readonly claudeHome: string
   readonly getProjects: () => readonly Project[] | Promise<readonly Project[]>
-  readonly isProcessAlive?: (pid: number) => boolean
-  readonly processName?: (pid: number) => string | null | Promise<string | null>
+  readonly processes?: ReadRegistryOptions['processes']
   readonly gitOriginUrl?: (directory: string) => Promise<string | null>
   readonly transcriptReader?: Pick<ClaudeTranscriptReader, 'read'>
+    & Partial<Pick<ClaudeTranscriptReader, 'forget' | 'signature' | 'uuidsOf'>>
   readonly now?: () => number
 }
 
@@ -34,8 +35,8 @@ interface ClaudeSessionObservation {
 export class ClaudeBackend implements AgentBackend {
   readonly agent = 'claude' as const
   readonly controller = null
-  private readonly transcripts: Pick<ClaudeTranscriptReader, 'read'>
-  private readonly transcriptPaths = new Map<string, string>()
+  private readonly transcripts: NonNullable<ClaudeBackendOptions['transcriptReader']>
+  private readonly transcriptPaths = new Map<string, readonly string[]>()
   private readonly origins = new Map<string, Promise<string | null>>()
   private connection: BackendStatus = {
     agent: 'claude',
@@ -50,7 +51,17 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   async start(): Promise<void> {
-    await this.observe()
+    try {
+      await this.observe()
+    } catch (error) {
+      this.connection = {
+        agent: 'claude',
+        connected: false,
+        label: 'Claude Code unavailable',
+        userAgent: null,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
   }
 
   status(): BackendStatus {
@@ -61,11 +72,18 @@ export class ClaudeBackend implements AgentBackend {
     const [registry, projects] = await Promise.all([
       readLiveRegistry({
         directory: join(this.options.claudeHome, 'sessions'),
-        isProcessAlive: this.options.isProcessAlive,
-        processName: this.options.processName,
+        processes: this.options.processes,
       }),
       this.options.getProjects(),
     ])
+    // Throwing keeps the last good board on screen and makes launch admission fail closed,
+    // rather than silently counting unverifiable live sessions as none.
+    if (registry && registry.unverified > 0) {
+      throw new Error(
+        `${registry.unverified} live Claude Code ${registry.unverified === 1 ? 'session' : 'sessions'} could not be verified because the process check failed.`,
+      )
+    }
+    this.forgetTranscriptsExcept(registry?.entries ?? [])
     if (registry === null) {
       this.connection = {
         agent: 'claude',
@@ -115,15 +133,15 @@ export class ClaudeBackend implements AgentBackend {
     entry: ClaudeRegistryEntry,
     projects: readonly Project[],
   ): Promise<ClaudeSessionObservation> {
-    const transcriptPath = await this.transcriptPath(entry.sessionId)
-    const transcriptResult = transcriptPath
-      ? await this.transcripts.read(transcriptPath).then(
+    const transcriptFiles = await this.transcriptFiles(entry)
+    const transcriptResult = transcriptFiles.length > 0
+      ? await this.foldSegments(transcriptFiles).then(
           (transcript) => ({ transcript, unreadable: false }),
           () => ({ transcript: null, unreadable: true }),
         )
       : { transcript: null, unreadable: false }
     const [plan, origin] = await Promise.all([
-      this.taskPlan(entry.sessionId),
+      this.taskPlan(entry.sessionId, transcriptResult.transcript),
       this.origin(entry.cwd),
     ])
     const transcript = transcriptResult.transcript
@@ -182,29 +200,79 @@ export class ClaudeBackend implements AgentBackend {
     }
   }
 
-  /** Claude Code has keyed its task directory by full session id and, more recently, by `session-<8 hex>`. */
-  private async taskPlan(sessionId: string) {
+  /**
+   * The task list comes from the transcript's TaskCreate/TaskUpdate calls: by
+   * 2.1.282 every `~/.claude/tasks` directory is left empty. Older builds kept
+   * `<n>.json` files there, keyed by full session id or `session-<8 hex>`.
+   */
+  private async taskPlan(sessionId: string, transcript: ClaudeTranscriptSnapshot | null): Promise<Plan | null> {
+    if (transcript && transcript.tasksRevision > 0) {
+      return transcript.tasks.length === 0
+        ? null
+        : {
+            revision: transcript.tasksRevision,
+            updatedAt: transcript.tasksUpdatedAt ?? new Date(this.options.now?.() ?? Date.now()).toISOString(),
+            explanation: null,
+            steps: transcript.tasks.map((task) => ({ step: task.subject, status: task.status })),
+          }
+    }
     const root = join(this.options.claudeHome, 'tasks')
     return (await readTaskPlan(join(root, sessionId)))
       ?? readTaskPlan(join(root, `session-${sessionId.slice(0, 8)}`))
   }
 
-  /** The transcript lives under the slug of the session's *starting* cwd, so find it by id once. */
-  private async transcriptPath(sessionId: string): Promise<string | null> {
-    const cached = this.transcriptPaths.get(sessionId)
+  /**
+   * The transcript lives under the slug of the cwd the process *started* in, so
+   * it is found by id. Resuming from another directory keeps the id but starts
+   * another file, sometimes with a copy of the earlier history and sometimes
+   * empty, so every segment is returned oldest first. The list is remembered
+   * per process only once that process has written to the newest one.
+   */
+  private async transcriptFiles(entry: ClaudeRegistryEntry): Promise<readonly string[]> {
+    const key = transcriptKey(entry)
+    const cached = this.transcriptPaths.get(key)
     if (cached) return cached
     const projectsDirectory = join(this.options.claudeHome, 'projects')
-    const glob = new Bun.Glob(`*/${sessionId}.jsonl`)
+    const glob = new Bun.Glob(`*/${entry.sessionId}.jsonl`)
+    const found: { path: string; modifiedAt: number }[] = []
     try {
       for await (const match of glob.scan({ cwd: projectsDirectory, onlyFiles: true })) {
         const path = join(projectsDirectory, match)
-        this.transcriptPaths.set(sessionId, path)
-        return path
+        const modifiedAt = (await stat(path).catch(() => null))?.mtimeMs
+        if (modifiedAt !== undefined) found.push({ path, modifiedAt })
       }
     } catch {
-      return null
+      return []
     }
-    return null
+    found.sort((left, right) => left.modifiedAt - right.modifiedAt)
+    const paths = found.map((file) => file.path)
+    const newest = found.at(-1)
+    if (newest && newest.modifiedAt >= entry.startedAt) this.transcriptPaths.set(key, paths)
+    return paths
+  }
+
+  /** Fold each segment on top of the ones before it, skipping the history a later segment copied. */
+  private async foldSegments(paths: readonly string[]): Promise<ClaudeTranscriptSnapshot> {
+    let snapshot: ClaudeTranscriptSnapshot | undefined
+    let seedKey = ''
+    const seen = new Set<string>()
+    for (const path of paths) {
+      snapshot = await this.transcripts.read(path, snapshot, seedKey, seen)
+      seedKey += this.transcripts.signature?.(path) ?? `${path};`
+      for (const uuid of this.transcripts.uuidsOf?.(path) ?? []) seen.add(uuid)
+    }
+    return snapshot!
+  }
+
+  /** Bound memory to live sessions: drop paths and parsed transcripts for processes that are gone. */
+  private forgetTranscriptsExcept(entries: readonly ClaudeRegistryEntry[]): void {
+    const live = new Set(entries.map(transcriptKey))
+    for (const [key, paths] of this.transcriptPaths) {
+      if (live.has(key)) continue
+      this.transcriptPaths.delete(key)
+      const stillUsed = new Set([...this.transcriptPaths.values()].flat())
+      for (const path of paths) if (!stillUsed.has(path)) this.transcripts.forget?.(path)
+    }
   }
 
   private origin(cwd: string): Promise<string | null> {
@@ -214,6 +282,10 @@ export class ClaudeBackend implements AgentBackend {
     this.origins.set(cwd, lookup)
     return lookup
   }
+}
+
+function transcriptKey(entry: ClaudeRegistryEntry): string {
+  return `${entry.pid}:${entry.startedAt}:${entry.sessionId}`
 }
 
 function processRejectionMessage(count: number): string {

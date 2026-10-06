@@ -130,7 +130,10 @@ export function CommandPalette({
             detail: state.kanbanCardDetail === 'titles' ? 'details' : 'titles',
           }),
       },
-      ...AGENT_KINDS.map((agent) => ({
+      // The last visible agent cannot be hidden, so it offers no command that would do nothing.
+      ...AGENT_KINDS.filter((agent) => !(
+        state.visibleAgents.length === 1 && state.visibleAgents.includes(agent)
+      )).map((agent) => ({
         id: `do-agent-${agent}`,
         label: state.visibleAgents.includes(agent)
           ? `Hide ${AGENT_LABELS[agent]} sessions`

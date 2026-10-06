@@ -1,6 +1,6 @@
 import { extname, join, normalize, resolve } from 'node:path'
 import type { AgentZenBridgeService } from './bridgeService'
-import { FocusLimitReachedError } from './bridgeService'
+import { FocusLimitReachedError, ReadOnlySessionError } from './bridgeService'
 import { normaliseUiPreferences } from '../src/domain/preferences'
 import { BRIDGE_MUTATION_PATH } from '../src/bridge/types'
 import { localRequestPolicy } from './security'
@@ -156,6 +156,9 @@ export function createBridgeRequestHandler(options: BridgeRequestHandlerOptions)
     } catch (error) {
       if (error instanceof FocusLimitReachedError) {
         return json({ error: 'focus-limit-reached', message: error.message }, 409, headers)
+      }
+      if (error instanceof ReadOnlySessionError) {
+        return json({ error: 'read-only-session', message: error.message }, 409, headers)
       }
       if (error instanceof RequestError) return json({ error: error.message }, 400, headers)
       return json(

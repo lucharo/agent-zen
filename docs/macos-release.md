@@ -67,6 +67,11 @@ brew install --cask agent-zen
 brew upgrade --cask agent-zen   # after a new release
 ```
 
+If you also run the CLI daemon, update it after upgrading the app: pull the
+repository, run `bun run install:cli`, then `agent-zen daemon restart`. The app
+reads through the daemon on 5274 only when both speak the same bridge protocol;
+otherwise it quietly starts its own bridge and a second Codex app-server.
+
 Publishing a release is one flag on the release command:
 
 ```bash
@@ -88,7 +93,8 @@ v0.1.0 on 2026-09-11; every later publish rewrites the same three fields.
 
 The PKG ships only the app. The CLI and daemon remain a developer install so
 the package needs no managed background item; the app owns its bridge process
-for the lifetime of the window.
+from launch until it quits, forwarding to a compatible daemon on 5274 when one
+is running.
 
 - **Install**: `sudo installer -pkg AgentZen-<version>.pkg -target /`, or
 First launch starts the embedded bridge and finds

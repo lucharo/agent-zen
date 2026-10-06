@@ -1,6 +1,6 @@
 # ADR-0001: Codex-first zen control plane
 
-- Status: Accepted
+- Status: Accepted; partly superseded by [ADR-0009](0009-claude-code-observer-and-agent-backends.md)
 - Date: 2026-08-06
 
 ## Outcome

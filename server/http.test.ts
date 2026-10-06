@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test'
-import type { AgentZenBridgeService } from './bridgeService'
+import { ReadOnlySessionError, type AgentZenBridgeService } from './bridgeService'
 import { createBridgeRequestHandler, createFrontendProxyRequestHandler } from './http'
 
 describe('bridge mutation protocol', () => {
@@ -116,6 +116,27 @@ describe('bridge mutation protocol', () => {
     expect(current.status).toBe(200)
     expect(stale.status).toBe(404)
     expect(focusWrites).toBe(1)
+  })
+
+  test('answers a control call on a read-only session as a conflict, not a server error', async () => {
+    const service = {
+      interrupt: async () => {
+        throw new ReadOnlySessionError()
+      },
+    } as unknown as AgentZenBridgeService
+    const handler = createBridgeRequestHandler({ service, port: 5274, distDirectory: '/missing' })
+
+    const response = await handler(new Request('http://127.0.0.1:5274/api/v11/sessions/claude-1/interrupt', {
+      method: 'POST',
+      headers: { host: '127.0.0.1:5274', 'content-type': 'application/json' },
+      body: '{}',
+    }))
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'read-only-session',
+      message: 'This session is read-only in Agent Zen.',
+    })
   })
 })
 

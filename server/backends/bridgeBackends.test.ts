@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { AgentKind, AgentSession, Project } from '../../src/domain/types'
-import { AgentZenBridgeService, type BridgeServiceDependencies } from '../bridgeService'
+import { AgentZenBridgeService, ReadOnlySessionError, type BridgeServiceDependencies } from '../bridgeService'
 import type { AgentBackend } from './types'
 
 const project: Project = {
@@ -276,5 +276,103 @@ describe('AgentZenBridgeService with several agent backends', () => {
       'Could not verify active Claude Code sessions',
     )
     expect(launches).toBe(0)
+  })
+
+  test('keeps the last good sessions of a failing backend on the board beside its failure', async () => {
+    let attempts = 0
+    const flaky: AgentBackend = {
+      ...readOnlyBackend('claude', []),
+      observe: async () => {
+        attempts += 1
+        if (attempts === 2) throw new Error('process check timed out')
+        return [session('claude-1', 'claude')]
+      },
+    }
+    const service = new AgentZenBridgeService({ settings, backends: [flaky] })
+
+    expect((await service.snapshot()).sessions.map((entry) => entry.id)).toEqual(['claude-1'])
+    const failing = await service.snapshot()
+
+    expect(failing.sessions.map((entry) => entry.id)).toEqual(['claude-1'])
+    expect(failing.backends[0]).toMatchObject({ connected: false, error: 'process check timed out' })
+  })
+
+  test('raises the global alert when Codex is lost, but not on a Mac that never had it', async () => {
+    let codexUp = true
+    const codex: AgentBackend = {
+      ...readOnlyBackend('codex', []),
+      status: () => ({
+        agent: 'codex',
+        connected: codexUp,
+        label: codexUp ? 'Live Codex' : 'Codex connection unavailable',
+        userAgent: null,
+        error: codexUp ? null : 'app-server exited',
+      }),
+    }
+    const service = new AgentZenBridgeService({ settings, backends: [codex, readOnlyBackend('claude', [])] })
+    expect(service.health().connection.error).toBeNull()
+    codexUp = false
+    expect(service.health().connection).toMatchObject({ connected: true, error: 'app-server exited' })
+
+    const withoutCodex = new AgentZenBridgeService({
+      settings,
+      backends: [readOnlyBackend('codex', [], 'spawn codex ENOENT'), readOnlyBackend('claude', [])],
+    })
+    expect(withoutCodex.health().connection).toMatchObject({ connected: true, error: null })
+  })
+
+  test('routes a control call to Codex without observing Codex first', async () => {
+    let codexObservations = 0
+    const interrupted: string[] = []
+    const codex: AgentBackend = {
+      ...readOnlyBackend('codex', []),
+      observe: async () => {
+        codexObservations += 1
+        return []
+      },
+      controller: {
+        launch: async () => ({ threadId: 'unused', turnId: 'unused' }),
+        interrupt: async (sessionId) => {
+          interrupted.push(sessionId)
+        },
+        steer: async () => undefined,
+        respond: async () => undefined,
+      },
+    }
+    const service = new AgentZenBridgeService({
+      settings,
+      backends: [codex, readOnlyBackend('claude', [session('claude-1', 'claude')])],
+    })
+
+    await service.interrupt('codex-1')
+    await expect(service.interrupt('claude-1')).rejects.toBeInstanceOf(ReadOnlySessionError)
+
+    expect(interrupted).toEqual(['codex-1'])
+    expect(codexObservations).toBe(0)
+  })
+
+  test('closes every backend even when one fails to close', async () => {
+    let claudeClosed = false
+    const service = new AgentZenBridgeService({
+      settings,
+      backends: [
+        {
+          ...readOnlyBackend('codex', []),
+          close: async () => {
+            throw new Error('codex close exploded')
+          },
+        },
+        {
+          ...readOnlyBackend('claude', []),
+          close: async () => {
+            await Bun.sleep(5)
+            claudeClosed = true
+          },
+        },
+      ],
+    })
+
+    await expect(service.close()).rejects.toThrow('codex close exploded')
+    expect(claudeClosed).toBe(true)
   })
 })

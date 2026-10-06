@@ -1,6 +1,6 @@
 # ADR-0008: CLI-managed local daemon
 
-- Status: Accepted
+- Status: Accepted; partly superseded by [ADR-0009](0009-claude-code-observer-and-agent-backends.md)
 - Date: 2026-08-10
 
 ## Outcome

@@ -45,7 +45,7 @@ export function Toolbar({
   onOpenSettings,
   showShortcuts,
 }: ToolbarProps) {
-  const { state, dispatch, activeCount, availableProjects } = useAgentZen()
+  const { state, dispatch, activeCount, availableProjects, hiddenNeedsYou } = useAgentZen()
   const [tooltipsDismissed, setTooltipsDismissed] = useState(false)
   const onIdeas = state.view === 'ideas'
   const sessionGroupBy = state.sessionLayout === 'kanban' && state.kanbanGroupBy === 'state'
@@ -208,6 +208,8 @@ export function Toolbar({
             {AGENT_KINDS.map((agent) => {
               const visible = state.visibleAgents.includes(agent)
               const last = visible && state.visibleAgents.length === 1
+              const waiting = hiddenNeedsYou[agent]
+              const waitingNote = waiting > 0 ? `${waiting} ${waiting === 1 ? 'needs' : 'need'} you` : null
               return (
                 <button
                   key={agent}
@@ -215,16 +217,21 @@ export function Toolbar({
                   className={styles.segment}
                   data-selected={visible}
                   aria-pressed={visible}
-                  aria-label={`${AGENT_LABELS[agent]} sessions`}
+                  aria-label={[
+                    `${AGENT_LABELS[agent]} sessions`,
+                    last ? 'at least one agent stays visible' : null,
+                    waitingNote ? `hidden, ${waitingNote}` : null,
+                  ].filter(Boolean).join(', ')}
                   data-tooltip={last
                     ? `${AGENT_LABELS[agent]} · at least one agent stays visible`
-                    : `${visible ? 'Hide' : 'Show'} ${AGENT_LABELS[agent]} sessions`}
+                    : `${visible ? 'Hide' : 'Show'} ${AGENT_LABELS[agent]} sessions${waitingNote ? ` · ${waitingNote}` : ''}`}
                   aria-disabled={last || undefined}
                   onClick={() => {
                     if (!last) dispatch({ type: 'toggle-agent-visibility', agent })
                   }}
                 >
                   <AgentMark agent={agent} title="" />
+                  {waitingNote ? <span className={styles.attention} aria-hidden="true" /> : null}
                 </button>
               )
             })}
@@ -248,6 +255,7 @@ export function Toolbar({
           className={styles.limitButton}
           data-enabled={state.activeLimitEnabled}
           data-at-limit={state.activeLimitEnabled && activeCount >= state.activeLimit}
+          aria-label={state.activeLimitEnabled ? `Active ${activeCount} / ${state.activeLimit}` : 'Limit off'}
           onClick={onOpenSettings}
           title="Open focus-limit settings. Child agents share a parent slot; review and wrapup release capacity."
         >

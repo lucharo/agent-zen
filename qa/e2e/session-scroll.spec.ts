@@ -252,6 +252,31 @@ test('the native minimum-width toolbar keeps every visible control inside the wi
   await expect(toolbar.getByRole('button', { name: 'Search or jump' })).toBeHidden()
 })
 
+test('the native minimum-width toolbar still fits once the focus limit is on', async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 620 })
+  await routeSnapshot(page, {
+    ...snapshot,
+    focus: {
+      enabled: true,
+      limit: 3,
+      activeCount: 8,
+      availability: { allowed: false, reason: 'limit-reached' },
+    },
+  })
+  await page.goto('/')
+
+  const toolbar = page.getByRole('banner', { name: 'Agent Zen toolbar' })
+  await expect(toolbar.getByRole('button', { name: 'Active 8 / 3' })).toBeVisible()
+  const bounds = await toolbar.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }))
+  const capture = await toolbar.getByRole('button', { name: /Quick capture/ }).boundingBox()
+
+  expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth)
+  expect(capture && capture.x + capture.width).toBeLessThanOrEqual(820)
+})
+
 test('the native global shortcut opens only a bounded quick-capture surface', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 330 })
   await routeSnapshot(page, snapshot)

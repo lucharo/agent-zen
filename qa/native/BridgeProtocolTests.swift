@@ -55,7 +55,7 @@ enum BridgeProtocolTests {
         }
         """#.utf8)
         precondition(bridgeStageCounts(data: snapshot) == BridgeStageCounts(
-            visible: 5,
+            live: 5,
             running: 1,
             reviewing: 1,
             wrapping: 1
