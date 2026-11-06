@@ -10,6 +10,9 @@ import type { Project } from '../src/domain/types'
 import type { FocusSettings } from './domain/focusPolicy'
 import { discoverProjects } from './projects'
 
+/** How long a finished discovery round is reused; the board polls every second. */
+const DISCOVERY_TTL_MS = 30_000
+
 export interface SettingsFile {
   readonly version: 2
   readonly focus: FocusSettings
@@ -33,7 +36,8 @@ export interface AgentZenSettingsStoreOptions {
 
 export class AgentZenSettingsStore {
   private writeQueue: Promise<void> = Promise.resolve()
-  private discoveryCache: { readonly expiresAt: number; readonly value: Promise<ProjectCandidate[]> } | null = null
+  /** The current discovery round; `settledAt` stays null while it runs, so no second round starts beside it. */
+  private discovery: { readonly value: Promise<ProjectCandidate[]>; settledAt: number | null } | null = null
 
   constructor(private readonly options: AgentZenSettingsStoreOptions) {}
 
@@ -75,20 +79,32 @@ export class AgentZenSettingsStore {
     return this.mutate((current) => ({ ...current, preferences: normalised }))
   }
 
-  async discoverProjects(): Promise<ProjectCandidate[]> {
-    const now = Date.now()
-    if (this.discoveryCache && this.discoveryCache.expiresAt > now) {
-      return this.discoveryCache.value
+  /**
+   * One discovery round at a time: every caller during a round shares it, and the
+   * result is reused for DISCOVERY_TTL_MS counted from when the round finished, so a
+   * slow round on a busy machine never has a second one started on top of it.
+   */
+  discoverProjects(): Promise<ProjectCandidate[]> {
+    const current = this.discovery
+    if (current && (current.settledAt === null || Date.now() - current.settledAt < DISCOVERY_TTL_MS)) {
+      return current.value
     }
-    const settings = await this.read()
-    const value = discoverProjects(settings.projectRoots)
-    this.discoveryCache = { expiresAt: now + 30_000, value }
-    try {
-      return await value
-    } catch (error) {
-      this.discoveryCache = null
-      throw error
+    // Claim the slot before the first await, so callers in the same tick join this round.
+    const value = this.read().then((settings) => discoverProjects(settings.projectRoots))
+    const round: { readonly value: Promise<ProjectCandidate[]>; settledAt: number | null } = {
+      value,
+      settledAt: null,
     }
+    this.discovery = round
+    value.then(
+      () => {
+        round.settledAt = Date.now()
+      },
+      () => {
+        if (this.discovery === round) this.discovery = null
+      },
+    )
+    return value
   }
 
   async registeredProjects(): Promise<Project[]> {

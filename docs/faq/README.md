@@ -219,15 +219,18 @@ _Created: 2026-08-06 · Updated: 2026-10-06 · Verified: 2026-09-04_
 
 Active session repositories register automatically only after they match a discovered candidate, so the project filter and Settings registry describe the same live world. The default root is `~/Projects/github.com`, scanned two directory levels below that root. Observation and identity matching use all discovered candidates, and GitHub worktrees fall back to normalized remote identity, so every worktree does not become a separate project. Reconciliation uses the normalized repository or exact directory, never the display name alone: two repositories named `tools` must not steal each other's Ideas or filter selection. Manual registration adds inactive repositories as launch targets. Both Sessions layouts can group cards by project; that changes presentation only.
 
+Discovery reads each checkout's own files (`.git`, `HEAD`, `config`, `refs/remotes/origin/HEAD`, following `gitdir:` and `commondir` for worktrees and submodules) and starts no `git` process. Only a checkout it cannot read with confidence (config includes, reftable, or an origin that is not a GitHub address and may be rewritten by `insteadOf`) is asked through `git`, at most four processes at a time. One discovery round runs at a time, and its result is reused for 30 seconds after it finishes, so a slow round on a busy machine never has a second started beside it.
+
 ### Sources
 
-- [Project discovery](https://github.com/lucharo/agent-zen/blob/main/server/projects.ts) — Git checkout, branch, and remote discovery.
+- [Project discovery](https://github.com/lucharo/agent-zen/blob/main/server/projects.ts) — Git checkout, branch, and remote discovery from the checkout's files.
+- [Discovery cache](https://github.com/lucharo/agent-zen/blob/main/server/settings.ts) — one round at a time, reused after it finishes.
 - [Server defaults](https://github.com/lucharo/agent-zen/blob/main/server/index.ts) — default project root.
 - [Observer project resolution](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — cwd-first and repository fallback matching.
 - [Kanban grouping](https://github.com/lucharo/agent-zen/blob/main/src/components/KanbanView.tsx) — project sections inside each stage.
 - [Session grid](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionGridView.tsx) — the same project grouping without stage columns.
 
-_Created: 2026-08-06 · Updated: 2026-08-10 · Verified: 2026-08-10_
+_Created: 2026-08-06 · Updated: 2026-11-06 · Verified: 2026-11-06_
 
 ## Why is my repository or worktree missing?
 
