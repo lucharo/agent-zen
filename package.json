@@ -1,7 +1,7 @@
 {
   "name": "agent-zen",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "agent-zen": "AGENT_ZEN_PREFIX=$HOME/.local bun run cli/index.ts",

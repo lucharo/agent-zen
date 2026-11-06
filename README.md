@@ -84,7 +84,7 @@ Several tools informed it:
 - [Vibe Kanban](https://github.com/BloopAI/vibe-kanban) showed the appeal of keeping agent sessions visible and controllable from one place. Agent Zen is intentionally quieter and optimises for bounded attention rather than maximum parallel throughput.
 - [agentsview](https://github.com/wesm/agentsview) demonstrated how useful the agent's own local session records can be when gathered into a dependable browser. Agent Zen uses the same general principle but focuses on the small set of sessions that are active now.
 - [RoboRev](https://github.com/roborev-dev/roborev) and the Kenn/Wes CLI family influenced the familiar `daemon start|status|restart|stop` contract.
-- [Kanban Code](https://github.com/langwatch/kanban-code), [Things 3](https://culturedcode.com/things/) and the local [Taskflow](https://github.com/lucharo/taskflow) experiment contributed smaller ideas: native-feeling session controls, global Quick Entry-style keyboard capture, project assignment and centred detail sheets.
+- [Kanban Code](https://github.com/langwatch/kanban-code), [Things 3](https://culturedcode.com/things/) and a local task-manager experiment contributed smaller ideas: native-feeling session controls, global Quick Entry-style keyboard capture, project assignment and centred detail sheets.
 
 These are influences, not dependencies or claims of feature parity. The product boundary came from the paper workflow: unlimited capture, a deliberately small active horizon, and no obligation to react to every session just because it is visible.
 
