@@ -173,7 +173,9 @@ if [[ "$make_dmg" == true ]]; then
   ditto "$app_dir" "$staging/$app_name.app"
   ln -s /Applications "$staging/Applications"
   final_dmg="$release_dir/$artifact_name-$version.dmg"
-  hdiutil create -quiet -volname "$app_name" -srcfolder "$staging" -ov -format UDZO "$final_dmg"
+  # hdiutil under-sizes the image for the compiled bridge, so size it from the payload.
+  dmg_mb=$(( $(du -sm "$staging" | cut -f1) * 3 / 2 + 20 ))
+  hdiutil create -quiet -size "${dmg_mb}m" -volname "$app_name" -srcfolder "$staging" -ov -format UDZO "$final_dmg"
   /bin/rm -rf -- "$staging"
   codesign --force --timestamp --sign "$app_identity" "$final_dmg"
   notarize "$final_dmg"
