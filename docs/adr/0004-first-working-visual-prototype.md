@@ -7,7 +7,6 @@
 
 The first working prototype implements the **CZ3 Native Ledger shell with CZ1 Quiet Canvas card and capture language** as a local React application.
 
-Sources: `explorations/2026-08-05-codex-zen-directions/product-contract.md`, `claude-opus-5-consultation.md`, `CZ3-kanban.png`, `CZ3-ideas.png`, `CZ1-kanban.png`, and `CZ1-ideas.png`.
 
 ## Answered grill
 

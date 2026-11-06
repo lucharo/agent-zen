@@ -792,7 +792,7 @@ describe('parseRolloutLines', () => {
 
   test('recognises an explicit wrapup skill link after natural acknowledgement', () => {
     const snapshot = parseRolloutLines([
-      line({ timestamp: '2026-08-10T17:02:29.939Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-demo-project' } }),
+      line({ timestamp: '2026-08-10T17:02:29.939Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-wrapup' } }),
       line({
         timestamp: '2026-08-10T17:02:30.040Z',
         type: 'event_msg',

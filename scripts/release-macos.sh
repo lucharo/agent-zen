@@ -3,7 +3,7 @@
 #
 #   scripts/release-macos.sh [--skip-notarize] [--dmg] [--allow-development] [--publish]
 #
-# Produces build/release/AgentZen-<version>.pkg (a flat installer for MDM or
+# Produces build/release/AgentZen-<version>.pkg (a flat installer for
 # a double-click install) and, with --dmg, AgentZen-<version>.dmg.
 #
 # Identities are auto-detected from the login keychain and can be pinned:
@@ -57,8 +57,8 @@ if [[ "$publish" == true ]]; then
   built_sha="$(git rev-parse HEAD)"
 fi
 
-team_id="7V3HZUL435"  # must match scripts/mdm-audit.sh
-
+team_id="7V3HZUL435"
+# Only identities from this team.
 identities="$(security find-identity -v -p codesigning 2>/dev/null | grep "($team_id)" || true)"
 app_identity="${AGENT_ZEN_SIGNING_IDENTITY:-$(printf '%s\n' "$identities" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)}"
 installer_candidates="$(security find-identity -v 2>/dev/null | grep "($team_id)" || true)"
@@ -142,7 +142,7 @@ notarize "$app_zip" "$app_dir"
 #    bundle; they stay on the developer install path (scripts/install-cli.sh).
 component_pkg="$release_dir/$artifact_name-$version-component.pkg"
 # Stage an /Applications root and mark the bundle non-relocatable, so Installer
-
+# never "updates" a stray copy elsewhere.
 pkg_root="$(mktemp -d)"
 mkdir -p "$pkg_root/Applications"
 ditto "$app_dir" "$pkg_root/Applications/${app_dir:t}"
@@ -167,7 +167,7 @@ productbuild "${product_args[@]}" "$final_pkg"
 /bin/rm -f -- "$component_pkg"
 notarize "$final_pkg"
 
-# 4. 
+# 4. Optional DMG for drag-to-Applications installs.
 if [[ "$make_dmg" == true ]]; then
   staging="$(mktemp -d)"
   ditto "$app_dir" "$staging/$app_name.app"
@@ -197,13 +197,12 @@ fi
 
 # 6. Optional publish: GitHub Release plus the Homebrew cask in this repo.
 update_cask() {
-  local cask="$1" new_version="$2" sha="$3" asset_id="$4"
+  local cask="$1" new_version="$2" sha="$3"
   sed -i '' \
     -e "s/^  version \".*\"/  version \"$new_version\"/" \
     -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" \
-    -e "s#releases/assets/[0-9]*\"#releases/assets/$asset_id\"#" \
     "$cask"
-  grep -q "version \"$new_version\"" "$cask" && grep -q "sha256 \"$sha\"" "$cask" && grep -q "assets/$asset_id\"" "$cask"
+  grep -q "version \"$new_version\"" "$cask" && grep -q "sha256 \"$sha\"" "$cask"
 }
 
 if [[ "$publish" == true ]]; then
@@ -233,14 +232,8 @@ if [[ "$publish" == true ]]; then
   fi
   # The tag is proven to be HEAD, so replacing assets only ever rebuilds the same source.
   gh release upload "$tag" "$final_pkg" "$final_dmg" --repo "$gh_repo" --clobber
-  asset_id="$(gh api "repos/$gh_repo/releases/tags/$tag" --jq ".assets[] | select(.name == \"${final_dmg:t}\") | .id")"
-  dmg_sha="$(shasum -a 256 "$final_dmg" | awk '{ print $1 }')"
-  if [[ -z "$asset_id" ]]; then
-    echo "Could not find the uploaded DMG asset on release $tag" >&2
-    exit 1
-  fi
-  update_cask "Casks/$cask_token.rb" "$version" "$dmg_sha" "$asset_id"
-  echo "Published $tag; Casks/$cask_token.rb now points at asset $asset_id. Commit it, then:"
+  update_cask "Casks/$cask_token.rb" "$version" "$dmg_sha"
+  echo "Published $tag; Casks/$cask_token.rb now points at $version. Commit it, then:"
   echo "  export HOMEBREW_GITHUB_API_TOKEN=\"\$(gh auth token)\" && brew install --cask $cask_token"
 fi
 

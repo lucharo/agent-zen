@@ -20,14 +20,11 @@ Agent Zen has a small AppKit and WKWebView shell with genuine macOS menu command
 - Closing hides one retained AppKit window, releases its WebView after the close event, and never deallocates the window during AppKit's close animation.
 - `bun run build:macos` compiles the web assets, Swift shell, and Bun bridge into `build/Agent Zen.app`.
 - Signing automatically prefers Developer ID Application, then Apple Development. The Bun bridge is signed first with its JavaScriptCore JIT entitlements, followed by the AppKit executable and outer bundle; the final bundle is verified. With no identity, the script creates an ad-hoc build and prints a warning.
-Mac App Store work remains optional and separate.
-- `bun run release:macos` (`scripts/release-macos.sh`) is the repeatable release command: it signs with Developer ID Application, notarises and staples the app, builds a Developer ID Installer-signed flat PKG and optional DMG, and verifies with `codesign`, `pkgutil`, `spctl` and `stapler`. It refuses to run without a Developer ID Application identity unless asked for a development dry run. `scripts/mdm-audit.sh` is the version-aware MDM audit; paths and lifecycle are in `docs/macos-release.md`.
-- The managed package should install `Agent Zen.app` in `/Applications` and preserve the native shell's local bridge behavior. If the launch-at-login daemon and CLI are included, their system and per-user install paths, upgrade behavior, rollback, and uninstall contract must be explicit rather than reusing a developer's `~/.local` layout implicitly.
-lucharo.agent-zen`, the expected app version, the signed package contents, and any managed daemon files. A failed audit may trigger reinstall; the pilot therefore has to prove that reinstall is idempotent and does not replace browser-owned Ideas or Logbook data.
+- The distribution sequence is: Apple-signed personal-Mac test, hardened Developer ID build, signed flat installer package, notarisation and stapling. Mac App Store work remains optional and separate.
+- `bun run release:macos` (`scripts/release-macos.sh`) is the repeatable release command: it signs with Developer ID Application, notarises and staples the app, builds a Developer ID Installer-signed flat PKG and optional DMG, and verifies with `codesign`, `pkgutil`, `spctl` and `stapler`. It refuses to run without a Developer ID Application identity unless asked for a development dry run. Paths and lifecycle are in `docs/macos-release.md`.
 
 ## Verified boundary
 
-Launch is not verified there because endpoint security blocks the ad-hoc-signed publisher before application code runs. On 2026-08-07 the bundle passed `codesign --verify --deep --strict`, while that Mac still reported zero valid identities.
 
 On 2026-08-11 the personal Mac built and installed version 0.1.0 with an Apple Development identity. The cold installed build passed strict nested-signature verification, connected its packaged bridge to Codex on port 5275, rendered the 1240×820 session window, and exposed the menu-bar companion plus New Idea, Settings, and Quit commands to macOS Accessibility. `spctl -a` still rejects this development build as a distributable app, correctly: the keychain has Apple Development and Apple Distribution identities but no `Developer ID Application` identity. GitHub issue #13 continues to track that certificate, hardened archive, notarisation, stapling, and release notes.
 
@@ -37,7 +34,6 @@ The same-day performance regression showed six overlapping menu requests reading
 
 An Apple Developer account is necessary but not sufficient: a certificate and its private key must be installed on the build Mac. A notarised Developer ID build is the preferred first distribution because Mac App Store sandboxing would require a separate access design for Codex stores, repositories, Git, and subprocess control.
 
-Agent Zen should use a signed flat PKG because it needs a deterministic `/Applications` install and may also need managed launch-at-login files. 
 
 ## Consequences
 
@@ -45,4 +41,3 @@ Agent Zen should use a signed flat PKG because it needs a deterministic `/Applic
 - The 2026-08-11 foreground shell was verified on the personal Mac. The current accessory-launch and retained-window changes have build, contract-test, layout-test, and review evidence only; a future cold installed test must not be replaced by compilation.
 - Menu-bar and window UI share one web application and one bridge, avoiding a second state model.
 - Mac App Store packaging is deliberately postponed until the local-file and process permission contract is explicit.
-

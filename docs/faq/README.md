@@ -168,7 +168,7 @@ _Created: 2026-08-11 · Updated: 2026-09-28 · Verified: 2026-09-28 · Scope/ver
 
 The earlier implementation treated the rollout's latest `task_complete` record as the end of the whole session. That collapsed two different lifecycles: a turn can finish while its terminal, Codex window, or cloud-worktree Codex process remains open for another turn. Agent Zen now inventories open rollout files from live Codex processes, then classifies attention as `working`, `awaiting-input`, or `idle` independently of workflow stage.
 
-This is why `data-pipeline-human-spec` remains visible after “HOLD ON FOR MORE!”: its latest turn completed, but its Codex process still owns the rollout. Child-agent rollouts are discovered by the same mechanism, but never become peer rows or cards: both Kanban and Grid show only a compact subagent count, and the parent detail contains the full navigable list. Closing the owning process or archiving the thread removes it.
+This is why a session remains visible after you tell it to wait: its latest turn completed, but its Codex process still owns the rollout. Child-agent rollouts are discovered by the same mechanism, but never become peer rows or cards: both Kanban and Grid show only a compact subagent count, and the parent detail contains the full navigable list. Closing the owning process or archiving the thread removes it.
 
 ### Sources
 
@@ -376,8 +376,6 @@ _Created: 2026-08-06 · Updated: 2026-08-27 · Verified: 2026-08-27_
 
 The centred capture dialog contains title, notes, and one optional project field. Selecting a project also records its linked repository, so a separate repository field would be duplicate noise. `C` opens capture in the browser. In the native shell, `Option-Space` opens only Quick Capture from anywhere and `Command-N` opens it while Agent Zen is active. The global shortcut is changeable from the menu-bar item. `Command-M` jumps to Project, and `Command-Return` saves. Capture keeps these field hints visible as part of its keyboard-first form; toolbar button hints appear only while Command is held. Focus stays in the field the human selected while shortcut hints or live session data update behind the dialog.
 
-![Agent Zen centred Quick Capture](2026-08-07-agent-zen-quick-capture.png)
-
 ### Sources
 
 - [Quick Capture](https://github.com/lucharo/agent-zen/blob/main/src/components/CaptureSheet.tsx) — Ideas-only capture contract.
@@ -396,7 +394,7 @@ The shell always loads its own build-identified frontend on port 5275. That keep
 
 The menu says **Connected · Updating sessions…** as soon as that health check succeeds. It permits one status snapshot at a time and waits five seconds after completion before starting another. The bridge also coalesces simultaneous snapshot requests from multiple surfaces, preventing several readers from scanning the same large rollout while keeping health responsive.
 
-1.0 app from the cask installs and runs there (checked 2026-09-28). The earlier personal-Mac Apple Development build was cold-launched from `/Applications`: its embedded bridge connected to Codex, the window and menu-bar companion appeared, and macOS exposed the `Command-N` and `Command-,` menu commands. The current shell starts as an accessory app and becomes foreground only after an explicit Open or Quick Capture action.
+The earlier personal-Mac Apple Development build was cold-launched from `/Applications`: its embedded bridge connected to Codex, the window and menu-bar companion appeared, and macOS exposed the `Command-N` and `Command-,` menu commands. The current shell starts as an accessory app and becomes foreground only after an explicit Open or Quick Capture action.
 
 A bare Swift executable launched directly from Terminal is not equivalent evidence. It can create an AppKit window and load a localhost web UI even when `spctl` rejects both that executable and the packaged app. That is useful for a development preview, but it does not prove that Finder, LaunchServices, or managed-device policy will accept an installed `.app` bundle.
 
@@ -411,29 +409,17 @@ _Created: 2026-08-06 · Updated: 2026-09-28 · Verified: 2026-08-28 · Runtime p
 
 ## How should the native app be distributed?
 
+**Short answer:** As a Developer ID-signed, notarised flat PKG or DMG, attached to a GitHub Release and installed directly or through the Homebrew cask.
 
-
-`bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. It signs the compiled Bun bridge with the required JavaScriptCore JIT entitlements before signing and verifying the outer app. v0.1.0 was released this way on 2026-09-11. `bun run release:macos` is the release command: it notarises and staples the app, wraps it in a Developer ID Installer-signed PKG, and verifies the result (see `docs/macos-release.md`).
-
-The concrete release path is:
-
-1. Obtain Developer ID Application and Developer ID Installer identities, including their private keys, on the release Mac.
-2. Produce an architecture-appropriate hardened app, sign every nested executable, then build a signed flat PKG that installs `Agent Zen.app` in `/Applications` and explicitly defines any CLI, daemon, launch-at-login, upgrade, rollback, and uninstall paths.
-3. Submit the deliverable with `notarytool`, staple the accepted ticket, and verify it with `codesign`, `pkgutil`, and `spctl`.
-4. 
-5. 
-
-PKG is the best fit here because Agent Zen may install more than one managed path. 
+`bun run build:macos` automatically prefers `Developer ID Application`, then `Apple Development`, and otherwise emits an explicitly warned ad-hoc build. `bun run release:macos` then signs, notarises, staples and verifies the release; see [docs/macos-release.md](../macos-release.md).
 
 The Mac App Store requires sandboxing. Agent Zen needs deliberate entitlements and user-granted access for local Codex stores, repositories, Git, and subprocess control, so that work should be designed and tested rather than added as a packaging afterthought.
 
 ### Sources
 
-- [Native distribution ADR](../adr/0007-native-shell-and-distribution.md) — accepted distribution ladder and current blocker.
+- [Native distribution ADR](../adr/0007-native-shell-and-distribution.md) — accepted distribution ladder.
 - [Apple certificates overview](https://developer.apple.com/help/account/certificates/certificates-overview/) — certificate types and management.
 - [Apple notarisation guidance](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) — Developer ID notarisation requirement.
-
-
 
 ## What does project onboarding do?
 
@@ -455,12 +441,8 @@ _Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_
 
 - [Codex connection architecture](2026-08-06-agent-zen-codex-connection.png)
 - [Live Codex demo poster](2026-08-06-agent-zen-live-demo-poster.png)
-- [Session state boundaries](../assets/2026-08-25-agent-zen-state-boundaries.png) and its [reproducible generation prompt](../assets/2026-08-25-agent-zen-state-boundaries.prompt.md)
-- [Codex and Claude integration review](../../explorations/2026-09-04-claude-integration-review/README.md) and its [dual-agent boundary diagram](../assets/2026-09-04-agent-zen-dual-agent-boundary.png)
 - [Current stage contract](2026-08-07-agent-zen-stage-contract.png)
-- [Centred Quick Capture](2026-08-07-agent-zen-quick-capture.png)
 - [Superseded 2-second stage/refresh visual](2026-08-06-agent-zen-stage-refresh.png)
-- Browser QA evidence is retained in the repository's `qa/` directory.
 
 ![Agent Zen live Codex demo poster](2026-08-06-agent-zen-live-demo-poster.png)
 
@@ -468,7 +450,5 @@ The poster records the first live bridge demonstration; it is historical evidenc
 
 ### Sources
 
-- Repository `qa/README.md` — retained screenshots, video, and validation context.
-- Repository `explorations/2026-08-05-codex-zen-directions/README.md` — selected visual direction.
 
 _Created: 2026-08-06 · Updated: 2026-09-04 · Verified: 2026-09-04_

@@ -1,12 +1,25 @@
 # Agent Zen
 
-Agent Zen is a calm, local view of the Codex and Claude Code sessions already running on your Mac. It answers a few practical questions: what is active, what project does it belong to, what is the agent doing now, and which sessions actually need your attention?
+A calm, local view of the Codex and Claude Code sessions already running on your Mac.
+
+It answers a few practical questions: what is active, what project does it belong to, what is the agent doing now, and which sessions actually need your attention?
 
 It exists because pen and paper is surprisingly good at managing agent work. A small page has edges. It makes you choose. The trouble starts after launching the sessions: the paper no longer knows which ones are still alive, which plan changed, or where the worktree went. Agent Zen keeps the useful constraint and adds back that missing visibility.
 
 This is not a throughput dashboard. It is an active shelf for choosing what to care about.
 
-![Agent Zen session grid](qa/2026-08-07-active-process-discovery/live-title-grid-1440x900.png)
+![The Agent Zen session board, showing sample data](docs/screenshot.png)
+
+*The board with the app's built-in sample sessions.*
+
+## What it reads, and where that stays
+
+Agent Zen runs on your Mac and reads what your agents already write there:
+
+- **Codex:** running `codex` processes, `~/.codex/state_5.sqlite` and the rollout JSONL files those sessions have open.
+- **Claude Code:** the live registry under `~/.claude/sessions`, the matching project transcripts and task files.
+
+Those files hold your prompts and agent output, so treat the app like any other tool with read access to them. The service binds only to loopback, and Agent Zen itself uploads nothing: it has no account, no telemetry and no remote server. A Codex session you launch from it talks to your model provider as usual. Its own settings live in `~/.agent-zen/`; Ideas and Logbook notes stay in browser storage. It installs no hooks and edits no agent settings.
 
 ## What it does
 
@@ -21,18 +34,21 @@ Finished or archived sessions leave the active board. There is deliberately no D
 
 ## Install
 
-**The Mac app.** The notarised app installs from this repository's private Homebrew tap; [docs/macos-release.md](docs/macos-release.md#homebrew-install-private-repository-tap) has the one-time token and trust steps.
+**The Mac app.** The notarised app installs from this repository's Homebrew tap. Homebrew 6 asks you to trust a third-party tap first. It needs macOS Sonoma or newer, and Codex or Claude Code already in use.
 
 ```sh
 brew tap lucharo/agent-zen https://github.com/lucharo/agent-zen.git
+brew trust --tap lucharo/agent-zen
 brew install --cask agent-zen
 ```
 
 The app serves its window from `http://127.0.0.1:5275`. When a CLI daemon speaking the same bridge protocol runs on 5274, the app reads through it; otherwise the app starts its own bridge. Ideas and Logbook notes are browser storage, so the app window and a browser tab on 5274 keep separate copies.
 
-**The CLI and daemon.** From a checkout, the CLI installs a user LaunchAgent that serves the same app on `http://localhost:5274/`, keeps it alive, and starts it again at login.
+**The CLI and daemon.** With [Bun](https://bun.sh) installed, a checkout installs a CLI and a user LaunchAgent that serves the same app on `http://localhost:5274/`, keeps it alive, and starts it again at login.
 
 ```sh
+git clone https://github.com/lucharo/agent-zen.git
+cd agent-zen
 bun install
 bun run install:cli
 agent-zen daemon start
@@ -97,7 +113,7 @@ The repository also contains a small AppKit and WKWebView shell. It launches qui
 bun run build:macos
 ```
 
-`bun run release:macos` produces the hardened, notarised Developer ID build as a stapled PKG and DMG. v0.1.0 shipped that way on 2026-09-11 and installs through the cask above. See [docs/macos-release.md](docs/macos-release.md) and [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).
+`bun run release:macos` produces the hardened, notarised Developer ID build as a stapled PKG and DMG. See [docs/macos-release.md](docs/macos-release.md) and [ADR-0007](docs/adr/0007-native-shell-and-distribution.md).
 
 ## Development
 
@@ -114,3 +130,7 @@ bun run test:a11y    # Playwright and axe
 Stop the installed daemon before running the source bridge on the same port.
 
 The accepted product decisions are indexed in [docs/adr](docs/adr/README.md). The [FAQ](docs/faq/README.md) explains stages, refresh, storage, daemon persistence, native requests, worktree identity and focus limits. The [QA index](qa/README.md) records browser evidence rather than treating a successful build as proof of the UI.
+
+## Licence
+
+[MIT](LICENSE).

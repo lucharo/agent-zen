@@ -1,11 +1,10 @@
-
+# macOS release: signed, notarised PKG for other Macs
 
 `bun run release:macos` builds `build/release/AgentZen-<version>.pkg`, a flat
 installer signed with Developer ID, notarised by Apple and stapled. Add `--dmg`
-for a drag-to-Applications disk image as well. 
-Custom App upload, a colleague's Mac, or a managed work laptop needs, because
-those Macs reject Apple Development and ad-hoc signatures as publisher
-`Not signed`.
+for a drag-to-Applications disk image as well. Any Mac other than the build
+machine needs this route, because Gatekeeper rejects Apple Development and
+ad-hoc signatures.
 
 ## One-time setup on the release Mac
 
@@ -51,26 +50,17 @@ those Macs reject Apple Development and ad-hoc signatures as publisher
 will still refuse it). `--allow-development` falls back to the Apple Development
 identity for a local dry run of the packaging.
 
-## Homebrew install (private repository tap)
+## Homebrew install
 
 The repository doubles as a Homebrew tap: `Casks/agent-zen.rb` points at the DMG
-attached to the GitHub Release for the current version. Because the repository
-is private, Homebrew clones the tap over HTTPS (with the git credential helper `gh auth setup-git` installs) and downloads the DMG through the
-GitHub API with your token:
+attached to the GitHub Release for the current version.
 
 ```bash
-gh auth setup-git                                     # once: git clones the private tap over HTTPS with gh's token
-export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)"   # the DMG is a private release asset
-brew trust --tap lucharo/agent-zen && brew trust --cask lucharo/agent-zen/agent-zen   # Homebrew 6 loads no third-party tap it has not been told to trust
 brew tap lucharo/agent-zen https://github.com/lucharo/agent-zen.git
+brew trust --tap lucharo/agent-zen   # Homebrew 6 loads no third-party tap it has not been told to trust
 brew install --cask agent-zen
-brew upgrade --cask agent-zen   # after a new release
+brew upgrade --cask agent-zen        # after a new release
 ```
-
-If you also run the CLI daemon, update it after upgrading the app: pull the
-repository, run `bun run install:cli`, then `agent-zen daemon restart`. The app
-reads through the daemon on 5274 only when both speak the same bridge protocol;
-otherwise it quietly starts its own bridge and a second Codex app-server.
 
 Publishing a release is one flag on the release command:
 
@@ -79,9 +69,8 @@ bun run release:macos -- --publish
 ```
 
 It creates GitHub Release `v<version>` if missing, uploads the PKG and DMG,
-rewrites the cask's `version`, `sha256` and asset id, and prints the install
-command. Commit the cask change so `brew upgrade` sees it. The first publish was
-v0.1.0 on 2026-09-11; every later publish rewrites the same three fields.
+rewrites the cask's `version` and `sha256`, and prints the install
+command. Commit the cask change so `brew upgrade` sees it. 
 
 ## Managed paths and lifecycle
 
@@ -96,8 +85,7 @@ the package needs no managed background item; the app owns its bridge process
 from launch until it quits, forwarding to a compatible daemon on 5274 when one
 is running.
 
-- **Install**: `sudo installer -pkg AgentZen-<version>.pkg -target /`, or
-First launch starts the embedded bridge and finds
+- **Install**: `sudo installer -pkg AgentZen-<version>.pkg -target /`. First launch starts the embedded bridge and finds
   `codex` on the explicit launch path.
 - **Upgrade**: install the newer PKG over the old one; quit Agent Zen first so
   the running bridge is replaced cleanly. Browser-owned data is untouched
@@ -108,15 +96,3 @@ First launch starts the embedded bridge and finds
 - **Reinstall**: installing the same version is idempotent.
 - **Uninstall**: quit Agent Zen and remove `/Applications/Agent Zen.app`.
   Browser-owned data stays until the site data is cleared.
-
-
-
-- Upload the notarised PKG; installation mode **Install once per device**.
-- Audit script: `scripts/mdm-audit.sh <version>`. It exits 0 when the installed
-  app is at least that version and its signature verifies, so a compliant Mac is
-  not reinstalled on every audit; exit 1 triggers the install.
-- Publisher shown to endpoint security is the Developer ID Team
-  (`Luis Chaves Rodriguez, 7V3HZUL435`). 
-  separate gate after the artefact exists.
-- No managed background item is required. The global capture shortcut uses
-  Carbon hotkeys, which need no Accessibility grant.
