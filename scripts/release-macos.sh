@@ -234,9 +234,10 @@ if [[ "$publish" == true ]]; then
   fi
   # The tag is proven to be HEAD, so replacing assets only ever rebuilds the same source.
   gh release upload "$tag" "$final_pkg" "$final_dmg" --repo "$gh_repo" --clobber
+  dmg_sha="$(shasum -a 256 "$final_dmg" | cut -d" " -f1)"
   update_cask "Casks/$cask_token.rb" "$version" "$dmg_sha"
   echo "Published $tag; Casks/$cask_token.rb now points at $version. Commit it, then:"
-  echo "  export HOMEBREW_GITHUB_API_TOKEN=\"\$(gh auth token)\" && brew install --cask $cask_token"
+  echo "  brew install --cask $cask_token"
 fi
 
 echo "--- artifacts"
