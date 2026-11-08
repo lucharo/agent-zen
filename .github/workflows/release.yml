@@ -27,8 +27,9 @@ permissions:
   contents: read
 
 concurrency:
-  # Every tag publish shares one group, so releases never race for the cask on main.
-  group: ${{ github.event_name == 'push' && 'release' || format('release-dry-run-{0}', github.ref) }}
+  # One group per tag, so no pending release is ever cancelled; the cask step
+  # below handles two releases reaching main at once.
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -163,26 +164,35 @@ jobs:
           sha_line="$(grep -m1 '^  sha256 "' "$cask")"
           test "$version_line" = "  version \"${GITHUB_REF_NAME#v}\""
           git checkout -q -- "$cask"
-          git fetch -q origin main
-          git checkout -q -B main origin/main
-          # Never move the cask back: a rerun of an older tag leaves a newer release in place.
           new_version="${GITHUB_REF_NAME#v}"
-          main_version="$(sed -n 's/^  version "\(.*\)"/\1/p' "$cask")"
-          newest="$(printf '%s\n%s\n' "$main_version" "$new_version" | sort -V | tail -n 1)"
-          if [ "$main_version" != "$new_version" ] && [ "$newest" = "$main_version" ]; then
-            echo "main's cask already points at $main_version, newer than $new_version; leaving it"
-            exit 0
-          fi
-          sed -i '' -e "s/^  version \".*\"/$version_line/" -e "s/^  sha256 \".*\"/$sha_line/" "$cask"
-          grep -qxF "$version_line" "$cask"
-          grep -qxF "$sha_line" "$cask"
-          if git diff --quiet -- "$cask"; then
-            echo "cask already current"
-            exit 0
-          fi
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -q -m "chore: point the cask at $GITHUB_REF_NAME" -- "$cask"
-          git push -q origin main
+          # Retry on a moved main; each attempt starts from main as it is now.
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin main
+            git checkout -q -B main origin/main
+            # Never move the cask back: a rerun of an older tag leaves a newer release in place.
+            main_version="$(sed -n 's/^  version "\(.*\)"/\1/p' "$cask")"
+            newest="$(printf '%s\n%s\n' "$main_version" "$new_version" | sort -V | tail -n 1)"
+            if [ "$main_version" != "$new_version" ] && [ "$newest" = "$main_version" ]; then
+              echo "main's cask already points at $main_version, newer than $new_version; leaving it"
+              exit 0
+            fi
+            sed -i '' -e "s/^  version \".*\"/$version_line/" -e "s/^  sha256 \".*\"/$sha_line/" "$cask"
+            grep -qxF "$version_line" "$cask"
+            grep -qxF "$sha_line" "$cask"
+            if git diff --quiet -- "$cask"; then
+              echo "cask already current"
+              exit 0
+            fi
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "chore: point the cask at $GITHUB_REF_NAME" -- "$cask"
+            if git push -q origin main; then
+              exit 0
+            fi
+            echo "main moved during attempt $attempt; retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not push the cask to main; the release is published, so commit its version and sha256 by hand"
+          exit 1
 
       - name: Remove the keychain and the key
         if: always()
