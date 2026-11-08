@@ -8,7 +8,7 @@ name: release
 # release decision. One-time setup: scripts/ci-signing-secrets.sh.
 #
 # A pull request that touches the release machinery runs the same job as a dry
-# run: the same build, keychain import, signing, PKG and DMG, with a throwaway
+# run: the same build, keychain import, signing, PKG and DMG, with a
 # throwaway identity from a throwaway CA, no notarisation and nothing published.
 
 on:
