@@ -98,8 +98,13 @@ jobs:
           password="$(openssl rand -hex 16)"
           # A throwaway CA, trusted for this runner, issues both identities, so
           # codesign, productbuild and pkgutil treat them like real ones.
-          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=Agent Zen CI dry run CA" \
-            -addext "basicConstraints=critical,CA:true" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+          # Extensions come from an explicit config: -addext on OpenSSL 1.1.1 duplicates
+          # its default v3_ca ones, and macOS rejects that as an unknown critical extension.
+          printf '%s\n' '[req]' 'distinguished_name=dn' 'x509_extensions=v3' 'prompt=no' \
+            '[dn]' 'CN=Agent Zen CI dry run CA' \
+            '[v3]' 'basicConstraints=critical,CA:true' 'keyUsage=critical,keyCertSign,cRLSign' 'subjectKeyIdentifier=hash' \
+            > "$work/ca.cnf"
+          openssl req -x509 -config "$work/ca.cnf" -newkey rsa:2048 -nodes -days 2 \
             -keyout "$work/ca.key" -out "$work/ca.pem" 2>/dev/null
           sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$work/ca.pem"
           make_identity() {
