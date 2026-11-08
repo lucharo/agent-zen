@@ -27,7 +27,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  # Every tag publish shares one group, so releases never race for the cask on main.
+  group: ${{ github.event_name == 'push' && 'release' || format('release-dry-run-{0}', github.ref) }}
   cancel-in-progress: false
 
 jobs:
@@ -69,7 +70,10 @@ jobs:
           build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' native/Info.plist)"
           package="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' package.json)"
           echo "Info.plist $short ($build), package.json $package"
-          test "$short" = "$build" && test "$short" = "$package"
+          if [ "$short" != "$build" ] || [ "$short" != "$package" ]; then
+            echo "::error::CFBundleShortVersionString, CFBundleVersion and package.json version must match"
+            exit 1
+          fi
           if [ "$PUBLISH" = true ]; then
             test "v$short" = "$GITHUB_REF_NAME" || { echo "::error::tag $GITHUB_REF_NAME but Info.plist says $short"; exit 1; }
           fi
@@ -161,8 +165,17 @@ jobs:
           git checkout -q -- "$cask"
           git fetch -q origin main
           git checkout -q -B main origin/main
+          # Never move the cask back: a rerun of an older tag leaves a newer release in place.
+          new_version="${GITHUB_REF_NAME#v}"
+          main_version="$(sed -n 's/^  version "\(.*\)"/\1/p' "$cask")"
+          newest="$(printf '%s\n%s\n' "$main_version" "$new_version" | sort -V | tail -n 1)"
+          if [ "$main_version" != "$new_version" ] && [ "$newest" = "$main_version" ]; then
+            echo "main's cask already points at $main_version, newer than $new_version; leaving it"
+            exit 0
+          fi
           sed -i '' -e "s/^  version \".*\"/$version_line/" -e "s/^  sha256 \".*\"/$sha_line/" "$cask"
-          grep -qxF "$version_line" "$cask" && grep -qxF "$sha_line" "$cask"
+          grep -qxF "$version_line" "$cask"
+          grep -qxF "$sha_line" "$cask"
           if git diff --quiet -- "$cask"; then
             echo "cask already current"
             exit 0
