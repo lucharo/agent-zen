@@ -101,16 +101,16 @@ jobs:
             openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
               -subj "/CN=Developer ID $kind: Agent Zen CI dry run (7V3HZUL435)/OU=7V3HZUL435" \
               -addext "keyUsage=digitalSignature" -addext "extendedKeyUsage=$eku" \
-              -addext "basicConstraints=CA:false" \
               -keyout "$stem.key" -out "$stem.pem" 2>/dev/null
             openssl pkcs12 -export -legacy -inkey "$stem.key" -in "$stem.pem" \
               -passout "pass:$password" -out "$stem.p12" 2>/dev/null \
               || openssl pkcs12 -export -inkey "$stem.key" -in "$stem.pem" -passout "pass:$password" -out "$stem.p12"
             # Trust it so codesign, productbuild and pkgutil treat it like a real identity.
-            sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$stem.pem"
+            sudo security add-trusted-cert -d -r trustAsRoot -k /Library/Keychains/System.keychain "$stem.pem"
           }
           make_identity Application codeSigning
           make_identity Installer "1.2.840.113635.100.4.13"
+          security find-identity -v
           DEVELOPER_ID_APPLICATION_P12="$(base64 -i "$work/Application.p12")" \
           DEVELOPER_ID_INSTALLER_P12="$(base64 -i "$work/Installer.p12")" \
           DEVELOPER_ID_P12_PASSWORD="$password" \
