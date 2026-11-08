@@ -1,0 +1,201 @@
+name: release
+
+# Pushing a v<version> tag publishes that version: scripts/release-macos.sh builds
+# the app, signs it with Developer ID, notarises and staples the app, the PKG and
+# the DMG, uploads them to the GitHub Release, and the cask's new version and
+# sha256 are committed to main. The job runs in the `release` environment, which
+# only v* tags may deploy to; there is no approval step, so the tag push is the
+# release decision. One-time setup: scripts/ci-signing-secrets.sh.
+#
+# A pull request that touches the release machinery runs the same job as a dry
+# run: the same build, keychain import, signing, PKG and DMG, with a
+# throwaway identity from a throwaway CA, no notarisation and nothing published.
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - scripts/release-macos.sh
+      - scripts/build-macos-app.sh
+      - scripts/ci-keychain.sh
+      - native/Info.plist
+      - package.json
+
+permissions:
+  contents: read
+
+concurrency:
+  # One group per tag, so no pending release is ever cancelled; the cask step
+  # below handles two releases reaching main at once.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: ${{ github.event_name == 'push' && 'release' || '' }}
+    permissions:
+      contents: write
+    env:
+      PUBLISH: ${{ github.event_name == 'push' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check the release secrets are set
+        if: env.PUBLISH == 'true'
+        env:
+          DEVELOPER_ID_APPLICATION_P12: ${{ secrets.DEVELOPER_ID_APPLICATION_P12 }}
+          DEVELOPER_ID_INSTALLER_P12: ${{ secrets.DEVELOPER_ID_INSTALLER_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          missing=0
+          for name in DEVELOPER_ID_APPLICATION_P12 DEVELOPER_ID_INSTALLER_P12 DEVELOPER_ID_P12_PASSWORD ASC_KEY_P8 ASC_KEY_ID ASC_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::secret $name is not set in the release environment (scripts/ci-signing-secrets.sh)"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Tag, Info.plist and package.json agree on the version
+        run: |
+          short="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' native/Info.plist)"
+          build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' native/Info.plist)"
+          package="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' package.json)"
+          echo "Info.plist $short ($build), package.json $package"
+          if [ "$short" != "$build" ] || [ "$short" != "$package" ]; then
+            echo "::error::CFBundleShortVersionString, CFBundleVersion and package.json version must match"
+            exit 1
+          fi
+          if [ "$PUBLISH" = true ]; then
+            test "v$short" = "$GITHUB_REF_NAME" || { echo "::error::tag $GITHUB_REF_NAME but Info.plist says $short"; exit 1; }
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run check
+
+      - name: Import the Developer ID identities into a throwaway keychain
+        if: env.PUBLISH == 'true'
+        env:
+          DEVELOPER_ID_APPLICATION_P12: ${{ secrets.DEVELOPER_ID_APPLICATION_P12 }}
+          DEVELOPER_ID_INSTALLER_P12: ${{ secrets.DEVELOPER_ID_INSTALLER_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: scripts/ci-keychain.sh import
+
+      - name: Dry run — import throwaway identities from a throwaway CA the same way
+        if: env.PUBLISH != 'true'
+        run: |
+          work="$RUNNER_TEMP/dry-run-identity"
+          mkdir -p "$work"
+          password="$(openssl rand -hex 16)"
+          # A throwaway CA, trusted for this runner, issues both identities, so
+          # codesign, productbuild and pkgutil treat them like real ones.
+          # Extensions come from an explicit config: -addext on OpenSSL 1.1.1 duplicates
+          # its default v3_ca ones, and macOS rejects that as an unknown critical extension.
+          printf '%s\n' '[req]' 'distinguished_name=dn' 'x509_extensions=v3' 'prompt=no' \
+            '[dn]' 'CN=Agent Zen CI dry run CA' \
+            '[v3]' 'basicConstraints=critical,CA:true' 'keyUsage=critical,keyCertSign,cRLSign' 'subjectKeyIdentifier=hash' \
+            > "$work/ca.cnf"
+          openssl req -x509 -config "$work/ca.cnf" -newkey rsa:2048 -nodes -days 2 \
+            -keyout "$work/ca.key" -out "$work/ca.pem" 2>/dev/null
+          sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$work/ca.pem"
+          make_identity() {
+            local kind="$1" eku="$2" stem="$work/$1"
+            printf 'basicConstraints=critical,CA:false\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=%s\n' "$eku" > "$stem.ext"
+            openssl req -new -newkey rsa:2048 -nodes \
+              -subj "/CN=Developer ID $kind: Agent Zen CI dry run (7V3HZUL435)/OU=7V3HZUL435" \
+              -keyout "$stem.key" -out "$stem.csr" 2>/dev/null
+            openssl x509 -req -in "$stem.csr" -CA "$work/ca.pem" -CAkey "$work/ca.key" -CAcreateserial \
+              -days 2 -extfile "$stem.ext" -out "$stem.pem" 2>/dev/null
+            openssl pkcs12 -export -legacy -inkey "$stem.key" -in "$stem.pem" \
+              -passout "pass:$password" -out "$stem.p12" 2>/dev/null \
+              || openssl pkcs12 -export -inkey "$stem.key" -in "$stem.pem" -passout "pass:$password" -out "$stem.p12"
+          }
+          make_identity Application codeSigning
+          make_identity Installer "1.2.840.113635.100.4.13"
+          DEVELOPER_ID_APPLICATION_P12="$(base64 -i "$work/Application.p12")" \
+          DEVELOPER_ID_INSTALLER_P12="$(base64 -i "$work/Installer.p12")" \
+          DEVELOPER_ID_P12_PASSWORD="$password" \
+            scripts/ci-keychain.sh import
+          rm -rf "$work"
+
+      - name: Write the App Store Connect key
+        if: env.PUBLISH == 'true'
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          umask 077
+          printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Sign, notarise, staple and publish
+        if: env.PUBLISH == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          GH_TOKEN: ${{ github.token }}
+        run: ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" scripts/release-macos.sh --publish
+
+      - name: Dry run — sign and package without notarising or publishing
+        if: env.PUBLISH != 'true'
+        env:
+          AGENT_ZEN_SIGNING_IDENTITY: "Developer ID Application: Agent Zen CI dry run (7V3HZUL435)"
+          AGENT_ZEN_INSTALLER_IDENTITY: "Developer ID Installer: Agent Zen CI dry run (7V3HZUL435)"
+        run: scripts/release-macos.sh --skip-notarize --dmg
+
+      - name: Commit the cask to main
+        if: env.PUBLISH == 'true'
+        run: |
+          # Carry only the version and sha256 lines onto main's own cask.
+          cask=Casks/agent-zen.rb
+          version_line="$(grep -m1 '^  version "' "$cask")"
+          sha_line="$(grep -m1 '^  sha256 "' "$cask")"
+          test "$version_line" = "  version \"${GITHUB_REF_NAME#v}\""
+          git checkout -q -- "$cask"
+          new_version="${GITHUB_REF_NAME#v}"
+          # Retry on a moved main; each attempt starts from main as it is now.
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin main
+            git checkout -q -B main origin/main
+            # Never move the cask back: a rerun of an older tag leaves a newer release in place.
+            main_version="$(sed -n 's/^  version "\(.*\)"/\1/p' "$cask")"
+            newest="$(printf '%s\n%s\n' "$main_version" "$new_version" | sort -V | tail -n 1)"
+            if [ "$main_version" != "$new_version" ] && [ "$newest" = "$main_version" ]; then
+              echo "main's cask already points at $main_version, newer than $new_version; leaving it"
+              exit 0
+            fi
+            sed -i '' -e "s/^  version \".*\"/$version_line/" -e "s/^  sha256 \".*\"/$sha_line/" "$cask"
+            grep -qxF "$version_line" "$cask"
+            grep -qxF "$sha_line" "$cask"
+            if git diff --quiet -- "$cask"; then
+              echo "cask already current"
+              exit 0
+            fi
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "chore: point the cask at $GITHUB_REF_NAME" -- "$cask"
+            if git push -q origin main; then
+              exit 0
+            fi
+            echo "main moved during attempt $attempt; retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not push the cask to main; the release is published, so commit its version and sha256 by hand"
+          exit 1
+
+      - name: Remove the keychain and the key
+        if: always()
+        run: |
+          scripts/ci-keychain.sh delete
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
