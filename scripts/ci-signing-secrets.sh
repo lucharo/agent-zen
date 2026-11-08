@@ -60,6 +60,11 @@ for pair in "Application:$app_p12" "Installer:$installer_p12"; do
     echo "$file holds no Developer ID $kind identity for team $team_id." >&2
     exit 1
   fi
+  # An expired certificate would replace working secrets and then fail the release.
+  if ! security find-certificate -c "Developer ID $kind: " -p "$keychain" | openssl x509 -noout -checkend 86400 >/dev/null; then
+    echo "The Developer ID $kind certificate in $file has expired or expires within a day; renew it first." >&2
+    exit 1
+  fi
 done
 echo "Both identities import and pair with their private keys."
 
