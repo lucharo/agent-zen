@@ -9,7 +9,7 @@ name: release
 #
 # A pull request that touches the release machinery runs the same job as a dry
 # run: the same build, keychain import, signing, PKG and DMG, with a throwaway
-# self-signed identity, no notarisation and nothing published.
+# throwaway identity from a throwaway CA, no notarisation and nothing published.
 
 on:
   push:
@@ -90,27 +90,32 @@ jobs:
           DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
         run: scripts/ci-keychain.sh import
 
-      - name: Dry run — import a throwaway self-signed identity the same way
+      - name: Dry run — import throwaway identities from a throwaway CA the same way
         if: env.PUBLISH != 'true'
         run: |
           work="$RUNNER_TEMP/dry-run-identity"
           mkdir -p "$work"
           password="$(openssl rand -hex 16)"
+          # A throwaway CA, trusted for this runner, issues both identities, so
+          # codesign, productbuild and pkgutil treat them like real ones.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=Agent Zen CI dry run CA" \
+            -addext "basicConstraints=critical,CA:true" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+            -keyout "$work/ca.key" -out "$work/ca.pem" 2>/dev/null
+          sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$work/ca.pem"
           make_identity() {
             local kind="$1" eku="$2" stem="$work/$1"
-            openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+            printf 'basicConstraints=critical,CA:false\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=%s\n' "$eku" > "$stem.ext"
+            openssl req -new -newkey rsa:2048 -nodes \
               -subj "/CN=Developer ID $kind: Agent Zen CI dry run (7V3HZUL435)/OU=7V3HZUL435" \
-              -addext "keyUsage=digitalSignature" -addext "extendedKeyUsage=$eku" \
-              -keyout "$stem.key" -out "$stem.pem" 2>/dev/null
+              -keyout "$stem.key" -out "$stem.csr" 2>/dev/null
+            openssl x509 -req -in "$stem.csr" -CA "$work/ca.pem" -CAkey "$work/ca.key" -CAcreateserial \
+              -days 2 -extfile "$stem.ext" -out "$stem.pem" 2>/dev/null
             openssl pkcs12 -export -legacy -inkey "$stem.key" -in "$stem.pem" \
               -passout "pass:$password" -out "$stem.p12" 2>/dev/null \
               || openssl pkcs12 -export -inkey "$stem.key" -in "$stem.pem" -passout "pass:$password" -out "$stem.p12"
-            # Trust it so codesign, productbuild and pkgutil treat it like a real identity.
-            sudo security add-trusted-cert -d -r trustAsRoot -k /Library/Keychains/System.keychain "$stem.pem"
           }
           make_identity Application codeSigning
           make_identity Installer "1.2.840.113635.100.4.13"
-          security find-identity -v
           DEVELOPER_ID_APPLICATION_P12="$(base64 -i "$work/Application.p12")" \
           DEVELOPER_ID_INSTALLER_P12="$(base64 -i "$work/Installer.p12")" \
           DEVELOPER_ID_P12_PASSWORD="$password" \

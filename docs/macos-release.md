@@ -91,7 +91,7 @@ the GitHub Release), commits the cask's new `version` and `sha256` to `main`,
 and deletes the keychain and key. It runs in the `release` environment, which
 only `v*` tags may deploy to, with no approval step: the tag push is the
 release. A pull request that changes the release machinery runs the same job
-as a dry run with a self-signed identity, no notarisation and nothing published.
+as a dry run with throwaway identities, no notarisation and nothing published.
 
 One-time setup, on the Mac that holds the certificates:
 
