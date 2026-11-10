@@ -14,6 +14,7 @@ import { Chevron, LaneIcon } from './primitives'
 import { QuickLogbook } from './QuickLogbook'
 import { SessionCard } from './SessionCard'
 import styles from './KanbanView.module.css'
+import { NO_PROJECT_LABEL } from '@/domain/projectLabel'
 
 export interface KanbanViewProps {
   ideas: readonly Idea[]
@@ -317,7 +318,7 @@ function groupSessions(entries: readonly BoardSession[], byProject: boolean) {
   for (const entry of entries) {
     const key = entry.project?.id ?? 'no-project'
     const group = grouped.get(key) ?? {
-      label: entry.project?.name ?? 'Outside a Git project',
+      label: entry.project?.name ?? NO_PROJECT_LABEL,
       entries: [],
     }
     group.entries.push(entry)

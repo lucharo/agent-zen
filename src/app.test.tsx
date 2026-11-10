@@ -222,6 +222,26 @@ describe('the board', () => {
     expect(within(column('Running')).getByText('1 subagent')).toBeInTheDocument()
   })
 
+  it('names a session in an unregistered repository by that repository', () => {
+    const storage = createMemoryStorage()
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...createInitialState(NOW),
+        projects: SEED_PROJECTS.filter((project) => project.id !== 'data-pipeline'),
+        ideas: seedIdeas(NOW),
+        logbook: seedLogbook(NOW),
+      }),
+    )
+
+    mount(storage)
+
+    const card = screen.getByText('Retire dask join helpers').closest('article')
+    expect(card).not.toBeNull()
+    expect(within(card!).getByText('example/data-pipeline', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.queryByText(/Outside a Git project/)).toBeNull()
+  })
+
   it('can hide collapsed lanes and disable the Needs you lane highlight', async () => {
     const { user } = mount()
     expect(column('Needs you')).toHaveAttribute('data-highlight', 'true')

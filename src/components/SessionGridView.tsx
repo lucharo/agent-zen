@@ -4,6 +4,7 @@ import { useAgentZen, type BoardSession } from '@/state/store'
 import { LaneIcon } from './primitives'
 import { SessionCard } from './SessionCard'
 import styles from './SessionGridView.module.css'
+import { NO_PROJECT_LABEL } from '@/domain/projectLabel'
 
 export interface SessionGridViewProps {
   onOpenSession: (sessionId: string) => void
@@ -72,7 +73,7 @@ function groupSessions(entries: readonly BoardSession[], groupBy: KanbanGroupBy)
   for (const entry of entries) {
     const key = entry.project?.id ?? 'outside-git'
     const group = grouped.get(key) ?? {
-      label: entry.project?.name ?? 'Outside a Git project',
+      label: entry.project?.name ?? NO_PROJECT_LABEL,
       entries: [],
     }
     group.entries.push(entry)

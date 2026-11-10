@@ -4,6 +4,7 @@ import { captureShortcutLabel } from '@/keyboard'
 import { useAgentZen } from '@/state/store'
 import { Overlay } from './primitives'
 import styles from './CommandPalette.module.css'
+import { sessionProjectLabel } from '@/domain/projectLabel'
 
 interface Command {
   readonly id: string
@@ -166,14 +167,14 @@ export function CommandPalette({
       {
         id: `session-${entry.session.id}`,
         label: entry.session.title,
-        detail: `${STAGE_LABELS[entry.stage]} · ${entry.project?.name ?? 'Outside a Git project'}`,
+        detail: `${STAGE_LABELS[entry.stage]} · ${sessionProjectLabel(entry.project, entry.session.repository)}`,
         group: 'Sessions' as const,
         run: () => onOpenSession(entry.session.id),
       },
       ...entry.children.map((child) => ({
         id: `session-${child.id}`,
         label: child.title,
-        detail: `Child agent · ${projectById(child.projectId)?.name ?? 'Outside a Git project'}`,
+        detail: `Child agent · ${sessionProjectLabel(projectById(child.projectId), child.repository)}`,
         group: 'Sessions' as const,
         run: () => onOpenSession(child.id),
       })),

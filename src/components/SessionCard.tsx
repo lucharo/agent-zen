@@ -12,6 +12,7 @@ import type { BoardSession } from '@/state/store'
 import { AgentMark, StageIcon } from './primitives'
 import { QuickLogbook } from './QuickLogbook'
 import styles from './SessionCard.module.css'
+import { sessionProjectLabel } from '@/domain/projectLabel'
 
 export interface SessionCardProps {
   entry: BoardSession
@@ -40,7 +41,7 @@ export function SessionCard({
   const progress = planProgress(session)
   const idle = session.activity === 'idle'
   const needsUser = session.classification.needsUser
-  const projectLabel = project?.name ?? 'Outside a Git project'
+  const projectLabel = sessionProjectLabel(project, session.repository)
   const childLabel = children.length > 0
     ? `${children.length} ${children.length === 1 ? 'subagent' : 'subagents'}`
     : null

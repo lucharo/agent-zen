@@ -3,6 +3,7 @@ import { planProgress, stageReasonLabel, type ClassifiedAgentSession } from '../
 import {
   AGENT_LABELS, STAGE_LABELS
 } from '../src/domain/types'
+import { NO_PROJECT_LABEL } from '../src/domain/projectLabel'
 
 export interface SessionCommandIo {
   readonly snapshot: () => Promise<BridgeSnapshot>
@@ -62,7 +63,7 @@ export async function runExplainCommand(
     `Reason: ${stageReasonLabel(session.classification.reason)} (${session.classification.reason})`,
     `Attention: ${attentionLabel(session)}`,
     `Goal: ${goalLabel(session)}${session.goal ? ` · ${session.goal.objective}` : ''}`,
-    `Project: ${session.projectId ?? 'Outside a Git project'}`,
+    `Project: ${session.projectId ?? session.repository ?? NO_PROJECT_LABEL}`,
     `Turn: ${session.turnId ?? 'none'}`,
     `Snapshot: ${snapshot.generatedAt} · protocol ${snapshot.protocolVersion}`,
   ].join('\n'))

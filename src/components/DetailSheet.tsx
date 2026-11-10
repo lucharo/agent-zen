@@ -12,6 +12,7 @@ import { useAgentZen } from '@/state/store'
 import { AgentMark, Chevron, Overlay } from './primitives'
 import { Logbook } from './Logbook'
 import styles from './DetailSheet.module.css'
+import { NO_PROJECT_LABEL, sessionProjectLabel } from '@/domain/projectLabel'
 
 export type DetailTarget =
   | { kind: 'session'; id: string }
@@ -89,7 +90,7 @@ function SessionDetail({
     <>
       <SheetHeader
         title={session.title}
-        subtitle={`${parent ? 'Subagent · ' : ''}${stage ? STAGE_LABELS[stage] : 'History'}${attentionSuffix(session)} · ${project?.name ?? 'Outside a Git project'}`}
+        subtitle={`${parent ? 'Subagent · ' : ''}${stage ? STAGE_LABELS[stage] : 'History'}${attentionSuffix(session)} · ${sessionProjectLabel(project, session.repository)}`}
         onClose={onClose}
       />
 
@@ -608,7 +609,7 @@ function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }
     <>
       <SheetHeader
         title={idea.title}
-        subtitle={`Idea · ${project?.name ?? 'No project'}`}
+        subtitle={`Idea · ${project?.name ?? NO_PROJECT_LABEL}`}
         onClose={onClose}
       />
       <div className={styles.body}>
@@ -618,7 +619,7 @@ function IdeaDetail({ ideaId, onClose }: { ideaId: string; onClose: () => void }
           <dt>Captured</dt>
           <dd>{formatCaptureTime(idea.createdAt, now)}</dd>
           <dt>Project</dt>
-          <dd>{project?.name ?? 'No project'}</dd>
+          <dd>{project?.name ?? NO_PROJECT_LABEL}</dd>
           <dt>Repository</dt>
           <dd>{idea.repository ?? '—'}</dd>
           <dt>Directory</dt>

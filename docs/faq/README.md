@@ -236,9 +236,9 @@ _Created: 2026-08-06 · Updated: 2026-11-06 · Verified: 2026-11-06_
 
 **Short answer:** Agent Zen can attach only checkouts found beneath a configured discovery root, or GitHub worktrees whose remote matches one of those discovered repositories.
 
-The default discovery root is `~/Projects/github.com`, with a two-level walk below it. The scanner stops at the first Git checkout and recognises GitHub SSH and HTTPS remotes. A repository deeper than that boundary, outside the configured roots, or hosted on an unrecognised remote will not become a project candidate automatically. Add its parent to the local `projectRoots` setting before expecting automatic registration.
+The default discovery root is `~/Projects/github.com`, with a two-level walk below it. The scanner stops at the first Git checkout and recognises GitHub SSH and HTTPS remotes. A repository deeper than that boundary, outside the configured roots, or hosted on an unrecognised remote will not become a project candidate automatically. Add its parent to `projectRoots` in `~/.agent-zen/settings.json` before expecting automatic registration.
 
-A visible session can still appear as **Outside a Git project** when its cwd is a parent directory rather than a checkout. Agent Zen does not infer identity from prompt text or neighbouring directories.
+Until then, a session in that repository names its GitHub repository (`owner/name`) on its card but does not join a project. A session whose cwd is a parent directory rather than a checkout says **No project**. Agent Zen does not infer identity from prompt text or neighbouring directories.
 
 ### Sources
 
@@ -246,7 +246,7 @@ A visible session can still appear as **Outside a Git project** when its cwd is 
 - [Project scanner](https://github.com/lucharo/agent-zen/blob/main/server/projects.ts) — depth limit, checkout boundary, and GitHub remote normalisation.
 - [Settings schema](https://github.com/lucharo/agent-zen/blob/main/server/settings.ts) — persisted project roots and registered directories.
 
-_Created: 2026-08-10 · Updated: 2026-08-10 · Verified: 2026-08-10_
+_Created: 2026-08-10 · Updated: 2026-11-10 · Verified: 2026-11-10_
 
 ## Are the Sessions views editable or controllable?
 
@@ -263,18 +263,18 @@ Plans, stage, project identity, model, branch, and worktree remain agent-derived
 
 _Created: 2026-08-06 · Updated: 2026-09-28 · Verified: 2026-09-04_
 
-## Why can a session say “Outside a Git project”?
+## Why can a session say “No project”?
 
-**Short answer:** Codex recorded a cwd that is not inside a discovered Git checkout, so Agent Zen has no safe project identity to attach.
+**Short answer:** The agent recorded a cwd that is neither inside a discovered checkout nor a GitHub repository, so Agent Zen has no safe project identity to attach.
 
-Agent Zen never guesses a project from prompt text or a nearby directory. Sessions inside repositories and linked worktrees resolve by deepest checkout path, then by normalized Git remote. A session started from a parent directory containing several repositories remains explicitly outside a Git project.
+Agent Zen never guesses a project from prompt text or a nearby directory. Sessions inside repositories and linked worktrees resolve by deepest checkout path, then by normalized Git remote. A session in a GitHub repository outside the discovery roots shows that repository's `owner/name` instead. A session started from a parent directory containing several repositories says **No project**.
 
 ### Sources
 
 - [Observer project resolution](https://github.com/lucharo/agent-zen/blob/main/server/codex/stateObserver.ts) — cwd and remote matching.
 - [Session cards](https://github.com/lucharo/agent-zen/blob/main/src/components/SessionCard.tsx) — honest fallback label.
 
-_Created: 2026-08-07 · Updated: 2026-08-07 · Verified: 2026-08-07_
+_Created: 2026-08-07 · Updated: 2026-11-10 · Verified: 2026-11-10_
 
 ## What does the focus limit actually enforce?
 
