@@ -586,7 +586,7 @@ function pendingRequestSummary(pending: NonNullable<AgentSession['pendingRequest
 function attentionSuffix(session: ClassifiedAgentSession): string {
   if (session.classification.needsUser) return ' · Needs you'
   if (session.activity === 'working') return ' · Working'
-  if (session.activity === 'idle') return ' · Idle'
+  if (session.activity === 'idle' && session.classification.stage !== 'idle') return ' · Idle'
   return ''
 }
 

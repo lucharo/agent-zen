@@ -787,6 +787,33 @@ describe('session detail', () => {
     )).toBeInTheDocument()
   })
 
+  it('does not repeat Idle in the subtitle of an idle session', async () => {
+    const fixture = createFixtureSessionSource({ now: NOW, tickMs: 0 })
+    const sessions = fixture.snapshot().map((session) =>
+      session.id === 'sess-control-plane'
+        ? { ...session, activity: 'idle' as const, turnOutcome: 'completed' as const }
+        : session,
+    )
+    const storage = seedTestState(createMemoryStorage())
+    render(
+      <AgentZenProvider
+        source={{ ...fixture, snapshot: () => sessions, subscribe: (listener) => {
+          listener(sessions)
+          return () => undefined
+        } }}
+        now={NOW}
+        storage={storage}
+      >
+        <App />
+      </AgentZenProvider>,
+    )
+    const user = userEvent.setup({ document })
+
+    await user.click(within(column('Idle')).getByText('Revise calm control plane'))
+
+    expect(within(screen.getByRole('dialog')).getByText('Idle · agent-zen')).toBeInTheDocument()
+  })
+
   it('shows the Codex plan as read-only and keeps the Logbook human-only', async () => {
     const { user } = mount()
 
