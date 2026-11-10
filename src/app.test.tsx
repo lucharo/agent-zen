@@ -694,6 +694,34 @@ describe('navigation', () => {
     expect(screen.getByRole('combobox', { name: 'Group sessions by' })).toHaveValue('state')
   })
 
+  it.each(['Kanban', 'Grid'])(
+    'keeps the repository on unregistered cards when the %s layout groups by project',
+    async (layoutName) => {
+      const storage = createMemoryStorage()
+      storage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          ...createInitialState(NOW),
+          projects: SEED_PROJECTS.filter((project) => project.id !== 'data-pipeline'),
+          ideas: seedIdeas(NOW),
+          logbook: seedLogbook(NOW),
+        }),
+      )
+      const { user } = mount(storage)
+      const layout = screen.getByRole('group', { name: 'Session layout' })
+      await user.click(within(layout).getByRole('button', { name: layoutName }))
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
+
+      const unregistered = screen.getByText('Retire dask join helpers').closest('article')
+      const registered = screen.getByText('Revise calm control plane').closest('article')
+      expect(unregistered).not.toBeNull()
+      expect(registered).not.toBeNull()
+      expect(within(unregistered!).getByText(/example\/data-pipeline$/, { selector: 'span' })).toBeInTheDocument()
+      expect(within(registered!).queryByText(/agent-zen$/, { selector: 'span' })).toBeNull()
+    },
+  )
+
   it('lets the command palette enable project grouping from Kanban when Grid stores state grouping', async () => {
     const storage = seedTestState(createMemoryStorage())
     const persisted = JSON.parse(storage.getItem(STORAGE_KEY)!)

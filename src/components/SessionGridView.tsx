@@ -46,7 +46,7 @@ export function SessionGridView({ onOpenSession }: SessionGridViewProps) {
                     cardIndex={index}
                     detail={state.kanbanCardDetail}
                     comments={logbookFor(entry.session.id)}
-                    showProject={state.kanbanGroupBy !== 'project'}
+                    showProject={state.kanbanGroupBy !== 'project' || entry.project === null}
                     showStage={state.kanbanGroupBy !== 'state' || group.lane === 'needs-you'}
                   />
                 ))}
