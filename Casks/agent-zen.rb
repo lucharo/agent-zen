@@ -9,7 +9,7 @@ cask "agent-zen" do
 
   url "https://github.com/lucharo/agent-zen/releases/download/v#{version}/AgentZen-#{version}.dmg"
   name "Agent Zen"
-  desc "Quiet local control plane for ideas, focus and Claude/Codex sessions"
+  desc "Calm local view of running Codex and Claude Code sessions"
   homepage "https://github.com/lucharo/agent-zen"
 
   depends_on macos: :sonoma

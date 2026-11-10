@@ -1,5 +1,9 @@
 # Agent Zen
 
+[![Latest release](https://img.shields.io/github/v/release/lucharo/agent-zen)](https://github.com/lucharo/agent-zen/releases/latest)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-informational)](#install)
+[![Licence: MIT](https://img.shields.io/github/license/lucharo/agent-zen)](LICENSE)
+
 A calm, local view of the Codex and Claude Code sessions already running on your Mac.
 
 It answers a few practical questions: what is active, what project does it belong to, what is the agent doing now, and which sessions actually need your attention?
@@ -32,15 +36,19 @@ Those files hold your prompts and agent output, so treat the app like any other 
 
 Finished or archived sessions leave the active board. There is deliberately no Done column competing for attention.
 
+Cards are grouped and filtered by project. Agent Zen discovers projects from Git checkouts under `~/Projects/github.com`, two levels deep. A session in a GitHub repository elsewhere shows its `owner/name` until you add that repository's parent folder to `projectRoots` in `~/.agent-zen/settings.json`; see the [FAQ](docs/faq/README.md#why-is-my-repository-or-worktree-missing).
+
 ## Install
 
-**The Mac app.** The notarised app installs from this repository's Homebrew tap. Homebrew 6 asks you to trust a third-party tap first. It needs macOS Sonoma or newer, and Codex or Claude Code already in use.
+**The Mac app.** The notarised app installs from this repository's Homebrew tap. Homebrew 6 and later ask you to trust a third-party tap first. It needs macOS Sonoma or newer, and Codex or Claude Code already in use.
 
 ```sh
 brew tap lucharo/agent-zen https://github.com/lucharo/agent-zen.git
 brew trust --tap lucharo/agent-zen
 brew install --cask agent-zen
 ```
+
+Open Agent Zen from Applications. It starts in the menu bar without opening a window: choose **Open Agent Zen** from its menu-bar icon, or open the app again, to see the board. Your running Claude Code and Codex sessions appear within a few seconds. The DMG and PKG are also attached to each [release](https://github.com/lucharo/agent-zen/releases/latest).
 
 The app serves its window from `http://127.0.0.1:5275`. When a CLI daemon speaking the same bridge protocol runs on 5274, the app reads through it; otherwise the app starts its own bridge. Ideas and Logbook notes are browser storage, so the app window and a browser tab on 5274 keep separate copies.
 
@@ -55,7 +63,7 @@ agent-zen daemon start
 agent-zen open
 ```
 
-The installer puts the CLI in `~/.local/bin/agent-zen`. If that directory is not on your `PATH`, call it by its full path.
+The installer puts the CLI in `~/.local/bin/agent-zen`. If that directory is not on your `PATH`, call it by its full path. `main` can carry an unreleased version number; check out a [release tag](https://github.com/lucharo/agent-zen/tags) to install exactly what the app ships.
 
 ```sh
 agent-zen daemon status
