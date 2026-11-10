@@ -250,7 +250,7 @@ export function KanbanView({ ideas, onOpenSession, onOpenIdea, onCapture }: Kanb
                               cardIndex={index}
                               detail={state.kanbanCardDetail}
                               comments={logbookFor(entry.session.id)}
-                              showProject={state.kanbanGroupBy !== 'project' || entry.project === null}
+                              showProject={state.kanbanGroupBy !== 'project' || (entry.project === null && entry.session.repository !== null)}
                               showStage={lane === 'needs-you'}
                             />
                           ))}

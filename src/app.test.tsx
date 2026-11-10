@@ -5,6 +5,7 @@ import { App } from '@/App'
 import { createFixtureSessionSource } from '@/adapters/fixtureSource'
 import type { AgentZenBridge } from '@/bridge/httpBridge'
 import type { BridgeSnapshot } from '@/bridge/types'
+import type { AgentSession } from '@/domain/types'
 import { selectUiPreferences, type UiPreferences } from '@/domain/preferences'
 import { STORAGE_KEY, createInitialState } from '@/state/persistence'
 import { SEED_PROJECTS, seedIdeas, seedLogbook } from '@/state/seed'
@@ -26,6 +27,33 @@ function mount(storage: Storage = createMemoryStorage()) {
     </AgentZenProvider>,
   )
   return { ...view, storage, user: userEvent.setup({ document }) }
+}
+
+/** Like mount, but with the fixture sessions passed through `edit` first. */
+function mountWithSessions(
+  storage: Storage,
+  edit: (sessions: readonly AgentSession[]) => readonly AgentSession[],
+) {
+  seedTestState(storage)
+  const fixture = createFixtureSessionSource({ now: NOW, tickMs: 0 })
+  const sessions = edit(fixture.snapshot())
+  render(
+    <AgentZenProvider
+      source={{
+        ...fixture,
+        snapshot: () => sessions,
+        subscribe: (listener) => {
+          listener(sessions)
+          return () => undefined
+        },
+      }}
+      now={NOW}
+      storage={storage}
+    >
+      <App />
+    </AgentZenProvider>,
+  )
+  return { user: userEvent.setup({ document }) }
 }
 
 function seedTestState(storage: Storage): Storage {
@@ -695,7 +723,7 @@ describe('navigation', () => {
   })
 
   it.each(['Kanban', 'Grid'])(
-    'keeps the repository on unregistered cards when the %s layout groups by project',
+    'labels only unregistered repositories when the %s layout groups by project',
     async (layoutName) => {
       const storage = createMemoryStorage()
       storage.setItem(
@@ -707,7 +735,13 @@ describe('navigation', () => {
           logbook: seedLogbook(NOW),
         }),
       )
-      const { user } = mount(storage)
+      const { user } = mountWithSessions(storage, (sessions) =>
+        sessions.map((session) =>
+          session.title === 'Harbor canary review'
+            ? { ...session, projectId: null, repository: null }
+            : session,
+        ),
+      )
       const layout = screen.getByRole('group', { name: 'Session layout' })
       await user.click(within(layout).getByRole('button', { name: layoutName }))
 
@@ -715,10 +749,13 @@ describe('navigation', () => {
 
       const unregistered = screen.getByText('Retire dask join helpers').closest('article')
       const registered = screen.getByText('Revise calm control plane').closest('article')
+      const loose = screen.getByText('Harbor canary review').closest('article')
       expect(unregistered).not.toBeNull()
       expect(registered).not.toBeNull()
+      expect(loose).not.toBeNull()
       expect(within(unregistered!).getByText(/example\/data-pipeline$/, { selector: 'span' })).toBeInTheDocument()
       expect(within(registered!).queryByText(/agent-zen$/, { selector: 'span' })).toBeNull()
+      expect(within(loose!).queryByText(/No project$/, { selector: 'span' })).toBeNull()
     },
   )
 
@@ -816,26 +853,13 @@ describe('session detail', () => {
   })
 
   it('does not repeat Idle in the subtitle of an idle session', async () => {
-    const fixture = createFixtureSessionSource({ now: NOW, tickMs: 0 })
-    const sessions = fixture.snapshot().map((session) =>
-      session.id === 'sess-control-plane'
-        ? { ...session, activity: 'idle' as const, turnOutcome: 'completed' as const }
-        : session,
+    const { user } = mountWithSessions(createMemoryStorage(), (sessions) =>
+      sessions.map((session) =>
+        session.id === 'sess-control-plane'
+          ? { ...session, activity: 'idle' as const, turnOutcome: 'completed' as const }
+          : session,
+      ),
     )
-    const storage = seedTestState(createMemoryStorage())
-    render(
-      <AgentZenProvider
-        source={{ ...fixture, snapshot: () => sessions, subscribe: (listener) => {
-          listener(sessions)
-          return () => undefined
-        } }}
-        now={NOW}
-        storage={storage}
-      >
-        <App />
-      </AgentZenProvider>,
-    )
-    const user = userEvent.setup({ document })
 
     await user.click(within(column('Idle')).getByText('Revise calm control plane'))
 
