@@ -1,6 +1,6 @@
 [project]
 site_name = "Agent Zen"
-site_description = "A calm local control plane for Codex and Claude Code sessions"
+site_description = "A calm local view of the Codex and Claude Code sessions already running on your Mac"
 repo_url = "https://github.com/lucharo/agent-zen"
 repo_name = "lucharo/agent-zen"
 

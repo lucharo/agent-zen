@@ -150,6 +150,34 @@ describe('session CLI commands', () => {
     expect(output.join('')).toContain('Agent: Claude Code')
   })
 
+  test('names an unregistered session by its GitHub repository', async () => {
+    const base = snapshot()
+    const root = base.sessions.find((session) => session.id === 'sess-control-plane')!
+    const unregistered = { ...root, projectId: null, repository: 'example/elsewhere' }
+    const output: string[] = []
+
+    await runExplainCommand(['Revise calm'], {
+      snapshot: async () => ({ ...base, sessions: [unregistered] }),
+      write: (value) => output.push(value),
+    })
+
+    expect(output.join('')).toContain('\nProject: example/elsewhere\n')
+  })
+
+  test('says No project when a session has neither a project nor a repository', async () => {
+    const base = snapshot()
+    const root = base.sessions.find((session) => session.id === 'sess-control-plane')!
+    const loose = { ...root, projectId: null, repository: null }
+    const output: string[] = []
+
+    await runExplainCommand(['Revise calm'], {
+      snapshot: async () => ({ ...base, sessions: [loose] }),
+      write: (value) => output.push(value),
+    })
+
+    expect(output.join('')).toContain('\nProject: No project\n')
+  })
+
   test('reports aggregate child attention from the canonical classification', async () => {
     const base = snapshot()
     const root = base.sessions.find((session) => session.id === 'sess-control-plane')!

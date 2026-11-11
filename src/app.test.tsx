@@ -5,6 +5,7 @@ import { App } from '@/App'
 import { createFixtureSessionSource } from '@/adapters/fixtureSource'
 import type { AgentZenBridge } from '@/bridge/httpBridge'
 import type { BridgeSnapshot } from '@/bridge/types'
+import type { AgentSession } from '@/domain/types'
 import { selectUiPreferences, type UiPreferences } from '@/domain/preferences'
 import { STORAGE_KEY, createInitialState } from '@/state/persistence'
 import { SEED_PROJECTS, seedIdeas, seedLogbook } from '@/state/seed'
@@ -26,6 +27,33 @@ function mount(storage: Storage = createMemoryStorage()) {
     </AgentZenProvider>,
   )
   return { ...view, storage, user: userEvent.setup({ document }) }
+}
+
+/** Like mount, but with the fixture sessions passed through `edit` first. */
+function mountWithSessions(
+  storage: Storage,
+  edit: (sessions: readonly AgentSession[]) => readonly AgentSession[],
+) {
+  seedTestState(storage)
+  const fixture = createFixtureSessionSource({ now: NOW, tickMs: 0 })
+  const sessions = edit(fixture.snapshot())
+  render(
+    <AgentZenProvider
+      source={{
+        ...fixture,
+        snapshot: () => sessions,
+        subscribe: (listener) => {
+          listener(sessions)
+          return () => undefined
+        },
+      }}
+      now={NOW}
+      storage={storage}
+    >
+      <App />
+    </AgentZenProvider>,
+  )
+  return { user: userEvent.setup({ document }) }
 }
 
 function seedTestState(storage: Storage): Storage {
@@ -220,6 +248,26 @@ describe('the board', () => {
       }),
     ).toBeNull()
     expect(within(column('Running')).getByText('1 subagent')).toBeInTheDocument()
+  })
+
+  it('names a session in an unregistered repository by that repository', () => {
+    const storage = createMemoryStorage()
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...createInitialState(NOW),
+        projects: SEED_PROJECTS.filter((project) => project.id !== 'data-pipeline'),
+        ideas: seedIdeas(NOW),
+        logbook: seedLogbook(NOW),
+      }),
+    )
+
+    mount(storage)
+
+    const card = screen.getByText('Retire dask join helpers').closest('article')
+    expect(card).not.toBeNull()
+    expect(within(card!).getByText('example/data-pipeline', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.queryByText(/Outside a Git project/)).toBeNull()
   })
 
   it('can hide collapsed lanes and disable the Needs you lane highlight', async () => {
@@ -674,6 +722,43 @@ describe('navigation', () => {
     expect(screen.getByRole('combobox', { name: 'Group sessions by' })).toHaveValue('state')
   })
 
+  it.each(['Kanban', 'Grid'])(
+    'labels only unregistered repositories when the %s layout groups by project',
+    async (layoutName) => {
+      const storage = createMemoryStorage()
+      storage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          ...createInitialState(NOW),
+          projects: SEED_PROJECTS.filter((project) => project.id !== 'data-pipeline'),
+          ideas: seedIdeas(NOW),
+          logbook: seedLogbook(NOW),
+        }),
+      )
+      const { user } = mountWithSessions(storage, (sessions) =>
+        sessions.map((session) =>
+          session.title === 'Harbor canary review'
+            ? { ...session, projectId: null, repository: null }
+            : session,
+        ),
+      )
+      const layout = screen.getByRole('group', { name: 'Session layout' })
+      await user.click(within(layout).getByRole('button', { name: layoutName }))
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Group sessions by' }), 'project')
+
+      const unregistered = screen.getByText('Retire dask join helpers').closest('article')
+      const registered = screen.getByText('Revise calm control plane').closest('article')
+      const loose = screen.getByText('Harbor canary review').closest('article')
+      expect(unregistered).not.toBeNull()
+      expect(registered).not.toBeNull()
+      expect(loose).not.toBeNull()
+      expect(within(unregistered!).getByText(/example\/data-pipeline$/, { selector: 'span' })).toBeInTheDocument()
+      expect(within(registered!).queryByText(/agent-zen$/, { selector: 'span' })).toBeNull()
+      expect(within(loose!).queryByText(/No project$/, { selector: 'span' })).toBeNull()
+    },
+  )
+
   it('lets the command palette enable project grouping from Kanban when Grid stores state grouping', async () => {
     const storage = seedTestState(createMemoryStorage())
     const persisted = JSON.parse(storage.getItem(STORAGE_KEY)!)
@@ -765,6 +850,20 @@ describe('session detail', () => {
     expect(within(screen.getByRole('dialog')).getByText(
       'Plan mode is active; no plan has been published.',
     )).toBeInTheDocument()
+  })
+
+  it('does not repeat Idle in the subtitle of an idle session', async () => {
+    const { user } = mountWithSessions(createMemoryStorage(), (sessions) =>
+      sessions.map((session) =>
+        session.id === 'sess-control-plane'
+          ? { ...session, activity: 'idle' as const, turnOutcome: 'completed' as const }
+          : session,
+      ),
+    )
+
+    await user.click(within(column('Idle')).getByText('Revise calm control plane'))
+
+    expect(within(screen.getByRole('dialog')).getByText('Idle · agent-zen')).toBeInTheDocument()
   })
 
   it('shows the Codex plan as read-only and keeps the Logbook human-only', async () => {

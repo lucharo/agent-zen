@@ -62,7 +62,7 @@ attached to the GitHub Release for the current version.
 
 ```bash
 brew tap lucharo/agent-zen https://github.com/lucharo/agent-zen.git
-brew trust --tap lucharo/agent-zen   # Homebrew 6 loads no third-party tap it has not been told to trust
+brew trust --tap lucharo/agent-zen   # Homebrew 6 and later load no third-party tap it has not been told to trust
 brew install --cask agent-zen
 brew upgrade --cask agent-zen        # after a new release
 ```
