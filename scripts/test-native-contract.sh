@@ -19,3 +19,10 @@ CLANG_MODULE_CACHE_PATH="$temporary_dir/module-cache" xcrun swiftc \
   qa/native/BridgeProtocolTests.swift \
   -o "$temporary_dir/bridge-protocol-tests"
 "$temporary_dir/bridge-protocol-tests"
+
+CLANG_MODULE_CACHE_PATH="$temporary_dir/module-cache" xcrun swiftc \
+  -parse-as-library \
+  native/BunLocator.swift \
+  qa/native/BunLocatorTests.swift \
+  -o "$temporary_dir/bun-locator-tests"
+"$temporary_dir/bun-locator-tests"

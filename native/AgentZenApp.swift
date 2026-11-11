@@ -280,6 +280,10 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
         do {
             try launchBridge(upstreamPort: upstreamPort, frontendBuildId: frontendBuildId)
+        } catch BridgeLaunchError.bunMissing {
+            showLaunchFailure(bunMissingMessage)
+            showBunMissingAlert()
+            return
         } catch {
             showLaunchFailure("Could not start the local agent bridge: \(error.localizedDescription)")
             return
@@ -306,8 +310,14 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     private func launchBridge(upstreamPort: Int?, frontendBuildId: String) throws {
         let resources = Bundle.main.resourceURL!
-        let executable = resources.appendingPathComponent("agent-zen-bridge")
+        let bundle = resources.appendingPathComponent("agent-zen-bridge.js")
         let dist = resources.appendingPathComponent("dist")
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let inheritedPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        // The bridge is a JavaScript bundle run by the user's own Bun, not a compiled runtime.
+        guard let bun = locateBun(home: home, inheritedPath: inheritedPath) else {
+            throw BridgeLaunchError.bunMissing
+        }
 
         let logDirectory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".agent-zen")
         try FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
@@ -319,9 +329,8 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         try bridgeLog?.seekToEnd()
 
         let process = Process()
-        process.executableURL = executable
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let inheritedPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        process.executableURL = URL(fileURLWithPath: bun)
+        process.arguments = ["--smol", bundle.path]
         let executablePaths = [
             "\(home)/.local/bin",
             "\(home)/.bun/bin",
@@ -436,6 +445,16 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         statusTimer = Timer.scheduledTimer(withTimeInterval: statusRefreshInterval, repeats: false) { [weak self] _ in
             self?.refreshStatusSummary()
         }
+    }
+
+    private func showBunMissingAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Agent Zen needs Bun"
+        alert.informativeText = "Install it with Homebrew, then open Agent Zen again:\n\nbrew install bun"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     private func showLaunchFailure(_ message: String) {
@@ -616,4 +635,8 @@ private func stageBarsImage(running: Int, reviewing: Int, wrapping: Int) -> NSIm
     image.isTemplate = true
     image.accessibilityDescription = "Agent Zen session stages"
     return image
+}
+
+private enum BridgeLaunchError: Error {
+    case bunMissing
 }

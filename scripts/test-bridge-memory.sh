@@ -24,11 +24,11 @@ if curl -fsS "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; then
 fi
 
 cd "$repo_root"
-bun build --compile --compile-exec-argv=--smol server/index.ts --outfile "$temporary_dir/agent-zen-bridge" >/dev/null
+bun build --target=bun --minify server/index.ts --outfile "$temporary_dir/agent-zen-bridge.js" >/dev/null
 
 AGENT_ZEN_PORT="$port" \
 AGENT_ZEN_DIST_DIR="$repo_root/dist" \
-  "$temporary_dir/agent-zen-bridge" >"$temporary_dir/bridge.log" 2>&1 &
+  bun --smol "$temporary_dir/agent-zen-bridge.js" >"$temporary_dir/bridge.log" 2>&1 &
 bridge_pid="$!"
 
 health_reports_connected_codex() {

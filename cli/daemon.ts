@@ -7,6 +7,8 @@ export const DAEMON_STOP_TIMEOUT_MS = 15_000
 
 export interface DaemonPaths {
   readonly cliPath: string
+  /** The user's Bun, which runs the bundled server; the CLI ships no runtime of its own. */
+  readonly bunPath: string
   readonly serverPath: string
   readonly distDirectory: string
   readonly dataDirectory: string
@@ -50,14 +52,14 @@ export interface WaitUntilOptions {
 
 export function defaultDaemonPaths(options: {
   readonly home: string
-  readonly executablePath: string
-  readonly prefix?: string
+  readonly prefix: string
+  readonly bunPath: string
 }): DaemonPaths {
-  const cliPath = resolve(options.executablePath)
-  const prefix = resolve(options.prefix ?? dirname(dirname(cliPath)))
+  const prefix = resolve(options.prefix)
   return {
-    cliPath,
-    serverPath: join(prefix, 'libexec', 'agent-zen', 'agent-zen-server'),
+    cliPath: join(prefix, 'bin', 'agent-zen'),
+    bunPath: options.bunPath,
+    serverPath: join(prefix, 'libexec', 'agent-zen', 'server.js'),
     distDirectory: join(prefix, 'share', 'agent-zen', 'dist'),
     dataDirectory: join(options.home, '.agent-zen'),
     logPath: join(options.home, '.agent-zen', 'daemon.log'),
@@ -65,9 +67,39 @@ export function defaultDaemonPaths(options: {
   }
 }
 
+/** The prefix an installed CLI bundle lives under: `<prefix>/libexec/agent-zen/cli.js`. */
+export function installedPrefix(bundlePath: string): string {
+  return dirname(dirname(dirname(resolve(bundlePath))))
+}
+
+/**
+ * Where Bun is looked for, in order. The stable install paths come before PATH so the launch
+ * agent never pins a versioned Homebrew Cellar path that `brew upgrade` later removes.
+ */
+export function bunCandidates(home: string, pathEnv: string): string[] {
+  return [
+    '/opt/homebrew/bin/bun',
+    '/usr/local/bin/bun',
+    join(home, '.bun', 'bin', 'bun'),
+    ...pathEnv.split(':').filter(Boolean).map((directory) => join(directory, 'bun')),
+  ].filter((candidate, index, all) => all.indexOf(candidate) === index)
+}
+
+export async function locateBun(
+  home: string,
+  pathEnv: string,
+  isExecutable: (path: string) => Promise<boolean>,
+): Promise<string | null> {
+  for (const candidate of bunCandidates(home, pathEnv)) {
+    if (await isExecutable(candidate)) return candidate
+  }
+  return null
+}
+
 export function renderLaunchAgent(paths: DaemonPaths, options: LaunchAgentOptions): string {
   const values = {
     label: xml(DAEMON_LABEL),
+    bunPath: xml(paths.bunPath),
     serverPath: xml(paths.serverPath),
     dataDirectory: xml(paths.dataDirectory),
     logPath: xml(paths.logPath),
@@ -85,6 +117,8 @@ export function renderLaunchAgent(paths: DaemonPaths, options: LaunchAgentOption
   <string>${values.label}</string>
   <key>ProgramArguments</key>
   <array>
+    <string>${values.bunPath}</string>
+    <string>--smol</string>
     <string>${values.serverPath}</string>
   </array>
   <key>WorkingDirectory</key>

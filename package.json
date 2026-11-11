@@ -8,7 +8,7 @@
     "dev": "vite",
     "bridge": "bun run server/index.ts",
     "build": "tsc --noEmit && vite build",
-    "build:cli": "mkdir -p build/cli && bun build --compile cli/index.ts --outfile build/cli/agent-zen && bun build --compile server/index.ts --outfile build/cli/agent-zen-server",
+    "build:cli": "mkdir -p build/cli && bun build --target=bun --minify cli/index.ts --outfile build/cli/cli.js && bun build --target=bun --minify server/index.ts --outfile build/cli/server.js",
     "install:cli": "./scripts/install-cli.sh",
     "build:macos": "./scripts/build-macos-app.sh",
     "release:macos": "./scripts/release-macos.sh",

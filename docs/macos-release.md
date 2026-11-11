@@ -39,10 +39,11 @@ ad-hoc signatures.
 
 ## What the release command does
 
-1. Builds `build/Agent Zen.app` with `scripts/build-macos-app.sh`: the Bun
-   bridge is signed first with its JavaScriptCore JIT entitlements, then the
-   AppKit executable and the bundle, all with hardened runtime and a secure
-   timestamp.
+1. Builds `build/Agent Zen.app` with `scripts/build-macos-app.sh`: the bridge
+   is a minified JavaScript bundle in `Resources/agent-zen-bridge.js`, run at
+   launch by the user's own Bun (the cask depends on the `bun` formula), so it
+   carries no runtime and needs no signature of its own. The AppKit executable
+   and the bundle are signed with hardened runtime and a secure timestamp.
 2. Notarises the app and staples the ticket into the bundle.
 3. Builds a component package that installs `Agent Zen.app` into
    `/Applications`, wraps it with `productbuild`, signs it with Developer ID

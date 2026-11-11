@@ -13,6 +13,7 @@ cask "agent-zen" do
   homepage "https://github.com/lucharo/agent-zen"
 
   depends_on macos: :sonoma
+  depends_on formula: "bun"
 
   app "Agent Zen.app"
 end

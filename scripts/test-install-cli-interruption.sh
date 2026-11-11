@@ -10,7 +10,7 @@ trap cleanup EXIT
 
 installed_dist="$test_prefix/share/agent-zen/dist"
 installed_cli="$test_prefix/bin/agent-zen"
-installed_server="$test_prefix/libexec/agent-zen/agent-zen-server"
+installed_server="$test_prefix/libexec/agent-zen/server.js"
 mkdir -p "$installed_dist"
 mkdir -p "${installed_cli:h}" "${installed_server:h}"
 print -r -- 'previous release' > "$installed_dist/previous.txt"
