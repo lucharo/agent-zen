@@ -34,28 +34,28 @@ previous_cli="$install_stage/previous-agent-zen"
 previous_libexec="$install_stage/previous-libexec"
 previous_assets="$install_stage/previous-dist"
 install_committed=0
+published_cli=0
+published_libexec=0
+published_assets=0
+
+# Undo only what this run changed: restore a destination it backed up, remove one it
+# published without a backup, and leave everything else exactly as it was.
+restore_part() {
+  local destination="$1" previous="$2" published="$3"
+  if [[ -e "$previous" ]]; then
+    rm -rf "$destination"
+    mv "$previous" "$destination" || true
+  elif [[ "$published" == 1 ]]; then
+    rm -rf "$destination"
+  fi
+}
 
 cleanup_install() {
   local exit_code=$?
   if [[ "$install_committed" != 1 ]]; then
-    if [[ -f "$previous_cli" ]]; then
-      rm -f "$bin_dir/agent-zen"
-      mv "$previous_cli" "$bin_dir/agent-zen" || true
-    elif [[ ! -f "$current_cli" ]]; then
-      rm -f "$bin_dir/agent-zen"
-    fi
-    if [[ -d "$previous_libexec" ]]; then
-      rm -rf "$libexec_dir"
-      mv "$previous_libexec" "$libexec_dir" || true
-    elif [[ ! -d "$current_libexec" ]]; then
-      rm -rf "$libexec_dir"
-    fi
-    if [[ -d "$previous_assets" ]]; then
-      rm -rf "$share_dir"
-      mv "$previous_assets" "$share_dir" || true
-    elif [[ ! -d "$current_assets" ]]; then
-      rm -rf "$share_dir"
-    fi
+    restore_part "$bin_dir/agent-zen" "$previous_cli" "$published_cli"
+    restore_part "$libexec_dir" "$previous_libexec" "$published_libexec"
+    restore_part "$share_dir" "$previous_assets" "$published_assets"
   fi
   rm -rf "$install_stage"
   return "$exit_code"
@@ -63,6 +63,9 @@ cleanup_install() {
 trap cleanup_install EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+if [[ "${AGENT_ZEN_TEST_INTERRUPT_BEFORE_STAGING:-0}" == 1 ]]; then
+  kill -TERM $$
+fi
 
 cat > "$current_cli" <<'LAUNCHER'
 #!/bin/sh
@@ -94,8 +97,11 @@ if [[ "${AGENT_ZEN_TEST_INTERRUPT_AFTER_ASSET_BACKUP:-0}" == 1 ]]; then
   kill -TERM $$
 fi
 mv "$current_cli" "$bin_dir/agent-zen"
+published_cli=1
 mv "$current_libexec" "$libexec_dir"
+published_libexec=1
 mv "$current_assets" "$share_dir"
+published_assets=1
 install_committed=1
 trap - EXIT
 rm -rf "$install_stage"

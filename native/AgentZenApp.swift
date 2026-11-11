@@ -447,6 +447,18 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
     }
 
+    /// A missing Bun is the one launch failure the user fixes outside the app, so opening
+    /// Agent Zen again retries the bridge once Bun is installed instead of repeating the error.
+    private func retryBridgeAfterBunInstall() {
+        guard launchFailureMessage == bunMissingMessage, bridgeProcess == nil else { return }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let inheritedPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        guard locateBun(home: home, inheritedPath: inheritedPath) != nil else { return }
+        launchFailureMessage = nil
+        statusSummaryItem.title = "Connecting to your agents…"
+        startBridgeAndLoad()
+    }
+
     private func showBunMissingAlert() {
         let alert = NSAlert()
         alert.messageText = "Agent Zen needs Bun"
@@ -496,6 +508,7 @@ final class AgentZenApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     private func show(surface: WindowSurface) {
+        retryBridgeAfterBunInstall()
         configureWindow()
         guard let window else { return }
 
