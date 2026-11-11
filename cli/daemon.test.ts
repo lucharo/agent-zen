@@ -3,10 +3,13 @@ import {
   canReuseHealthyDaemon,
   DAEMON_LABEL,
   DAEMON_START_TIMEOUT_MS,
+  bunCandidates,
   defaultDaemonPaths,
   hasManagedDaemonStopped,
+  installedPrefix,
   isLaunchAtLoginConfigured,
   isOwnedHealthy,
+  locateBun,
   parseDaemonHealth,
   parseLaunchAtLoginEnabled,
   parseLogLineCount,
@@ -23,10 +26,12 @@ describe('Agent Zen daemon contract', () => {
   test('places installed assets beneath the CLI prefix and state beneath home', () => {
     expect(defaultDaemonPaths({
       home: '/Users/tester',
-      executablePath: '/Users/tester/.local/bin/agent-zen',
+      prefix: '/Users/tester/.local',
+      bunPath: '/opt/homebrew/bin/bun',
     })).toEqual({
       cliPath: '/Users/tester/.local/bin/agent-zen',
-      serverPath: '/Users/tester/.local/libexec/agent-zen/agent-zen-server',
+      bunPath: '/opt/homebrew/bin/bun',
+      serverPath: '/Users/tester/.local/libexec/agent-zen/server.js',
       distDirectory: '/Users/tester/.local/share/agent-zen/dist',
       dataDirectory: '/Users/tester/.agent-zen',
       logPath: '/Users/tester/.agent-zen/daemon.log',
@@ -37,7 +42,8 @@ describe('Agent Zen daemon contract', () => {
   test('renders a launch-at-login service with explicit local paths', () => {
     const paths = defaultDaemonPaths({
       home: '/Users/tester',
-      executablePath: '/Users/tester/.local/bin/agent-zen',
+      prefix: '/Users/tester/.local',
+      bunPath: '/opt/homebrew/bin/bun',
     })
     const plist = renderLaunchAgent(paths, {
       codexPath: '/Users/tester/.local/bin/codex',
@@ -48,7 +54,14 @@ describe('Agent Zen daemon contract', () => {
     expect(plist).toContain(`<string>${DAEMON_LABEL}</string>`)
     expect(plist).toContain('<key>KeepAlive</key>\n  <true/>')
     expect(plist).toContain('<key>RunAtLoad</key>\n  <true/>')
-    expect(plist).toContain('<string>/Users/tester/.local/libexec/agent-zen/agent-zen-server</string>')
+    expect(plist).toContain([
+      '  <key>ProgramArguments</key>',
+      '  <array>',
+      '    <string>/opt/homebrew/bin/bun</string>',
+      '    <string>--smol</string>',
+      '    <string>/Users/tester/.local/libexec/agent-zen/server.js</string>',
+      '  </array>',
+    ].join('\n'))
     expect(plist).toContain('<key>AGENT_ZEN_DIST_DIR</key>')
     expect(plist).toContain('<string>/Users/tester/.local/share/agent-zen/dist</string>')
     expect(plist).toContain('<key>AGENT_ZEN_CODEX_PATH</key>')
@@ -58,13 +71,37 @@ describe('Agent Zen daemon contract', () => {
   test('escapes generated plist values', () => {
     const paths = defaultDaemonPaths({
       home: '/Users/test & co',
-      executablePath: '/Users/test & co/.local/bin/agent-zen',
+      prefix: '/Users/test & co/.local',
+      bunPath: '/opt/homebrew/bin/bun',
     })
     expect(renderLaunchAgent(paths, {
       codexPath: '/Applications/Codex & Friends/codex',
       port: 5274,
       path: '/usr/bin:/bin',
     })).toContain('/Users/test &amp; co')
+  })
+
+  test('finds the installed prefix from the bundled CLI path', () => {
+    expect(installedPrefix('/Users/tester/.local/libexec/agent-zen/cli.js')).toBe('/Users/tester/.local')
+  })
+
+  test('looks for Bun in the stable install paths before PATH', () => {
+    expect(bunCandidates('/Users/tester', '/opt/homebrew/bin:/custom/bin')).toEqual([
+      '/opt/homebrew/bin/bun',
+      '/usr/local/bin/bun',
+      '/Users/tester/.bun/bin/bun',
+      '/custom/bin/bun',
+    ])
+  })
+
+  test('prefers a ~/.bun install over a Bun found only on PATH', async () => {
+    const found = await locateBun('/Users/tester', '/custom/bin', async (path) =>
+      path === '/Users/tester/.bun/bin/bun' || path === '/custom/bin/bun')
+    expect(found).toBe('/Users/tester/.bun/bin/bun')
+  })
+
+  test('reports no Bun when none is installed', async () => {
+    expect(await locateBun('/Users/tester', '/custom/bin', async () => false)).toBeNull()
   })
 
   test('reads launchd state and pid without treating an unloaded service as running', () => {

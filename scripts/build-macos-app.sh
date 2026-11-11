@@ -38,11 +38,14 @@ xcrun swiftc \
   -framework WebKit \
   native/AgentZenApp.swift \
   native/BridgeProtocol.swift \
+  native/BunLocator.swift \
   native/GlobalShortcut.swift \
   "$native_configuration" \
   -o "$macos_dir/Agent Zen"
 
-bun build --compile --compile-exec-argv=--smol server/index.ts --outfile "$resources_dir/agent-zen-bridge"
+# The bridge ships as a JavaScript bundle that the user's Bun runs (the cask depends on it),
+# not as a compiled binary carrying its own copy of the runtime.
+bun build --target=bun --minify server/index.ts --outfile "$resources_dir/agent-zen-bridge.js"
 ditto dist "$resources_dir/dist"
 cp native/Info.plist "$contents_dir/Info.plist"
 
@@ -60,12 +63,10 @@ if [[ -n "$signing_identity" ]]; then
   if [[ "$signing_identity" == Developer\ ID\ Application:* ]]; then
     sign_flags+=(--timestamp)
   fi
-  codesign "${sign_flags[@]}" --entitlements native/bridge.entitlements.plist "$resources_dir/agent-zen-bridge"
   codesign "${sign_flags[@]}" "$macos_dir/Agent Zen"
   codesign "${sign_flags[@]}" "$app_dir"
   echo "Signed with: $signing_identity"
 else
-  codesign --force --options runtime --sign - --entitlements native/bridge.entitlements.plist "$resources_dir/agent-zen-bridge"
   codesign --force --options runtime --sign - "$macos_dir/Agent Zen"
   codesign --force --options runtime --sign - "$app_dir"
   echo "Warning: no Apple signing identity found; created an ad-hoc build that managed Macs may block." >&2

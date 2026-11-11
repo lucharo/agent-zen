@@ -12,6 +12,8 @@ import {
   DAEMON_START_TIMEOUT_MS,
   DAEMON_STOP_TIMEOUT_MS,
   defaultDaemonPaths,
+  installedPrefix,
+  locateBun,
   hasManagedDaemonStopped,
   isLaunchAtLoginConfigured,
   isOwnedHealthy,
@@ -128,8 +130,9 @@ async function runtime(): Promise<Runtime> {
   const port = positiveInteger(process.env.AGENT_ZEN_PORT, DEFAULT_PORT)
   const paths = defaultDaemonPaths({
     home,
-    executablePath: process.execPath,
-    prefix: process.env.AGENT_ZEN_PREFIX,
+    prefix: process.env.AGENT_ZEN_PREFIX ?? installedPrefix(Bun.main),
+    // This process already runs under Bun; prefer a stable install path for the launch agent.
+    bunPath: await locateBun(home, process.env.PATH ?? '', executable) ?? process.execPath,
   })
   const overriddenPaths: DaemonPaths = {
     ...paths,
@@ -324,7 +327,7 @@ async function showLogs(args: readonly string[]): Promise<void> {
 async function runForeground(): Promise<void> {
   const current = await runtime()
   await assertInstalledAssets(current)
-  const child = Bun.spawn([current.paths.serverPath], {
+  const child = Bun.spawn([current.paths.bunPath, '--smol', current.paths.serverPath], {
     env: {
       ...process.env,
       HOME: homedir(),
@@ -432,7 +435,7 @@ function unmanagedServerError(
 }
 
 async function assertInstalledAssets(current: Runtime): Promise<void> {
-  if (!(await executable(current.paths.serverPath))) {
+  if (!(await exists(current.paths.serverPath))) {
     throw new Error(`Agent Zen server is not installed at ${current.paths.serverPath}. Run bun run install:cli from the repository.`)
   }
   if (!(await exists(join(current.paths.distDirectory, 'index.html')))) {

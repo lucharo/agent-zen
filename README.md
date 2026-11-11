@@ -40,7 +40,7 @@ Cards are grouped and filtered by project. Agent Zen discovers projects from Git
 
 ## Install
 
-**The Mac app.** The notarised app installs from this repository's Homebrew tap. Homebrew 6 and later ask you to trust a third-party tap first. It needs macOS Sonoma or newer, and Codex or Claude Code already in use.
+**The Mac app.** The notarised app installs from this repository's Homebrew tap. Homebrew 6 and later ask you to trust a third-party tap first. It needs macOS Sonoma or newer, and Codex or Claude Code already in use. It also needs [Bun](https://bun.sh), which runs its small bridge; the cask installs Bun for you.
 
 ```sh
 brew tap lucharo/agent-zen https://github.com/lucharo/agent-zen.git
